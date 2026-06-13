@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { getDashboardPayload } from "../api/analyticsApi";
+import {
+  buildForecastFromRows,
+  buildOverviewTrends,
+  getCustomerRecords,
+  getOrderRecords,
+  getOverviewKpis,
+  getStockRecords
+} from "../api/analyticsApi";
 import { ForecastPoint, KpiCardData, TableRecord, TrendPoint } from "../types/analytics";
 import { useFilters } from "./useFilters";
 
@@ -8,6 +15,9 @@ type DashboardDataState = {
   trends: TrendPoint[];
   rows: TableRecord[];
   forecast: ForecastPoint[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
   isLoading: boolean;
   error: string | null;
 };
@@ -17,11 +27,14 @@ const initialState: DashboardDataState = {
   trends: [],
   rows: [],
   forecast: [],
+  page: 1,
+  pageSize: 50,
+  totalCount: 0,
   isLoading: true,
   error: null
 };
 
-export function useDashboardData() {
+export function useDashboardData(domain: "overview" | "orders" | "customers" | "stock" | "forecast", page = 1, pageSize = 50) {
   const { filters } = useFilters();
   const [state, setState] = useState<DashboardDataState>(initialState);
 
@@ -29,35 +42,45 @@ export function useDashboardData() {
     let isSubscribed = true;
     setState((previous) => ({ ...previous, isLoading: true, error: null }));
 
-    getDashboardPayload(filters)
-      .then((payload) => {
+    Promise.all([
+      getOverviewKpis(filters),
+      domain === "orders" || domain === "overview" || domain === "forecast"
+        ? getOrderRecords(filters, page, pageSize)
+        : domain === "customers"
+          ? getCustomerRecords(filters, page, pageSize)
+          : getStockRecords(filters, page, pageSize)
+    ])
+      .then(([kpis, paged]) => {
         if (!isSubscribed) {
           return;
         }
         setState({
-          kpis: payload.kpis,
-          trends: payload.trends,
-          rows: payload.rows,
-          forecast: payload.forecast,
+          kpis,
+          trends: buildOverviewTrends(paged.records),
+          rows: paged.records,
+          forecast: buildForecastFromRows(paged.records),
+          page: paged.page,
+          pageSize: paged.pageSize,
+          totalCount: paged.totalCount,
           isLoading: false,
           error: null
         });
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!isSubscribed) {
           return;
         }
         setState((previous) => ({
           ...previous,
           isLoading: false,
-          error: "Failed to load analytics data."
+          error: error instanceof Error ? error.message : "Failed to load analytics data."
         }));
       });
 
     return () => {
       isSubscribed = false;
     };
-  }, [filters]);
+  }, [domain, filters, page, pageSize]);
 
   return state;
 }

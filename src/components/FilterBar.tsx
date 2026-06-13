@@ -28,13 +28,28 @@ function FilterBar() {
               select
               value={filters.orderStatus}
               onChange={(event) =>
-                updateFilter("orderStatus", event.target.value as "all" | "processing" | "completed" | "on-hold")
+                updateFilter(
+                  "orderStatus",
+                  event.target.value as
+                    | "all"
+                    | "processing"
+                    | "completed"
+                    | "on-hold"
+                    | "active"
+                    | "inactive"
+                    | "instock"
+                    | "outofstock"
+                )
               }
             >
               <MenuItem value="all">All statuses</MenuItem>
               <MenuItem value="processing">Processing</MenuItem>
               <MenuItem value="completed">Completed</MenuItem>
               <MenuItem value="on-hold">On hold</MenuItem>
+              <MenuItem value="active">Active customers</MenuItem>
+              <MenuItem value="inactive">Inactive customers</MenuItem>
+              <MenuItem value="instock">In stock</MenuItem>
+              <MenuItem value="outofstock">Out of stock</MenuItem>
             </TextField>
           </Grid>
           <Grid item xs={12} md={6}>

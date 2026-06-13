@@ -7,7 +7,7 @@ import TrendsChartPanel from "../components/TrendsChartPanel";
 import { useDashboardData } from "../hooks/useDashboardData";
 
 function OverviewPage() {
-  const { kpis, trends, rows, forecast, isLoading, error } = useDashboardData();
+  const { kpis, trends, rows, forecast, isLoading, error, page, pageSize, totalCount } = useDashboardData("overview", 1, 20);
   const showContent = !isLoading && !error && kpis.length > 0;
 
   return (
@@ -27,7 +27,14 @@ function OverviewPage() {
               <ForecastPanel forecast={forecast} />
             </Grid>
             <Grid item xs={12}>
-              <DataTablePanel title="Top Performing Products" rows={rows} />
+              <DataTablePanel
+                title="Orders Extract Sample"
+                rows={rows}
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={() => undefined}
+              />
             </Grid>
           </Grid>
         </>

@@ -4,7 +4,7 @@ import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 
 function ForecastPage() {
-  const { forecast, isLoading, error } = useDashboardData();
+  const { forecast, isLoading, error } = useDashboardData("forecast", 1, 20);
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={700}>

@@ -1,129 +1,191 @@
-import { AppFilterState, ForecastPoint, KpiCardData, TableRecord, TrendPoint } from "../types/analytics";
+import { AppFilterState, ForecastPoint, KpiCardData, PaginatedRecords, TableRecord, TrendPoint } from "../types/analytics";
 import { formatCurrency, formatNumber, summarizeDelta } from "../lib/format";
+import { fetchJson } from "./httpClient";
 
-type DashboardPayload = {
-  kpis: KpiCardData[];
-  trends: TrendPoint[];
-  rows: TableRecord[];
-  forecast: ForecastPoint[];
+type OrdersOverviewResponse = {
+  total_orders: number;
+  total_revenue: number;
 };
 
-type ServiceOverview = {
-  dimension: string;
-  status: string;
-  total_orders?: number;
-  total_revenue?: number;
-  customer_count?: number;
-  out_of_stock_skus?: number;
+type CustomersOverviewResponse = {
+  customer_count: number;
 };
 
-const apiBaseUrl = (import.meta.env.VITE_ANALYTICS_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
+type StockOverviewResponse = {
+  out_of_stock_skus: number;
+};
 
-async function fetchOverview(path: string): Promise<ServiceOverview | null> {
-  if (!apiBaseUrl) {
-    return null;
-  }
-  try {
-    const response = await fetch(`${apiBaseUrl}/api/v1/${path}`);
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as ServiceOverview;
-  } catch {
-    return null;
-  }
-}
+type PaginatedResponse<T> = {
+  records: T[];
+  page: number;
+  page_size: number;
+  total_count: number;
+};
 
-function seededScale(filter: AppFilterState): number {
-  const dateFactor = filter.dateRange === "7d" ? 0.35 : filter.dateRange === "30d" ? 1 : 2.3;
-  const statusFactor = filter.orderStatus === "all" ? 1 : 0.62;
-  const searchFactor = filter.searchText.trim().length > 0 ? 0.75 : 1;
-  return dateFactor * statusFactor * searchFactor;
-}
+type OrdersRow = {
+  order_date: string;
+  order_status: string;
+  order_count: number;
+  order_revenue: number;
+};
 
-export async function getDashboardPayload(filter: AppFilterState): Promise<DashboardPayload> {
-  const [ordersOverview, customersOverview, stockOverview] = await Promise.all([
-    fetchOverview("orders/overview"),
-    fetchOverview("customers/overview"),
-    fetchOverview("stock/overview")
+type CustomersRow = {
+  customer_id: number;
+  order_count: number;
+  lifetime_value: number;
+  last_order_date: string | null;
+  is_active_customer: boolean;
+};
+
+type StockRow = {
+  snapshot_date: string;
+  product_id: number;
+  product_type: string;
+  sku: string;
+  stock_qty: number;
+  stock_status: string;
+};
+
+export async function getOverviewKpis(filter: AppFilterState): Promise<KpiCardData[]> {
+  const [orders, customers, stock] = await Promise.all([
+    fetchJson<OrdersOverviewResponse>("/api/v1/orders/overview"),
+    fetchJson<CustomersOverviewResponse>("/api/v1/customers/overview"),
+    fetchJson<StockOverviewResponse>("/api/v1/stock/overview")
   ]);
 
-  const scale = seededScale(filter);
-  const orders = Math.round((ordersOverview?.total_orders ?? 1240) * scale);
-  const revenue = Math.round((ordersOverview?.total_revenue ?? 262000) * scale);
-  const customers = Math.round((customersOverview?.customer_count ?? 470) * scale);
-  const stockAlerts = Math.max(2, Math.round((stockOverview?.out_of_stock_skus ?? 46) * scale));
-
-  const trends = Array.from({ length: 10 }).map((_, index) => ({
-    label: `T${index + 1}`,
-    orders: Math.round((80 + index * 7) * scale),
-    revenue: Math.round((16000 + index * 1300) * scale),
-    customers: Math.round((30 + index * 3) * scale),
-    stock: Math.max(0, Math.round((10 + index * 1.7) * scale))
-  }));
-
-  const rows: TableRecord[] = [
-    {
-      id: "1",
-      name: "Organic Soil Improver",
-      status: "processing",
-      metricA: Math.round(120 * scale),
-      metricB: Math.round(24000 * scale)
-    },
-    {
-      id: "2",
-      name: "Seaweed Concentrate",
-      status: "completed",
-      metricA: Math.round(88 * scale),
-      metricB: Math.round(17600 * scale)
-    },
-    {
-      id: "3",
-      name: "Microbial Blend",
-      status: "on-hold",
-      metricA: Math.round(42 * scale),
-      metricB: Math.round(8900 * scale)
-    }
-  ].filter((row) => (filter.orderStatus === "all" ? true : row.status === filter.orderStatus));
-
-  const forecast: ForecastPoint[] = [
-    { month: "Jul", actual: Math.round(82000 * scale), predicted: Math.round(86000 * scale) },
-    { month: "Aug", actual: Math.round(91000 * scale), predicted: Math.round(94000 * scale) },
-    { month: "Sep", actual: Math.round(97000 * scale), predicted: Math.round(102000 * scale) },
-    { month: "Oct", actual: Math.round(0 * scale), predicted: Math.round(110000 * scale) },
-    { month: "Nov", actual: Math.round(0 * scale), predicted: Math.round(118000 * scale) }
-  ];
-
-  const kpis: KpiCardData[] = [
+  return [
     {
       id: "orders",
       label: "Orders",
-      value: formatNumber(orders),
-      delta: summarizeDelta(8.2),
+      value: formatNumber(orders.total_orders ?? 0),
+      delta: summarizeDelta(0),
       positiveDelta: true
     },
     {
       id: "revenue",
       label: "Revenue",
-      value: formatCurrency(revenue),
-      delta: summarizeDelta(5.7),
+      value: formatCurrency(orders.total_revenue ?? 0),
+      delta: summarizeDelta(0),
       positiveDelta: true
     },
     {
       id: "customers",
       label: "Customers",
-      value: formatNumber(customers),
-      delta: summarizeDelta(2.4),
+      value: formatNumber(customers.customer_count ?? 0),
+      delta: summarizeDelta(0),
       positiveDelta: true
     },
     {
       id: "stockAlerts",
       label: "Stock Alerts",
-      value: formatNumber(stockAlerts),
-      delta: summarizeDelta(-3.9),
+      value: formatNumber(stock.out_of_stock_skus ?? 0),
+      delta: summarizeDelta(0),
       positiveDelta: false
     }
   ];
+}
 
-  return Promise.resolve({ kpis, trends, rows, forecast });
+export async function getOrderRecords(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const rangeDays = filter.dateRange === "7d" ? 7 : filter.dateRange === "30d" ? 30 : 90;
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    status: filter.orderStatus,
+    q: filter.searchText,
+    date_range_days: String(rangeDays)
+  });
+  const response = await fetchJson<PaginatedResponse<OrdersRow>>(`/api/v1/orders?${params.toString()}`);
+  return {
+    records: response.records.map((row) => ({
+      id: `${row.order_date}-${row.order_status}`,
+      name: row.order_date,
+      status: row.order_status,
+      metricA: row.order_count,
+      metricB: row.order_revenue,
+      meta: "Order day/status aggregate"
+    })),
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}
+
+export async function getCustomerRecords(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const mappedStatus =
+    filter.orderStatus === "active" || filter.orderStatus === "inactive" ? filter.orderStatus : "all";
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    status: mappedStatus,
+    q: filter.searchText
+  });
+  const response = await fetchJson<PaginatedResponse<CustomersRow>>(`/api/v1/customers?${params.toString()}`);
+  return {
+    records: response.records.map((row) => ({
+      id: String(row.customer_id),
+      name: `Customer #${row.customer_id}`,
+      status: row.is_active_customer ? "active" : "inactive",
+      metricA: row.order_count,
+      metricB: row.lifetime_value,
+      meta: row.last_order_date ? `Last order ${row.last_order_date}` : "No order date"
+    })),
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}
+
+export async function getStockRecords(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const mappedStatus = filter.orderStatus === "instock" ? "instock" : filter.orderStatus === "outofstock" ? "outofstock" : "all";
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    status: mappedStatus,
+    q: filter.searchText
+  });
+  const response = await fetchJson<PaginatedResponse<StockRow>>(`/api/v1/stock?${params.toString()}`);
+  return {
+    records: response.records.map((row) => ({
+      id: `${row.snapshot_date}-${row.product_id}`,
+      name: row.sku || `Product ${row.product_id}`,
+      status: row.stock_status,
+      metricA: row.stock_qty,
+      metricB: 0,
+      meta: `${row.product_type} | snapshot ${row.snapshot_date}`
+    })),
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}
+
+export function buildOverviewTrends(rows: TableRecord[]): TrendPoint[] {
+  return rows.slice(0, 12).map((row, index) => ({
+    label: String(index + 1),
+    orders: row.metricA,
+    revenue: row.metricB,
+    customers: 0,
+    stock: 0
+  }));
+}
+
+export function buildForecastFromRows(rows: TableRecord[]): ForecastPoint[] {
+  const base = rows.slice(0, 5);
+  return base.map((row, index) => ({
+    month: `M${index + 1}`,
+    actual: row.metricB,
+    predicted: Math.round(row.metricB * 1.08)
+  }));
 }

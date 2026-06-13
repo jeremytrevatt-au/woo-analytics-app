@@ -1,8 +1,11 @@
 import {
+  Box,
   Card,
   CardContent,
   CardHeader,
   Chip,
+  IconButton,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -10,15 +13,21 @@ import {
   TableRow,
   Typography
 } from "@mui/material";
+import { ChevronLeft, ChevronRight } from "@mui/icons-material";
 import { formatCurrency, formatNumber } from "../lib/format";
 import { TableRecord } from "../types/analytics";
 
 type Props = {
   title: string;
   rows: TableRecord[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  onPageChange: (page: number) => void;
 };
 
-function DataTablePanel({ title, rows }: Props) {
+function DataTablePanel({ title, rows, page, pageSize, totalCount, onPageChange }: Props) {
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   return (
     <Card>
       <CardHeader title={title} />
@@ -33,8 +42,8 @@ function DataTablePanel({ title, rows }: Props) {
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell align="right">Units</TableCell>
-                <TableCell align="right">Revenue</TableCell>
+                <TableCell align="right">Metric A</TableCell>
+                <TableCell align="right">Metric B</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -55,6 +64,21 @@ function DataTablePanel({ title, rows }: Props) {
             </TableBody>
           </Table>
         )}
+        <Box mt={2}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="caption" color="text.secondary">
+              Page {page} / {totalPages} | {totalCount} total records
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <IconButton size="small" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+                <ChevronLeft fontSize="small" />
+              </IconButton>
+              <IconButton size="small" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+                <ChevronRight fontSize="small" />
+              </IconButton>
+            </Stack>
+          </Stack>
+        </Box>
       </CardContent>
     </Card>
   );

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Stack, Typography } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import KpiGrid from "../components/KpiGrid";
@@ -6,7 +7,8 @@ import TrendsChartPanel from "../components/TrendsChartPanel";
 import { useDashboardData } from "../hooks/useDashboardData";
 
 function StockPage() {
-  const { kpis, trends, rows, isLoading, error } = useDashboardData();
+  const [page, setPage] = useState(1);
+  const { kpis, trends, rows, isLoading, error, totalCount, pageSize } = useDashboardData("stock", page, 50);
   const stockKpi = kpis.find((item) => item.id === "stockAlerts");
 
   return (
@@ -22,7 +24,14 @@ function StockPage() {
         <>
           <KpiGrid cards={stockKpi ? [stockKpi] : []} />
           <TrendsChartPanel title="Stock Trend" data={trends} />
-          <DataTablePanel title="Stock Snapshot" rows={rows} />
+          <DataTablePanel
+            title="Stock Records"
+            rows={rows}
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+          />
         </>
       ) : null}
     </Stack>

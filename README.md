@@ -35,9 +35,19 @@ Frontend analytics UX for Natural Yield WooCommerce data.
 1. This app can call `woo-analytics-service` when `VITE_ANALYTICS_API_BASE_URL` is set.
 2. Endpoints consumed:
    1. `/api/v1/orders/overview`
+   2. `/api/v1/orders`
    2. `/api/v1/customers/overview`
+   4. `/api/v1/customers`
    3. `/api/v1/stock/overview`
-3. If the API URL is not set or endpoint is unavailable, the app falls back to seeded demo values for UX continuity.
+   6. `/api/v1/stock`
+   7. `/api/v1/diagnostics/frontend-event`
+3. The app fails fast when API configuration or responses are invalid; no seeded fallback data is used.
+
+## Diagnostics
+
+1. A toggleable API debug panel is available in the lower-right corner of the UI.
+2. The panel shows request method, URL, status, timing, and error details.
+3. Debug events are mirrored to backend diagnostics endpoint for Cloud Logging visibility.
 
 ## Local run
 

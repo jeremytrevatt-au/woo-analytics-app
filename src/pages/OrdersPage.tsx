@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Stack, Typography } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import KpiGrid from "../components/KpiGrid";
@@ -6,7 +7,8 @@ import TrendsChartPanel from "../components/TrendsChartPanel";
 import { useDashboardData } from "../hooks/useDashboardData";
 
 function OrdersPage() {
-  const { kpis, trends, rows, isLoading, error } = useDashboardData();
+  const [page, setPage] = useState(1);
+  const { kpis, trends, rows, isLoading, error, totalCount, pageSize } = useDashboardData("orders", page, 50);
 
   return (
     <Stack spacing={2}>
@@ -21,7 +23,14 @@ function OrdersPage() {
         <>
           <KpiGrid cards={kpis.slice(0, 2)} />
           <TrendsChartPanel title="Orders Trend" data={trends} />
-          <DataTablePanel title="Orders by Product" rows={rows} />
+          <DataTablePanel
+            title="Orders Records"
+            rows={rows}
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+          />
         </>
       ) : null}
     </Stack>
