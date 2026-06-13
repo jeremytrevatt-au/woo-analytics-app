@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  buildForecastFromRows,
-  buildOverviewTrends,
+  buildForecastFromTrends,
   getCustomerRecords,
+  getCustomerTrends,
   getOrderRecords,
+  getOrderTrends,
   getOverviewKpis,
-  getStockRecords
+  getStockRecords,
+  getStockTrends,
 } from "../api/analyticsApi";
 import { ForecastPoint, KpiCardData, TableRecord, TrendPoint } from "../types/analytics";
 import { useFilters } from "./useFilters";
@@ -48,17 +50,22 @@ export function useDashboardData(domain: "overview" | "orders" | "customers" | "
         ? getOrderRecords(filters, page, pageSize)
         : domain === "customers"
           ? getCustomerRecords(filters, page, pageSize)
-          : getStockRecords(filters, page, pageSize)
+          : getStockRecords(filters, page, pageSize),
+      domain === "orders" || domain === "overview" || domain === "forecast"
+        ? getOrderTrends(filters)
+        : domain === "customers"
+          ? getCustomerTrends(filters)
+          : getStockTrends(filters)
     ])
-      .then(([kpis, paged]) => {
+      .then(([kpis, paged, trends]) => {
         if (!isSubscribed) {
           return;
         }
         setState({
           kpis,
-          trends: buildOverviewTrends(paged.records),
+          trends,
           rows: paged.records,
-          forecast: buildForecastFromRows(paged.records),
+          forecast: buildForecastFromTrends(trends),
           page: paged.page,
           pageSize: paged.pageSize,
           totalCount: paged.totalCount,

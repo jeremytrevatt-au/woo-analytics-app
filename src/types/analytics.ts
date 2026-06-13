@@ -1,5 +1,8 @@
 export type AppFilterState = {
-  dateRange: "7d" | "30d" | "90d";
+  dateRange: "custom";
+  granularity: "day" | "week" | "month" | "quarter" | "year";
+  startDate: string;
+  endDate: string;
   orderStatus: "all" | "processing" | "completed" | "on-hold" | "active" | "inactive" | "instock" | "outofstock";
   searchText: string;
 };
@@ -40,6 +43,16 @@ export type PaginatedRecords = {
   page: number;
   pageSize: number;
   totalCount: number;
+};
+
+export type StockForecastRecord = {
+  productId: number;
+  sku: string;
+  currentStockQty: number;
+  avgDailyUsage: number;
+  daysOfCover: number | null;
+  projectedStockoutDate: string | null;
+  reorderWithinLeadTime: boolean;
 };
 
 export type ApiDebugEvent = {

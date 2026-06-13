@@ -24,9 +24,10 @@ type Props = {
   pageSize: number;
   totalCount: number;
   onPageChange: (page: number) => void;
+  metricBAsCurrency?: boolean;
 };
 
-function DataTablePanel({ title, rows, page, pageSize, totalCount, onPageChange }: Props) {
+function DataTablePanel({ title, rows, page, pageSize, totalCount, onPageChange, metricBAsCurrency = true }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   return (
     <Card>
@@ -58,7 +59,9 @@ function DataTablePanel({ title, rows, page, pageSize, totalCount, onPageChange 
                     />
                   </TableCell>
                   <TableCell align="right">{formatNumber(row.metricA)}</TableCell>
-                  <TableCell align="right">{formatCurrency(row.metricB)}</TableCell>
+                  <TableCell align="right">
+                    {metricBAsCurrency ? formatCurrency(row.metricB) : formatNumber(row.metricB)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

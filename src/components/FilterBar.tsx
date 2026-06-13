@@ -8,17 +8,41 @@ function FilterBar() {
     <Card>
       <CardContent>
         <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
+          <Grid item xs={12} md={2}>
             <TextField
               fullWidth
-              label="Date range"
+              label="Start date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={filters.startDate}
+              onChange={(event) => updateFilter("startDate", event.target.value)}
+            />
+          </Grid>
+          <Grid item xs={12} md={2}>
+            <TextField
+              fullWidth
+              label="End date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={filters.endDate}
+              onChange={(event) => updateFilter("endDate", event.target.value)}
+            />
+          </Grid>
+          <Grid item xs={12} md={2}>
+            <TextField
+              fullWidth
+              label="Granularity"
               select
-              value={filters.dateRange}
-              onChange={(event) => updateFilter("dateRange", event.target.value as "7d" | "30d" | "90d")}
+              value={filters.granularity}
+              onChange={(event) =>
+                updateFilter("granularity", event.target.value as "day" | "week" | "month" | "quarter" | "year")
+              }
             >
-              <MenuItem value="7d">Last 7 days</MenuItem>
-              <MenuItem value="30d">Last 30 days</MenuItem>
-              <MenuItem value="90d">Last 90 days</MenuItem>
+              <MenuItem value="day">Daily</MenuItem>
+              <MenuItem value="week">Weekly</MenuItem>
+              <MenuItem value="month">Monthly</MenuItem>
+              <MenuItem value="quarter">Quarterly</MenuItem>
+              <MenuItem value="year">Yearly</MenuItem>
             </TextField>
           </Grid>
           <Grid item xs={12} md={3}>

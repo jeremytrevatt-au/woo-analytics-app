@@ -6,8 +6,21 @@ type FiltersContextValue = {
   updateFilter: <K extends keyof AppFilterState>(key: K, value: AppFilterState[K]) => void;
 };
 
+function isoDateDaysAgo(daysAgo: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
+function isoDateToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const defaultFilters: AppFilterState = {
-  dateRange: "30d",
+  dateRange: "custom",
+  granularity: "day",
+  startDate: isoDateDaysAgo(30),
+  endDate: isoDateToday(),
   orderStatus: "all",
   searchText: ""
 };
