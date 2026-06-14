@@ -6,7 +6,7 @@ COPY package.json .
 RUN npm install
 
 COPY . .
-ARG VITE_ANALYTICS_API_BASE_URL=https://analytics.naturalyield.com.au/api
+ARG VITE_ANALYTICS_API_BASE_URL=https://analytics.naturalyield.com.au
 ENV VITE_ANALYTICS_API_BASE_URL=${VITE_ANALYTICS_API_BASE_URL}
 RUN npm run build
 
