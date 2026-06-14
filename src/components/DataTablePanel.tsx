@@ -11,7 +11,8 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  Typography
+  Typography,
+  Link
 } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "@mui/icons-material";
 import { formatCurrency, formatNumber } from "../lib/format";
@@ -25,25 +26,38 @@ type Props = {
   pageSize: number;
   totalCount: number;
   onPageChange: (page: number) => void;
+  getLinkUrl?: (row: any, col: TableColumn) => string | null;
 };
 
-function DataTablePanel({ title, rows, columns, page, pageSize, totalCount, onPageChange }: Props) {
+function DataTablePanel({ title, rows, columns, page, pageSize, totalCount, onPageChange, getLinkUrl }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   
-  const renderCellContent = (value: any, type: TableColumn["type"]) => {
+  const renderCellContent = (value: any, type: TableColumn["type"], row: any, col: TableColumn) => {
     if (value === null || value === undefined) return "-";
+    
+    let formattedValue: string;
     switch (type) {
       case "currency":
-        return formatCurrency(Number(value));
+        formattedValue = formatCurrency(Number(value));
+        break;
       case "number":
-        return formatNumber(Number(value));
+        formattedValue = formatNumber(Number(value));
+        break;
       case "boolean":
-        return value ? "Yes" : "No";
+        formattedValue = value ? "Yes" : "No";
+        break;
       case "date":
-        return new Date(value).toLocaleDateString();
+        formattedValue = new Date(value).toLocaleDateString();
+        break;
       default:
-        return String(value);
+        formattedValue = String(value);
     }
+
+    const linkUrl = getLinkUrl ? getLinkUrl(row, col) : null;
+    if (linkUrl) {
+      return <Link href={linkUrl} target="_blank" rel="noopener noreferrer" underline="hover">{formattedValue}</Link>;
+    }
+    return formattedValue;
   };
 
   return (
@@ -77,7 +91,7 @@ function DataTablePanel({ title, rows, columns, page, pageSize, totalCount, onPa
                           label={String(row[col.key])}
                         />
                       ) : (
-                        renderCellContent(row[col.key], col.type)
+                        renderCellContent(row[col.key], col.type, row, col)
                       )}
                     </TableCell>
                   ))}

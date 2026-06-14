@@ -12,7 +12,7 @@ const navItems = [
   { label: "Orders", to: "/orders" },
   { label: "Customers", to: "/customers" },
   { label: "Stock", to: "/stock" },
-  { label: "Forecast", to: "/forecast" }
+  { label: "Revenue", to: "/revenue" }
 ];
 
 function DashboardLayout({ children }: Props) {

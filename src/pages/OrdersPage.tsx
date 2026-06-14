@@ -31,6 +31,7 @@ function OrdersPage() {
             pageSize={pageSize}
             totalCount={totalCount}
             onPageChange={setPage}
+            getLinkUrl={(row, col) => col.key === "order_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.order_id}&action=edit` : null}
           />
         </>
       ) : null}
