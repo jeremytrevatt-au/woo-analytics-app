@@ -9,13 +9,14 @@ import {
   getStockRecords,
   getStockTrends,
 } from "../api/analyticsApi";
-import { ForecastPoint, KpiCardData, TableRecord, TrendPoint } from "../types/analytics";
+import { ForecastPoint, KpiCardData, DynamicTableRecord, TrendPoint, TableColumn } from "../types/analytics";
 import { useFilters } from "./useFilters";
 
 type DashboardDataState = {
   kpis: KpiCardData[];
   trends: TrendPoint[];
-  rows: TableRecord[];
+  rows: DynamicTableRecord[];
+  columns: TableColumn[];
   forecast: ForecastPoint[];
   page: number;
   pageSize: number;
@@ -28,6 +29,7 @@ const initialState: DashboardDataState = {
   kpis: [],
   trends: [],
   rows: [],
+  columns: [],
   forecast: [],
   page: 1,
   pageSize: 50,
@@ -65,6 +67,7 @@ export function useDashboardData(domain: "overview" | "orders" | "customers" | "
           kpis,
           trends,
           rows: paged.records,
+          columns: paged.columns || [],
           forecast: buildForecastFromTrends(trends),
           page: paged.page,
           pageSize: paged.pageSize,

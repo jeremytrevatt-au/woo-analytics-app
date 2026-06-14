@@ -1,8 +1,11 @@
 export type AppFilterState = {
-  dateRange: "custom";
+  dateRange: "custom" | "mtd" | "qtd" | "ytd";
+  compareEnabled: boolean;
   granularity: "day" | "week" | "month" | "quarter" | "year";
   startDate: string;
   endDate: string;
+  compareStartDate: string | null;
+  compareEndDate: string | null;
   orderStatus: "all" | "processing" | "completed" | "on-hold" | "active" | "inactive" | "instock" | "outofstock";
   searchText: string;
 };
@@ -21,25 +24,23 @@ export type TrendPoint = {
   revenue: number;
   customers: number;
   stock: number;
+  compareOrders?: number;
+  compareRevenue?: number;
+  compareCustomers?: number;
+  compareStock?: number;
 };
 
-export type TableRecord = {
-  id: string;
-  name: string;
-  status: string;
-  metricA: number;
-  metricB: number;
-  meta?: string;
+export type TableColumn = {
+  key: string;
+  label: string;
+  type: "string" | "number" | "currency" | "date" | "boolean";
 };
 
-export type ForecastPoint = {
-  month: string;
-  actual: number;
-  predicted: number;
-};
+export type DynamicTableRecord = Record<string, unknown>;
 
 export type PaginatedRecords = {
-  records: TableRecord[];
+  records: DynamicTableRecord[];
+  columns: TableColumn[];
   page: number;
   pageSize: number;
   totalCount: number;

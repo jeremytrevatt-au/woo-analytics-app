@@ -18,9 +18,12 @@ function isoDateToday(): string {
 
 const defaultFilters: AppFilterState = {
   dateRange: "custom",
+  compareEnabled: false,
   granularity: "day",
   startDate: isoDateDaysAgo(30),
   endDate: isoDateToday(),
+  compareStartDate: null,
+  compareEndDate: null,
   orderStatus: "all",
   searchText: ""
 };

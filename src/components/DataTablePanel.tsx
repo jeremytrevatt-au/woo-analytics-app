@@ -15,23 +15,40 @@ import {
 } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "@mui/icons-material";
 import { formatCurrency, formatNumber } from "../lib/format";
-import { TableRecord } from "../types/analytics";
+import { DynamicTableRecord, TableColumn } from "../types/analytics";
 
 type Props = {
-  title: string;
-  rows: TableRecord[];
+  title?: string;
+  rows: DynamicTableRecord[];
+  columns: TableColumn[];
   page: number;
   pageSize: number;
   totalCount: number;
   onPageChange: (page: number) => void;
-  metricBAsCurrency?: boolean;
 };
 
-function DataTablePanel({ title, rows, page, pageSize, totalCount, onPageChange, metricBAsCurrency = true }: Props) {
+function DataTablePanel({ title, rows, columns, page, pageSize, totalCount, onPageChange }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  
+  const renderCellContent = (value: any, type: TableColumn["type"]) => {
+    if (value === null || value === undefined) return "-";
+    switch (type) {
+      case "currency":
+        return formatCurrency(Number(value));
+      case "number":
+        return formatNumber(Number(value));
+      case "boolean":
+        return value ? "Yes" : "No";
+      case "date":
+        return new Date(value).toLocaleDateString();
+      default:
+        return String(value);
+    }
+  };
+
   return (
     <Card>
-      <CardHeader title={title} />
+      {title && <CardHeader title={title} />}
       <CardContent>
         {rows.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
@@ -41,27 +58,29 @@ function DataTablePanel({ title, rows, page, pageSize, totalCount, onPageChange,
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Metric A</TableCell>
-                <TableCell align="right">Metric B</TableCell>
+                {columns.map((col) => (
+                  <TableCell key={col.key} align={col.type === "number" || col.type === "currency" ? "right" : "left"}>
+                    {col.label}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.name}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      color={row.status === "completed" ? "success" : row.status === "processing" ? "warning" : "default"}
-                      label={row.status}
-                    />
-                  </TableCell>
-                  <TableCell align="right">{formatNumber(row.metricA)}</TableCell>
-                  <TableCell align="right">
-                    {metricBAsCurrency ? formatCurrency(row.metricB) : formatNumber(row.metricB)}
-                  </TableCell>
+              {rows.map((row, index) => (
+                <TableRow key={index}>
+                  {columns.map((col) => (
+                    <TableCell key={col.key} align={col.type === "number" || col.type === "currency" ? "right" : "left"}>
+                      {col.key.includes("status") ? (
+                        <Chip
+                          size="small"
+                          color={row[col.key] === "completed" || row[col.key] === "instock" ? "success" : row[col.key] === "processing" ? "warning" : "default"}
+                          label={String(row[col.key])}
+                        />
+                      ) : (
+                        renderCellContent(row[col.key], col.type)
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>

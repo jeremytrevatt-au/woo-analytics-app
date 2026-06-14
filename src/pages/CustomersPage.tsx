@@ -8,7 +8,7 @@ import { useDashboardData } from "../hooks/useDashboardData";
 
 function CustomersPage() {
   const [page, setPage] = useState(1);
-  const { kpis, trends, rows, isLoading, error, totalCount, pageSize } = useDashboardData("customers", page, 50);
+  const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize } = useDashboardData("customers", page, 50);
   const customerKpi = kpis.find((item) => item.id === "customers");
 
   return (
@@ -26,7 +26,8 @@ function CustomersPage() {
           <TrendsChartPanel title="Customer Trend" data={trends} />
           <DataTablePanel
             title="Customer Records"
-            rows={rows}
+            rows={rows as any}
+            columns={columns}
             page={page}
             pageSize={pageSize}
             totalCount={totalCount}

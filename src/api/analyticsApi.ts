@@ -33,6 +33,15 @@ type TrendResponse = {
     tracked_skus?: number;
     out_of_stock_skus?: number;
   }>;
+  compare_points?: Array<{
+    bucket_date: string;
+    order_count?: number;
+    order_revenue?: number;
+    customer_count?: number;
+    active_customer_count?: number;
+    tracked_skus?: number;
+    out_of_stock_skus?: number;
+  }>;
 };
 
 type StockForecastRow = {
@@ -47,6 +56,7 @@ type StockForecastRow = {
 
 type PaginatedResponse<T> = {
   records: T[];
+  columns?: Array<{ key: string; label: string; type: "string" | "number" | "currency" | "date" | "boolean" }>;
   page: number;
   page_size: number;
   total_count: number;
@@ -128,16 +138,10 @@ export async function getOrderRecords(
     start_date: filter.startDate,
     end_date: filter.endDate
   });
-  const response = await fetchJson<PaginatedResponse<OrdersRow>>(`/api/v1/orders?${params.toString()}`);
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/orders?${params.toString()}`);
   return {
-    records: response.records.map((row) => ({
-      id: `${row.order_date}-${row.order_status}`,
-      name: row.order_date,
-      status: row.order_status,
-      metricA: row.order_count,
-      metricB: row.order_revenue,
-      meta: "Order day/status aggregate"
-    })),
+    records: response.records,
+    columns: response.columns || [],
     page: response.page,
     pageSize: response.page_size,
     totalCount: response.total_count
@@ -159,16 +163,10 @@ export async function getCustomerRecords(
     start_date: filter.startDate,
     end_date: filter.endDate
   });
-  const response = await fetchJson<PaginatedResponse<CustomersRow>>(`/api/v1/customers?${params.toString()}`);
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/customers?${params.toString()}`);
   return {
-    records: response.records.map((row) => ({
-      id: String(row.customer_id),
-      name: `Customer #${row.customer_id}`,
-      status: row.is_active_customer ? "active" : "inactive",
-      metricA: row.order_count,
-      metricB: row.lifetime_value,
-      meta: row.last_order_date ? `Last order ${row.last_order_date}` : "No order date"
-    })),
+    records: response.records,
+    columns: response.columns || [],
     page: response.page,
     pageSize: response.page_size,
     totalCount: response.total_count
@@ -189,16 +187,10 @@ export async function getStockRecords(
     start_date: filter.startDate,
     end_date: filter.endDate
   });
-  const response = await fetchJson<PaginatedResponse<StockRow>>(`/api/v1/stock?${params.toString()}`);
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock?${params.toString()}`);
   return {
-    records: response.records.map((row) => ({
-      id: `${row.snapshot_date}-${row.product_id}`,
-      name: row.sku || `Product ${row.product_id}`,
-      status: row.stock_status,
-      metricA: row.stock_qty,
-      metricB: 0,
-      meta: `${row.product_type} | snapshot ${row.snapshot_date}`
-    })),
+    records: response.records,
+    columns: response.columns || [],
     page: response.page,
     pageSize: response.page_size,
     totalCount: response.total_count
@@ -213,14 +205,33 @@ export async function getOrderTrends(filter: AppFilterState): Promise<TrendPoint
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.compareEnabled && filter.compareStartDate && filter.compareEndDate) {
+    params.append("compare_start_date", filter.compareStartDate);
+    params.append("compare_end_date", filter.compareEndDate);
+  }
   const response = await fetchJson<TrendResponse>(`/api/v1/orders/trend?${params.toString()}`);
-  return response.points.map((point) => ({
-    label: point.bucket_date,
-    orders: point.order_count ?? 0,
-    revenue: point.order_revenue ?? 0,
-    customers: 0,
-    stock: 0
-  }));
+  
+  const compareMap = new Map<string, any>();
+  if (response.compare_points) {
+    response.compare_points.forEach((p, i) => {
+      if (response.points[i]) {
+        compareMap.set(response.points[i].bucket_date, p);
+      }
+    });
+  }
+
+  return response.points.map((point) => {
+    const compare = compareMap.get(point.bucket_date);
+    return {
+      label: point.bucket_date,
+      orders: point.order_count ?? 0,
+      revenue: point.order_revenue ?? 0,
+      customers: 0,
+      stock: 0,
+      compareOrders: compare?.order_count ?? 0,
+      compareRevenue: compare?.order_revenue ?? 0
+    };
+  });
 }
 
 export async function getCustomerTrends(filter: AppFilterState): Promise<TrendPoint[]> {
@@ -229,14 +240,32 @@ export async function getCustomerTrends(filter: AppFilterState): Promise<TrendPo
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.compareEnabled && filter.compareStartDate && filter.compareEndDate) {
+    params.append("compare_start_date", filter.compareStartDate);
+    params.append("compare_end_date", filter.compareEndDate);
+  }
   const response = await fetchJson<TrendResponse>(`/api/v1/customers/trend?${params.toString()}`);
-  return response.points.map((point) => ({
-    label: point.bucket_date,
-    orders: 0,
-    revenue: 0,
-    customers: point.customer_count ?? 0,
-    stock: point.active_customer_count ?? 0
-  }));
+  
+  const compareMap = new Map<string, any>();
+  if (response.compare_points) {
+    response.compare_points.forEach((p, i) => {
+      if (response.points[i]) {
+        compareMap.set(response.points[i].bucket_date, p);
+      }
+    });
+  }
+
+  return response.points.map((point) => {
+    const compare = compareMap.get(point.bucket_date);
+    return {
+      label: point.bucket_date,
+      orders: 0,
+      revenue: 0,
+      customers: point.customer_count ?? 0,
+      stock: point.active_customer_count ?? 0,
+      compareCustomers: compare?.customer_count ?? 0
+    };
+  });
 }
 
 export async function getStockTrends(filter: AppFilterState): Promise<TrendPoint[]> {
@@ -245,27 +274,47 @@ export async function getStockTrends(filter: AppFilterState): Promise<TrendPoint
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.compareEnabled && filter.compareStartDate && filter.compareEndDate) {
+    params.append("compare_start_date", filter.compareStartDate);
+    params.append("compare_end_date", filter.compareEndDate);
+  }
   const response = await fetchJson<TrendResponse>(`/api/v1/stock/trend?${params.toString()}`);
-  return response.points.map((point) => ({
-    label: point.bucket_date,
-    orders: 0,
-    revenue: 0,
-    customers: point.tracked_skus ?? 0,
-    stock: point.out_of_stock_skus ?? 0
-  }));
+  
+  const compareMap = new Map<string, any>();
+  if (response.compare_points) {
+    response.compare_points.forEach((p, i) => {
+      if (response.points[i]) {
+        compareMap.set(response.points[i].bucket_date, p);
+      }
+    });
+  }
+
+  return response.points.map((point) => {
+    const compare = compareMap.get(point.bucket_date);
+    return {
+      label: point.bucket_date,
+      orders: 0,
+      revenue: 0,
+      customers: point.tracked_skus ?? 0,
+      stock: point.out_of_stock_skus ?? 0,
+      compareStock: compare?.out_of_stock_skus ?? 0
+    };
+  });
 }
 
 export async function getStockForecast(
   leadTimeDays: number,
   page: number,
   pageSize: number,
-  q: string
+  q: string,
+  method: string = "sma"
 ): Promise<{ records: StockForecastRecord[]; totalCount: number; page: number; pageSize: number }> {
   const params = new URLSearchParams({
     lead_time_days: String(leadTimeDays),
     page: String(page),
     page_size: String(pageSize),
-    q
+    q,
+    method
   });
   const response = await fetchJson<PaginatedResponse<StockForecastRow>>(`/api/v1/stock/forecast?${params.toString()}`);
   return {

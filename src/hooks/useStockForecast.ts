@@ -21,7 +21,7 @@ const initialState: StockForecastState = {
   error: null
 };
 
-export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90) {
+export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90, method = "sma") {
   const { filters } = useFilters();
   const [state, setState] = useState<StockForecastState>(initialState);
 
@@ -29,7 +29,7 @@ export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90) {
     let mounted = true;
     setState((previous) => ({ ...previous, isLoading: true, error: null }));
 
-    getStockForecast(leadTimeDays, page, pageSize, filters.searchText)
+    getStockForecast(leadTimeDays, page, pageSize, filters.searchText, method)
       .then((payload) => {
         if (!mounted) {
           return;
@@ -57,7 +57,7 @@ export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90) {
     return () => {
       mounted = false;
     };
-  }, [filters.searchText, leadTimeDays, page, pageSize]);
+  }, [filters.searchText, leadTimeDays, page, pageSize, method]);
 
   return state;
 }
