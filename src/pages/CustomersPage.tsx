@@ -23,7 +23,7 @@ function CustomersPage() {
       {!isLoading && !error ? (
         <>
           <KpiGrid cards={customerKpi ? [customerKpi] : []} />
-          <TrendsChartPanel title="Customer Trend" data={trends} />
+          <TrendsChartPanel title="Customer Trend" data={trends} domain="customers" />
           <DataTablePanel
             title="Customer Records"
             rows={rows as any}

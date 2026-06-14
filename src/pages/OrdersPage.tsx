@@ -22,7 +22,7 @@ function OrdersPage() {
       {!isLoading && !error ? (
         <>
           <KpiGrid cards={kpis.slice(0, 2)} />
-          <TrendsChartPanel title="Orders Trend" data={trends} />
+          <TrendsChartPanel title="Orders Trend" data={trends} domain="orders" />
           <DataTablePanel
             title="Orders Records"
             rows={rows as any}

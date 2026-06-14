@@ -23,7 +23,7 @@ function StockPage() {
       {!isLoading && !error ? (
         <>
           <KpiGrid cards={stockKpi ? [stockKpi] : []} />
-          <TrendsChartPanel title="Stock Trend" data={trends} />
+          <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
           <DataTablePanel
             title="Stock Records"
             rows={rows as any}
