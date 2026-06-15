@@ -395,8 +395,8 @@ export async function getStockForecast(
 export function buildForecastFromTrends(trends: TrendPoint[], granularity: string = "day"): ForecastPoint[] {
   if (trends.length === 0) return [];
   
-  // Use the last 6 points of actual data
-  const actualPoints = trends.slice(-6).map((point) => ({
+  // Use the entire actual plot
+  const actualPoints = trends.map((point) => ({
     month: point.label,
     actual: point.revenue,
     predicted: null as number | null
@@ -445,6 +445,7 @@ export function buildForecastFromTrends(trends: TrendPoint[], granularity: strin
       else if (granularity === "quarter") nextDate.setMonth(nextDate.getMonth() + (i * 3));
       else if (granularity === "year") nextDate.setFullYear(nextDate.getFullYear() + i);
       nextLabel = nextDate.toISOString().slice(0, 10);
+      lastDate = nextDate; // update lastDate for the next iteration
     }
 
     futurePoints.push({
