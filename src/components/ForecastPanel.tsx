@@ -34,7 +34,7 @@ function ForecastPanel({ forecast }: Props) {
           </ToggleButtonGroup>
         }
       />
-      <CardContent sx={{ height: 290 }}>
+        <CardContent sx={{ height: 330 }}>
         <ResponsiveContainer width="100%" height="100%">
           {chartType === "area" ? (
             <AreaChart data={forecast}>
@@ -43,8 +43,14 @@ function ForecastPanel({ forecast }: Props) {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Area type="monotone" dataKey="actual" stroke="#1e5631" fill="#9fceb0" />
-              <Area type="monotone" dataKey="predicted" stroke="#2d6cdf" fill="#b8ccff" strokeDasharray="5 5" />
+              <Area type="monotone" dataKey="actual" name="Actual Revenue" stroke="#1e5631" fill="#9fceb0" />
+              <Area type="monotone" dataKey="predicted" name="Forecast" stroke="#2d6cdf" fill="#b8ccff" strokeDasharray="5 5" />
+              {forecast.some(f => f.compareActual !== null || f.comparePredicted !== null) && (
+                <>
+                  <Area type="monotone" dataKey="compareActual" name="Compare Actual" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.3} />
+                  <Area type="monotone" dataKey="comparePredicted" name="Compare Forecast" stroke="#82ca9d" strokeDasharray="5 5" fill="none" />
+                </>
+              )}
             </AreaChart>
           ) : (
             <BarChart data={forecast}>
@@ -53,8 +59,14 @@ function ForecastPanel({ forecast }: Props) {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="actual" fill="#9fceb0" />
-              <Bar dataKey="predicted" fill="#b8ccff" />
+              <Bar dataKey="actual" name="Actual Revenue" fill="#9fceb0" />
+              <Bar dataKey="predicted" name="Forecast" fill="#b8ccff" />
+              {forecast.some(f => f.compareActual !== null || f.comparePredicted !== null) && (
+                <>
+                  <Bar dataKey="compareActual" name="Compare Actual" fill="#82ca9d" />
+                  <Bar dataKey="comparePredicted" name="Compare Forecast" fill="#a8e6cf" />
+                </>
+              )}
             </BarChart>
           )}
         </ResponsiveContainer>

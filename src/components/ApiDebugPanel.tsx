@@ -8,7 +8,9 @@ import {
   IconButton,
   Stack,
   Switch,
-  Typography
+  Typography,
+  useMediaQuery,
+  useTheme
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import {
@@ -21,6 +23,8 @@ import {
 
 function ApiDebugPanel() {
   const [state, setState] = useState(getApiDebugState());
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     return subscribeApiDebug(() => {
@@ -28,8 +32,22 @@ function ApiDebugPanel() {
     });
   }, []);
 
+  if (isMobile && !state.expanded) {
+    return (
+      <Box sx={{ position: "fixed", right: 16, bottom: 16, zIndex: 2000 }}>
+        <IconButton 
+          color="primary" 
+          sx={{ bgcolor: 'background.paper', boxShadow: 3, '&:hover': { bgcolor: 'background.paper' } }}
+          onClick={() => setApiDebugExpanded(true)}
+        >
+          <ExpandLess />
+        </IconButton>
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ position: "fixed", right: 16, bottom: 16, width: state.expanded ? 600 : 320, zIndex: 2000 }}>
+    <Box sx={{ position: "fixed", right: isMobile ? 8 : 16, bottom: isMobile ? 8 : 16, width: state.expanded ? (isMobile ? 'calc(100vw - 16px)' : 600) : 320, zIndex: 2000 }}>
       <Card>
         <CardContent>
           <Stack direction="row" alignItems="center" justifyContent="space-between">

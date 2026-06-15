@@ -399,7 +399,9 @@ export function buildForecastFromTrends(trends: TrendPoint[], granularity: strin
   const actualPoints = trends.map((point) => ({
     month: point.label,
     actual: point.revenue,
-    predicted: null as number | null
+    predicted: null as number | null,
+    compareActual: point.compareRevenue ?? null,
+    comparePredicted: null as number | null
   }));
 
   if (actualPoints.length === 0) return [];
@@ -407,53 +409,94 @@ export function buildForecastFromTrends(trends: TrendPoint[], granularity: strin
   // Connect the forecast line to the last actual point
   const lastActual = actualPoints[actualPoints.length - 1];
   lastActual.predicted = lastActual.actual;
+  if (lastActual.compareActual !== null) {
+    lastActual.comparePredicted = lastActual.compareActual;
+  }
 
-  // Calculate a simple average growth rate from the available points
-  let avgGrowth = 1.05; // default 5% growth
-  if (actualPoints.length > 1) {
-    let totalGrowth = 0;
-    let validPairs = 0;
-    for (let i = 1; i < actualPoints.length; i++) {
-      const prev = actualPoints[i - 1].actual;
-      const curr = actualPoints[i].actual;
-      if (prev > 0) {
-        totalGrowth += (curr / prev);
-        validPairs++;
-      }
+  // Linear regression for actual revenue
+  let m = 0;
+  let b = 0;
+  const n = actualPoints.length;
+  if (n > 1) {
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (let i = 0; i < n; i++) {
+      sumX += i;
+      sumY += actualPoints[i].actual;
+      sumXY += i * actualPoints[i].actual;
+      sumX2 += i * i;
     }
-    if (validPairs > 0) {
-      avgGrowth = totalGrowth / validPairs;
+    const denominator = n * sumX2 - sumX * sumX;
+    if (denominator !== 0) {
+      m = (n * sumXY - sumX * sumY) / denominator;
+      b = (sumY - m * sumX) / n;
+    }
+  } else if (n === 1) {
+    b = actualPoints[0].actual;
+  }
+
+  // Linear regression for compare revenue
+  let mComp = 0;
+  let bComp = 0;
+  let hasCompare = false;
+  if (n > 1 && actualPoints[0].compareActual !== null) {
+    hasCompare = true;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (let i = 0; i < n; i++) {
+      const val = actualPoints[i].compareActual || 0;
+      sumX += i;
+      sumY += val;
+      sumXY += i * val;
+      sumX2 += i * i;
+    }
+    const denominator = n * sumX2 - sumX * sumX;
+    if (denominator !== 0) {
+      mComp = (n * sumXY - sumX * sumY) / denominator;
+      bComp = (sumY - mComp * sumX) / n;
     }
   }
 
-  // Generate 3 future points
-  const futurePoints = [];
-  let currentVal = lastActual.actual;
+  const forecastPoints: ForecastPoint[] = [...actualPoints];
   
+  // Generate 3 future points
   let lastDate = new Date(lastActual.month);
   const isValidDate = !isNaN(lastDate.getTime());
 
   for (let i = 1; i <= 3; i++) {
-    currentVal = Math.round(currentVal * avgGrowth);
-    let nextLabel = `${lastActual.month} +${i}`;
-    
     if (isValidDate) {
-      const nextDate = new Date(lastDate);
-      if (granularity === "day") nextDate.setDate(nextDate.getDate() + i);
-      else if (granularity === "week") nextDate.setDate(nextDate.getDate() + (i * 7));
-      else if (granularity === "month") nextDate.setMonth(nextDate.getMonth() + i);
-      else if (granularity === "quarter") nextDate.setMonth(nextDate.getMonth() + (i * 3));
-      else if (granularity === "year") nextDate.setFullYear(nextDate.getFullYear() + i);
-      nextLabel = nextDate.toISOString().slice(0, 10);
-      lastDate = nextDate; // update lastDate for the next iteration
+      if (granularity === "day") {
+        lastDate.setDate(lastDate.getDate() + 1);
+      } else if (granularity === "week") {
+        lastDate.setDate(lastDate.getDate() + 7);
+      } else if (granularity === "month") {
+        lastDate.setMonth(lastDate.getMonth() + 1);
+      } else if (granularity === "quarter") {
+        lastDate.setMonth(lastDate.getMonth() + 3);
+      } else if (granularity === "year") {
+        lastDate.setFullYear(lastDate.getFullYear() + 1);
+      }
+    }
+    
+    const nextLabel = isValidDate 
+      ? lastDate.toISOString().split("T")[0] 
+      : `${lastActual.month} +${i}`;
+
+    let nextVal = m * (n - 1 + i) + b;
+    if (nextVal < 0) nextVal = 0; // clamp to 0
+
+    let nextCompVal = null;
+    if (hasCompare) {
+      nextCompVal = mComp * (n - 1 + i) + bComp;
+      if (nextCompVal < 0) nextCompVal = 0;
     }
 
-    futurePoints.push({
+    forecastPoints.push({
       month: nextLabel,
       actual: null,
-      predicted: currentVal
+      predicted: Number(nextVal.toFixed(2)),
+      compareActual: null,
+      comparePredicted: nextCompVal !== null ? Number(nextCompVal.toFixed(2)) : null
     });
   }
 
-  return [...actualPoints, ...futurePoints];
+  return forecastPoints;
 }

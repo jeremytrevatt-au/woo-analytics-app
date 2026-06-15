@@ -20,10 +20,10 @@ function OverviewPage() {
         <>
           <KpiGrid cards={kpis} />
           <Grid container spacing={2}>
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} lg={8}>
               <TrendsChartPanel title="Commerce Trends" domain="orders" data={trends} />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} lg={4}>
               <ForecastPanel forecast={forecast} />
             </Grid>
           </Grid>

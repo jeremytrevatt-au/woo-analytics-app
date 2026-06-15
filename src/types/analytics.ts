@@ -37,6 +37,14 @@ export type TrendPoint = {
   compareStock?: number;
 };
 
+export type ForecastPoint = {
+  month: string;
+  actual: number | null;
+  predicted: number | null;
+  compareActual?: number | null;
+  comparePredicted?: number | null;
+};
+
 export type TableColumn = {
   key: string;
   label: string;
