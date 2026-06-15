@@ -6,6 +6,8 @@ import LoadStateBlock from "../components/LoadStateBlock";
 import TrendsChartPanel from "../components/TrendsChartPanel";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useStockForecast } from "../hooks/useStockForecast";
+import { useStockShortages } from "../hooks/useStockShortages";
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 
 function StockPage() {
   const [page, setPage] = useState(1);
@@ -13,8 +15,10 @@ function StockPage() {
   const [method, setMethod] = useState("sma");
   const [lookbackDays, setLookbackDays] = useState(365);
   
+  const [shortagesPage, setShortagesPage] = useState(1);
   const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize } = useDashboardData("stock", page, 50);
   const stockForecast = useStockForecast(forecastPage, 20, 90, method, lookbackDays);
+  const stockShortages = useStockShortages(shortagesPage, 50);
   const stockKpi = kpis.find((item) => item.id === "stockAlerts");
 
   return (
@@ -43,6 +47,48 @@ function StockPage() {
         </>
       ) : null}
       
+
+      <LoadStateBlock isLoading={stockShortages.isLoading} error={stockShortages.error} empty={!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length === 0} />
+      {!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length > 0 ? (
+        <DataTablePanel
+          title="Stock Shortages & Affected Orders"
+          rows={stockShortages.records}
+          columns={stockShortages.columns}
+          page={stockShortages.page}
+          pageSize={stockShortages.pageSize}
+          totalCount={stockShortages.totalCount}
+          onPageChange={setShortagesPage}
+          renderExpandedRow={(row) => {
+            const orders = row.affected_orders as any[];
+            if (!orders || orders.length === 0) return <Typography variant="body2">No affected orders found.</Typography>;
+            return (
+              <Table size="small" aria-label="affected-orders">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Order ID</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Customer</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Qty</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {orders.map((o: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{o.order_id}</TableCell>
+                      <TableCell>{new Date(o.order_date).toLocaleDateString("en-AU")}</TableCell>
+                      <TableCell>{o.customer_name}</TableCell>
+                      <TableCell>{o.order_status}</TableCell>
+                      <TableCell align="right">{o.qty}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            );
+          }}
+        />
+      ) : null}
+
       <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
         <Grid item xs={12} md={6}>
           <Typography variant="h6" fontWeight={700}>

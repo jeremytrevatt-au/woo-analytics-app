@@ -526,3 +526,28 @@ export function buildForecastFromTrends(trends: TrendPoint[], granularity: strin
 
   return forecastPoints;
 }
+
+export async function getStockShortages(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    q: filter.searchText,
+  });
+  if (filter.category) params.append("category", filter.category);
+  if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
+  if (filter.skuContains) params.append("sku_contains", filter.skuContains);
+  if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
+
+  const response = await fetchJson<PaginatedResponse<any>>(\/api/v1/stock/shortages?\\);
+  return {
+    records: response.records,
+    columns: response.columns || [],
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}

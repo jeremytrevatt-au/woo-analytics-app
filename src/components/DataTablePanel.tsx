@@ -67,7 +67,7 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
         formattedValue = value ? "Yes" : "No";
         break;
       case "date":
-        formattedValue = new Date(value).toLocaleDateString();
+        formattedValue = new Date(value).toLocaleDateString("en-AU");
         break;
       default:
         formattedValue = String(value);
