@@ -21,20 +21,10 @@ function OverviewPage() {
           <KpiGrid cards={kpis} />
           <Grid container spacing={2}>
             <Grid item xs={12} md={8}>
-              <TrendsChartPanel title="Commerce Trends" data={trends} />
+              <TrendsChartPanel title="Commerce Trends" domain="orders" data={trends} />
             </Grid>
             <Grid item xs={12} md={4}>
               <ForecastPanel forecast={forecast} />
-            </Grid>
-            <Grid item xs={12}>
-              <DataTablePanel
-                title="Orders Extract Sample"
-                rows={rows}
-                page={page}
-                pageSize={pageSize}
-                totalCount={totalCount}
-                onPageChange={() => undefined}
-              />
             </Grid>
           </Grid>
         </>

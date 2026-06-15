@@ -10,7 +10,7 @@ function KpiGrid({ cards }: Props) {
   return (
     <Grid container spacing={2}>
       {cards.map((card) => (
-        <Grid item xs={12} md={3} key={card.id}>
+        <Grid item xs={12} sm={4} key={card.id}>
           <Card>
             <CardContent>
               <Typography variant="body2" color="text.secondary">
