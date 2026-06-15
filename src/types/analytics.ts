@@ -8,6 +8,9 @@ export type AppFilterState = {
   compareEndDate: string | null;
   orderStatus: "all" | "processing" | "completed" | "on-hold" | "active" | "inactive" | "instock" | "outofstock";
   searchText: string;
+  category: string;
+  skuPattern: string;
+  skuPatternType: "starts_with" | "ends_with" | "contains";
 };
 
 export type KpiCardData = {

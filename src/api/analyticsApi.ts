@@ -46,6 +46,7 @@ type TrendResponse = {
 
 type StockForecastRow = {
   product_id: number;
+  parent_id?: number | null;
   sku: string | null;
   current_stock_qty: number;
   avg_daily_usage: number;
@@ -138,6 +139,11 @@ export async function getOrderRecords(
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.category) params.append("category", filter.category);
+  if (filter.skuPattern) {
+    params.append("sku_pattern", filter.skuPattern);
+    params.append("sku_pattern_type", filter.skuPatternType);
+  }
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/orders?${params.toString()}`);
   return {
     records: response.records,
@@ -187,6 +193,11 @@ export async function getStockRecords(
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.category) params.append("category", filter.category);
+  if (filter.skuPattern) {
+    params.append("sku_pattern", filter.skuPattern);
+    params.append("sku_pattern_type", filter.skuPatternType);
+  }
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock?${params.toString()}`);
   return {
     records: response.records,
@@ -209,19 +220,15 @@ export async function getOrderTrends(filter: AppFilterState): Promise<TrendPoint
     params.append("compare_start_date", filter.compareStartDate);
     params.append("compare_end_date", filter.compareEndDate);
   }
-  const response = await fetchJson<TrendResponse>(`/api/v1/orders/trend?${params.toString()}`);
-  
-  const compareMap = new Map<string, any>();
-  if (response.compare_points) {
-    response.compare_points.forEach((p, i) => {
-      if (response.points[i]) {
-        compareMap.set(response.points[i].bucket_date, p);
-      }
-    });
+  if (filter.category) params.append("category", filter.category);
+  if (filter.skuPattern) {
+    params.append("sku_pattern", filter.skuPattern);
+    params.append("sku_pattern_type", filter.skuPatternType);
   }
+  const response = await fetchJson<TrendResponse>(`/api/v1/orders/trend?${params.toString()}`);
 
-  return response.points.map((point) => {
-    const compare = compareMap.get(point.bucket_date);
+  return response.points.map((point, index) => {
+    const compare = response.compare_points?.[index];
     return {
       label: point.bucket_date,
       orders: point.order_count ?? 0,
@@ -245,25 +252,17 @@ export async function getCustomerTrends(filter: AppFilterState): Promise<TrendPo
     params.append("compare_end_date", filter.compareEndDate);
   }
   const response = await fetchJson<TrendResponse>(`/api/v1/customers/trend?${params.toString()}`);
-  
-  const compareMap = new Map<string, any>();
-  if (response.compare_points) {
-    response.compare_points.forEach((p, i) => {
-      if (response.points[i]) {
-        compareMap.set(response.points[i].bucket_date, p);
-      }
-    });
-  }
 
-  return response.points.map((point) => {
-    const compare = compareMap.get(point.bucket_date);
+  return response.points.map((point, index) => {
+    const compare = response.compare_points?.[index];
     return {
       label: point.bucket_date,
       orders: 0,
       revenue: 0,
       customers: point.customer_count ?? 0,
       stock: point.active_customer_count ?? 0,
-      compareCustomers: compare?.customer_count ?? 0
+      compareCustomers: compare?.customer_count ?? 0,
+      compareStock: compare?.active_customer_count ?? 0
     };
   });
 }
@@ -278,25 +277,22 @@ export async function getStockTrends(filter: AppFilterState): Promise<TrendPoint
     params.append("compare_start_date", filter.compareStartDate);
     params.append("compare_end_date", filter.compareEndDate);
   }
-  const response = await fetchJson<TrendResponse>(`/api/v1/stock/trend?${params.toString()}`);
-  
-  const compareMap = new Map<string, any>();
-  if (response.compare_points) {
-    response.compare_points.forEach((p, i) => {
-      if (response.points[i]) {
-        compareMap.set(response.points[i].bucket_date, p);
-      }
-    });
+  if (filter.category) params.append("category", filter.category);
+  if (filter.skuPattern) {
+    params.append("sku_pattern", filter.skuPattern);
+    params.append("sku_pattern_type", filter.skuPatternType);
   }
+  const response = await fetchJson<TrendResponse>(`/api/v1/stock/trend?${params.toString()}`);
 
-  return response.points.map((point) => {
-    const compare = compareMap.get(point.bucket_date);
+  return response.points.map((point, index) => {
+    const compare = response.compare_points?.[index];
     return {
       label: point.bucket_date,
       orders: 0,
       revenue: 0,
-      customers: point.tracked_skus ?? 0,
+      customers: point.tracked_skus ?? 0, // We use 'customers' to hold total stock units in the chart
       stock: point.out_of_stock_skus ?? 0,
+      compareCustomers: compare?.tracked_skus ?? 0,
       compareStock: compare?.out_of_stock_skus ?? 0
     };
   });
@@ -307,19 +303,29 @@ export async function getStockForecast(
   page: number,
   pageSize: number,
   q: string,
-  method: string = "sma"
+  method: string = "sma",
+  lookbackDays: number = 365,
+  category: string | null = null,
+  skuPattern: string | null = null,
+  skuPatternType: string = "contains"
 ): Promise<{ records: StockForecastRecord[]; totalCount: number; page: number; pageSize: number }> {
   const params = new URLSearchParams({
     lead_time_days: String(leadTimeDays),
     page: String(page),
     page_size: String(pageSize),
     q,
-    method
+    method,
+    lookback_days: String(lookbackDays)
   });
+  if (category) params.append("category", category);
+  if (skuPattern) {
+    params.append("sku_pattern", skuPattern);
+    params.append("sku_pattern_type", skuPatternType);
+  }
   const response = await fetchJson<PaginatedResponse<StockForecastRow>>(`/api/v1/stock/forecast?${params.toString()}`);
   return {
     records: response.records.map((row) => ({
-      productId: row.product_id,
+      productId: row.parent_id || row.product_id,
       sku: row.sku ?? "",
       currentStockQty: row.current_stock_qty,
       avgDailyUsage: row.avg_daily_usage,

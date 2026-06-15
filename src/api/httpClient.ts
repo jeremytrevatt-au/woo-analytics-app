@@ -13,12 +13,13 @@ export function requireApiBaseUrl(): string {
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = requireApiBaseUrl();
   const url = `${baseUrl}${path}`;
-  const method = init?.method ?? "GET";
+  const finalInit = { ...init, cache: "no-store" as RequestCache };
+  const method = finalInit.method ?? "GET";
   const startedAt = performance.now();
   const timestamp = new Date().toISOString();
 
   try {
-    const response = await fetch(url, init);
+    const response = await fetch(url, finalInit);
     const textBody = await response.text();
     let parsedBody: unknown = textBody;
     try {

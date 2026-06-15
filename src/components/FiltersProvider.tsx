@@ -25,7 +25,10 @@ const defaultFilters: AppFilterState = {
   compareStartDate: null,
   compareEndDate: null,
   orderStatus: "all",
-  searchText: ""
+  searchText: "",
+  category: "",
+  skuPattern: "",
+  skuPatternType: "contains",
 };
 
 export const FiltersContext = createContext<FiltersContextValue>({

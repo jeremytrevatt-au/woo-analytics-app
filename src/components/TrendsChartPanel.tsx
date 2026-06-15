@@ -1,8 +1,10 @@
-import { Card, CardContent, CardHeader, FormControlLabel, Switch, Box } from "@mui/material";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Card, CardContent, CardHeader, FormControlLabel, Switch, Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { CartesianGrid, Legend, Line, LineChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TrendPoint } from "../types/analytics";
 import { useFilters } from "../hooks/useFilters";
 import { useState, useMemo } from "react";
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 type Props = {
   data: TrendPoint[];
@@ -13,6 +15,7 @@ type Props = {
 function TrendsChartPanel({ data, title, domain }: Props) {
   const { filters } = useFilters();
   const [showCumulative, setShowCumulative] = useState(false);
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
 
   const chartData = useMemo(() => {
     if (!showCumulative) return data;
@@ -50,42 +53,55 @@ function TrendsChartPanel({ data, title, domain }: Props) {
     });
   }, [data, showCumulative]);
 
-  // If domain is provided, only show relevant lines. Otherwise, guess based on title or show all.
   const showOrders = domain === "orders" || (!domain && title.toLowerCase().includes("order"));
   const showCustomers = domain === "customers" || (!domain && title.toLowerCase().includes("customer"));
   const showStock = domain === "stock" || (!domain && title.toLowerCase().includes("stock"));
+
+  const ChartComponent = chartType === "line" ? LineChart : BarChart;
+  const DataComponent = chartType === "line" ? Line : Bar;
 
   return (
     <Card sx={{ height: 400 }}>
       <CardHeader 
         title={title} 
         action={
-          <FormControlLabel
-            control={<Switch checked={showCumulative} onChange={(e) => setShowCumulative(e.target.checked)} />}
-            label="Cumulative"
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <FormControlLabel
+              control={<Switch checked={showCumulative} onChange={(e) => setShowCumulative(e.target.checked)} />}
+              label="Cumulative"
+            />
+            <ToggleButtonGroup
+              value={chartType}
+              exclusive
+              onChange={(e, val) => val && setChartType(val)}
+              size="small"
+            >
+              <ToggleButton value="line"><ShowChartIcon fontSize="small" /></ToggleButton>
+              <ToggleButton value="bar"><BarChartIcon fontSize="small" /></ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         }
       />
       <CardContent sx={{ height: 330 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
+          <ChartComponent data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="label" />
             <YAxis />
             <Tooltip />
             <Legend />
             
-            {showOrders && <Line type="monotone" dataKey="orders" name="Orders" stroke="#1e5631" strokeWidth={2} />}
-            {showOrders && <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#2e7d32" strokeWidth={2} />}
-            {showCustomers && <Line type="monotone" dataKey="customers" name={domain === "customers" ? "Customers" : "Tracked SKUs"} stroke="#3f8f55" strokeWidth={2} />}
-            {showCustomers && domain === "customers" && <Line type="monotone" dataKey="stock" name="Active Customers" stroke="#cc6600" strokeWidth={2} />}
-            {showStock && domain === "stock" && <Line type="monotone" dataKey="stock" name="Out of Stock" stroke="#cc6600" strokeWidth={2} />}
+            {showOrders && <DataComponent type="monotone" dataKey="orders" name="Orders" fill="#1e5631" stroke="#1e5631" strokeWidth={2} />}
+            {showOrders && <DataComponent type="monotone" dataKey="revenue" name="Revenue" fill="#2e7d32" stroke="#2e7d32" strokeWidth={2} />}
+            {showCustomers && <DataComponent type="monotone" dataKey="customers" name={domain === "customers" ? "Customers" : "Total Stock Units"} fill="#3f8f55" stroke="#3f8f55" strokeWidth={2} />}
+            {showCustomers && domain === "customers" && <DataComponent type="monotone" dataKey="stock" name="Active Customers" fill="#cc6600" stroke="#cc6600" strokeWidth={2} />}
+            {showStock && domain === "stock" && <DataComponent type="monotone" dataKey="stock" name="Out of Stock SKUs" fill="#cc6600" stroke="#cc6600" strokeWidth={2} />}
             
-            {filters.compareEnabled && showOrders && <Line type="monotone" dataKey="compareOrders" name="Compare Orders" stroke="#1e5631" strokeDasharray="5 5" strokeWidth={2} />}
-            {filters.compareEnabled && showOrders && <Line type="monotone" dataKey="compareRevenue" name="Compare Revenue" stroke="#2e7d32" strokeDasharray="5 5" strokeWidth={2} />}
-            {filters.compareEnabled && showCustomers && <Line type="monotone" dataKey="compareCustomers" name={domain === "customers" ? "Compare Customers" : "Compare Tracked SKUs"} stroke="#3f8f55" strokeDasharray="5 5" strokeWidth={2} />}
-            {filters.compareEnabled && showStock && domain === "stock" && <Line type="monotone" dataKey="compareStock" name="Compare Out of Stock" stroke="#cc6600" strokeDasharray="5 5" strokeWidth={2} />}
-          </LineChart>
+            {filters.compareEnabled && showOrders && <DataComponent type="monotone" dataKey="compareOrders" name="Compare Orders" fill="#1e5631" stroke="#1e5631" strokeDasharray="5 5" strokeWidth={2} fillOpacity={0.3} />}
+            {filters.compareEnabled && showOrders && <DataComponent type="monotone" dataKey="compareRevenue" name="Compare Revenue" fill="#2e7d32" stroke="#2e7d32" strokeDasharray="5 5" strokeWidth={2} fillOpacity={0.3} />}
+            {filters.compareEnabled && showCustomers && <DataComponent type="monotone" dataKey="compareCustomers" name={domain === "customers" ? "Compare Customers" : "Compare Total Stock"} fill="#3f8f55" stroke="#3f8f55" strokeDasharray="5 5" strokeWidth={2} fillOpacity={0.3} />}
+            {filters.compareEnabled && showStock && domain === "stock" && <DataComponent type="monotone" dataKey="compareStock" name="Compare Out of Stock" fill="#cc6600" stroke="#cc6600" strokeDasharray="5 5" strokeWidth={2} fillOpacity={0.3} />}
+          </ChartComponent>
         </ResponsiveContainer>
       </CardContent>
     </Card>
