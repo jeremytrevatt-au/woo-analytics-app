@@ -8,6 +8,44 @@ Frontend analytics UX for Natural Yield WooCommerce data.
 2. Historical trends for orders, customers, and stock.
 3. Forecast-oriented decision support.
 
+## 🚀 Deployment & Infrastructure Mapping (IMMUTABLE)
+
+This section documents the exact architecture mapping and deployment commands required to ensure the correct Cloud Run services are updated and served by the Load Balancer.
+
+### Architecture Mapping
+The infrastructure uses a Global HTTP Load Balancer with Identity-Aware Proxy (IAP) enabled.
+
+1. **Frontend App**:
+   - **Cloud Run Service Name**: `woo-analytics-app`
+   - **Network Endpoint Group (NEG)**: `woo-analytics-app-neg`
+   - **Compute Backend Service**: `woo-analytics-app-backend`
+   - **URL Map Routing**: Default route (`/*`)
+
+2. **Backend Service**:
+   - **Cloud Run Service Name**: `woo-analytics-service`
+   - **Network Endpoint Group (NEG)**: `woo-analytics-service-neg`
+   - **Compute Backend Service**: `woo-analytics-service-backend`
+   - **URL Map Routing**: `/api/*`
+
+**CRITICAL WARNING**: Do NOT deploy the backend to a Cloud Run service named `woo-analytics-service-backend`. That is the name of the *Compute Engine Backend Service*, not the Cloud Run service. Deploying to a Cloud Run service with that name will result in an orphaned deployment that the Load Balancer will never serve.
+
+### Deployment Commands
+
+**1. Deploy Frontend (from `woo-analytics-app` directory)**:
+```bash
+gcloud run deploy woo-analytics-app --source . --region australia-southeast1 --project natural-yield-analytics --quiet
+```
+
+**2. Deploy Backend (from `woo-analytics-service` directory)**:
+```bash
+gcloud run deploy woo-analytics-service --source . --region australia-southeast1 --project natural-yield-analytics --quiet
+```
+
+**3. Invalidate CDN Cache (run after frontend/backend deployments)**:
+```bash
+gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" --project natural-yield-analytics --async
+```
+
 ## Stack
 
 1. Vite + React + TypeScript.
