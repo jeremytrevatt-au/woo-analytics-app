@@ -14,7 +14,8 @@ import {
   Typography,
   Link,
   Collapse,
-  TableSortLabel
+  TableSortLabel,
+  TableContainer
 } from "@mui/material";
 import { ChevronLeft, ChevronRight, KeyboardArrowDown, KeyboardArrowUp } from "@mui/icons-material";
 import { formatCurrency, formatNumber } from "../lib/format";
@@ -100,6 +101,7 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
             No records match the selected filters.
           </Typography>
         ) : (
+          <TableContainer sx={{ overflowX: "auto" }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -161,6 +163,7 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
               ))}
             </TableBody>
           </Table>
+          </TableContainer>
         )}
         <Box mt={2}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">

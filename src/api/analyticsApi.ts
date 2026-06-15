@@ -346,6 +346,11 @@ export async function getStockTrends(filter: AppFilterState): Promise<TrendPoint
   });
 }
 
+export async function getCategories(): Promise<string[]> {
+  const response = await fetchJson<{ categories: string[] }>("/api/v1/categories");
+  return response.categories;
+}
+
 export async function getStockForecast(
   leadTimeDays: number,
   page: number,
@@ -387,10 +392,67 @@ export async function getStockForecast(
   };
 }
 
-export function buildForecastFromTrends(trends: TrendPoint[]): ForecastPoint[] {
-  return trends.slice(-6).map((point) => ({
+export function buildForecastFromTrends(trends: TrendPoint[], granularity: string = "day"): ForecastPoint[] {
+  if (trends.length === 0) return [];
+  
+  // Use the last 6 points of actual data
+  const actualPoints = trends.slice(-6).map((point) => ({
     month: point.label,
     actual: point.revenue,
-    predicted: Math.round(point.revenue * 1.08)
+    predicted: null as number | null
   }));
+
+  if (actualPoints.length === 0) return [];
+
+  // Connect the forecast line to the last actual point
+  const lastActual = actualPoints[actualPoints.length - 1];
+  lastActual.predicted = lastActual.actual;
+
+  // Calculate a simple average growth rate from the available points
+  let avgGrowth = 1.05; // default 5% growth
+  if (actualPoints.length > 1) {
+    let totalGrowth = 0;
+    let validPairs = 0;
+    for (let i = 1; i < actualPoints.length; i++) {
+      const prev = actualPoints[i - 1].actual;
+      const curr = actualPoints[i].actual;
+      if (prev > 0) {
+        totalGrowth += (curr / prev);
+        validPairs++;
+      }
+    }
+    if (validPairs > 0) {
+      avgGrowth = totalGrowth / validPairs;
+    }
+  }
+
+  // Generate 3 future points
+  const futurePoints = [];
+  let currentVal = lastActual.actual;
+  
+  let lastDate = new Date(lastActual.month);
+  const isValidDate = !isNaN(lastDate.getTime());
+
+  for (let i = 1; i <= 3; i++) {
+    currentVal = Math.round(currentVal * avgGrowth);
+    let nextLabel = `${lastActual.month} +${i}`;
+    
+    if (isValidDate) {
+      const nextDate = new Date(lastDate);
+      if (granularity === "day") nextDate.setDate(nextDate.getDate() + i);
+      else if (granularity === "week") nextDate.setDate(nextDate.getDate() + (i * 7));
+      else if (granularity === "month") nextDate.setMonth(nextDate.getMonth() + i);
+      else if (granularity === "quarter") nextDate.setMonth(nextDate.getMonth() + (i * 3));
+      else if (granularity === "year") nextDate.setFullYear(nextDate.getFullYear() + i);
+      nextLabel = nextDate.toISOString().slice(0, 10);
+    }
+
+    futurePoints.push({
+      month: nextLabel,
+      actual: null,
+      predicted: currentVal
+    });
+  }
+
+  return [...actualPoints, ...futurePoints];
 }

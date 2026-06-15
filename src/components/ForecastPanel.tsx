@@ -1,26 +1,62 @@
-import { Card, CardContent, CardHeader } from "@mui/material";
-import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Card, CardContent, CardHeader, ToggleButton, ToggleButtonGroup, Box } from "@mui/material";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useState } from "react";
 import { ForecastPoint } from "../types/analytics";
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 type Props = {
   forecast: ForecastPoint[];
 };
 
 function ForecastPanel({ forecast }: Props) {
+  const [chartType, setChartType] = useState<"area" | "bar">("area");
+
   return (
     <Card sx={{ height: 360 }}>
-      <CardHeader title="Revenue Forecast" />
+      <CardHeader 
+        title="Revenue Forecast" 
+        action={
+          <ToggleButtonGroup
+            value={chartType}
+            exclusive
+            onChange={(_, newValue) => {
+              if (newValue) setChartType(newValue);
+            }}
+            size="small"
+          >
+            <ToggleButton value="area" aria-label="area chart">
+              <ShowChartIcon fontSize="small" />
+            </ToggleButton>
+            <ToggleButton value="bar" aria-label="bar chart">
+              <BarChartIcon fontSize="small" />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        }
+      />
       <CardContent sx={{ height: 290 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={forecast}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Area type="monotone" dataKey="actual" stroke="#1e5631" fill="#9fceb0" />
-            <Area type="monotone" dataKey="predicted" stroke="#2d6cdf" fill="#b8ccff" />
-          </AreaChart>
+          {chartType === "area" ? (
+            <AreaChart data={forecast}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Area type="monotone" dataKey="actual" stroke="#1e5631" fill="#9fceb0" />
+              <Area type="monotone" dataKey="predicted" stroke="#2d6cdf" fill="#b8ccff" strokeDasharray="5 5" />
+            </AreaChart>
+          ) : (
+            <BarChart data={forecast}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="actual" fill="#9fceb0" />
+              <Bar dataKey="predicted" fill="#b8ccff" />
+            </BarChart>
+          )}
         </ResponsiveContainer>
       </CardContent>
     </Card>

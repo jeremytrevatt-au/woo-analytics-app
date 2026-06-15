@@ -1,6 +1,8 @@
 import { Card, CardContent, Grid, MenuItem, Stack, TextField, FormControlLabel, Switch, Checkbox, ListItemText, Select, InputLabel, FormControl, OutlinedInput } from "@mui/material";
 import { useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { useFilters } from "../hooks/useFilters";
+import { getCategories } from "../api/analyticsApi";
 
 const ORDER_STATUS_OPTIONS = [
   { value: "processing", label: "Processing" },
@@ -22,15 +24,20 @@ function FilterBar() {
   const { filters, updateFilter } = useFilters();
   const location = useLocation();
   const path = location.pathname;
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    getCategories().then(setCategories).catch(console.error);
+  }, []);
 
   const showOrderStatus = path === "/orders" || path === "/backorders";
   const showStockStatus = path === "/stock" || path === "/backorders";
 
-  const handleDateRangeChange = (range: "custom" | "mtd" | "qtd" | "ytd") => {
+  const handleDateRangeChange = (range: "custom" | "mtd" | "qtd" | "ytd" | "last_year") => {
     updateFilter("dateRange", range);
     
     const today = new Date();
-    const endDate = today.toISOString().slice(0, 10);
+    let endDate = today.toISOString().slice(0, 10);
     let startDate = filters.startDate;
 
     if (range === "mtd") {
@@ -40,27 +47,45 @@ function FilterBar() {
       startDate = new Date(today.getFullYear(), quarterStartMonth, 1).toISOString().slice(0, 10);
     } else if (range === "ytd") {
       startDate = new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10);
+    } else if (range === "last_year") {
+      startDate = new Date(today.getFullYear() - 1, 0, 1).toISOString().slice(0, 10);
+      endDate = new Date(today.getFullYear() - 1, 11, 31).toISOString().slice(0, 10);
     }
 
     updateFilter("startDate", startDate);
     updateFilter("endDate", endDate);
     
     if (filters.compareEnabled) {
-      updateCompareDates(startDate, endDate);
+      updateCompareDates(startDate, endDate, range);
     }
   };
 
-  const updateCompareDates = (start: string, end: string) => {
+  const updateCompareDates = (start: string, end: string, range: string = filters.dateRange) => {
     const sDate = new Date(start);
     const eDate = new Date(end);
-    const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    const cEndDate = new Date(sDate);
-    cEndDate.setDate(cEndDate.getDate() - 1);
-    
-    const cStartDate = new Date(cEndDate);
-    cStartDate.setDate(cStartDate.getDate() - diffDays);
+    let cStartDate = new Date(sDate);
+    let cEndDate = new Date(eDate);
+
+    if (range === "mtd") {
+      cStartDate.setMonth(cStartDate.getMonth() - 1);
+      cEndDate.setMonth(cEndDate.getMonth() - 1);
+    } else if (range === "qtd") {
+      cStartDate.setMonth(cStartDate.getMonth() - 3);
+      cEndDate.setMonth(cEndDate.getMonth() - 3);
+    } else if (range === "ytd" || range === "last_year") {
+      cStartDate.setFullYear(cStartDate.getFullYear() - 1);
+      cEndDate.setFullYear(cEndDate.getFullYear() - 1);
+    } else {
+      const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      cEndDate = new Date(sDate);
+      cEndDate.setDate(cEndDate.getDate() - 1);
+      
+      cStartDate = new Date(cEndDate);
+      cStartDate.setDate(cStartDate.getDate() - diffDays);
+    }
     
     updateFilter("compareStartDate", cStartDate.toISOString().slice(0, 10));
     updateFilter("compareEndDate", cEndDate.toISOString().slice(0, 10));
@@ -93,6 +118,7 @@ function FilterBar() {
               <MenuItem value="mtd">Month to Date</MenuItem>
               <MenuItem value="qtd">Quarter to Date</MenuItem>
               <MenuItem value="ytd">Year to Date</MenuItem>
+              <MenuItem value="last_year">Last Year</MenuItem>
             </TextField>
           </Grid>
           <Grid item xs={12} md={2}>
@@ -230,11 +256,16 @@ function FilterBar() {
               />
               <TextField
                 fullWidth
+                select
                 label="Category"
                 value={filters.category}
                 onChange={(event) => updateFilter("category", event.target.value)}
-                placeholder="e.g. Trays"
-              />
+              >
+                <MenuItem value=""><em>All Categories</em></MenuItem>
+                {categories.map((cat) => (
+                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                ))}
+              </TextField>
               <TextField
                 fullWidth
                 label="SKU Starts With"

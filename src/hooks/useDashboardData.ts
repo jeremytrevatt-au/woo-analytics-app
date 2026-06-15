@@ -66,18 +66,18 @@ export function useDashboardData(domain: "overview" | "orders" | "customers" | "
         if (!isSubscribed) {
           return;
         }
-        setState({
-          kpis,
-          trends,
-          rows: paged.records,
-          columns: paged.columns || [],
-          forecast: buildForecastFromTrends(trends),
-          page: paged.page,
-          pageSize: paged.pageSize,
-          totalCount: paged.totalCount,
-          isLoading: false,
-          error: null
-        });
+          setState({
+            kpis,
+            trends,
+            rows: paged.records,
+            columns: paged.columns || [],
+            forecast: buildForecastFromTrends(trends, filters.granularity),
+            page: paged.page,
+            pageSize: paged.pageSize,
+            totalCount: paged.totalCount,
+            isLoading: false,
+            error: null
+          });
       })
       .catch((error: unknown) => {
         if (!isSubscribed) {

@@ -1,5 +1,5 @@
 export type AppFilterState = {
-  dateRange: "custom" | "mtd" | "qtd" | "ytd";
+  dateRange: "custom" | "mtd" | "qtd" | "ytd" | "last_year";
   compareEnabled: boolean;
   granularity: "day" | "week" | "month" | "quarter" | "year";
   startDate: string;
