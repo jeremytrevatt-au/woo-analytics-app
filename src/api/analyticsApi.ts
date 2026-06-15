@@ -542,7 +542,7 @@ export async function getStockShortages(
   if (filter.skuContains) params.append("sku_contains", filter.skuContains);
   if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
 
-  const response = await fetchJson<PaginatedResponse<any>>(\/api/v1/stock/shortages?\\);
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock/shortages?${params.toString()}`);
   return {
     records: response.records,
     columns: response.columns || [],
