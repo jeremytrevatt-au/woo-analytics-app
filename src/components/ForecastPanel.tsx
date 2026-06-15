@@ -13,7 +13,7 @@ function ForecastPanel({ forecast }: Props) {
   const [chartType, setChartType] = useState<"area" | "bar">("area");
 
   return (
-    <Card sx={{ height: 360 }}>
+    <Card sx={{ height: 400 }}>
       <CardHeader 
         title="Revenue Forecast" 
         action={
