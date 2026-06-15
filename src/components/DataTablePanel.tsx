@@ -13,12 +13,14 @@ import {
   TableRow,
   Typography,
   Link,
-  Collapse
+  Collapse,
+  TableSortLabel
 } from "@mui/material";
 import { ChevronLeft, ChevronRight, KeyboardArrowDown, KeyboardArrowUp } from "@mui/icons-material";
 import { formatCurrency, formatNumber } from "../lib/format";
 import { DynamicTableRecord, TableColumn } from "../types/analytics";
 import { useState, Fragment } from "react";
+import { useFilters } from "../hooks/useFilters";
 
 type Props = {
   title?: string;
@@ -35,11 +37,18 @@ type Props = {
 function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+  const { filters, updateFilter } = useFilters();
   
   let columns = initialColumns;
   
   const toggleRow = (index: number) => {
     setExpandedRows(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const handleSort = (columnKey: string) => {
+    const isAsc = filters.sortBy === columnKey && filters.sortDir === "asc";
+    updateFilter("sortDir", isAsc ? "desc" : "asc");
+    updateFilter("sortBy", columnKey);
   };
   
   const renderCellContent = (value: any, type: TableColumn["type"], row: any, col: TableColumn) => {
@@ -91,17 +100,23 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
             No records match the selected filters.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                {renderExpandedRow && <TableCell width={40} />}
-                {columns.map((col) => (
-                  <TableCell key={col.key} align={col.type === "number" || col.type === "currency" ? "right" : "left"}>
-                    {col.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {renderExpandedRow && <TableCell width={40} />}
+                  {columns.map((col) => (
+                    <TableCell key={col.key} align={col.type === "number" || col.type === "currency" ? "right" : "left"}>
+                      <TableSortLabel
+                        active={filters.sortBy === col.key}
+                        direction={filters.sortBy === col.key ? filters.sortDir : "asc"}
+                        onClick={() => handleSort(col.key)}
+                      >
+                        {col.label}
+                      </TableSortLabel>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
             <TableBody>
               {rows.map((row, index) => (
                 <Fragment key={index}>

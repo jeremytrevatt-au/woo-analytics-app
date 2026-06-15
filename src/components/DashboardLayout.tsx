@@ -12,7 +12,8 @@ const navItems = [
   { label: "Orders", to: "/orders" },
   { label: "Customers", to: "/customers" },
   { label: "Stock", to: "/stock" },
-  { label: "Revenue", to: "/revenue" }
+  { label: "Revenue", to: "/revenue" },
+  { label: "Backorders", to: "/backorders" }
 ];
 
 function DashboardLayout({ children }: Props) {

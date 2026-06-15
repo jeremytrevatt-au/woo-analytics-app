@@ -1,0 +1,119 @@
+{
+  "apiVersion": "serving.knative.dev/v1",
+  "kind": "Service",
+  "metadata": {
+    "annotations": {
+      "run.googleapis.com/build-enable-automatic-updates": "false",
+      "run.googleapis.com/build-environment-variables": "{\"VITE_ANALYTICS_API_BASE_URL\":\"https://analytics.naturalyield.com.au\"}",
+      "run.googleapis.com/build-id": "b36cc9cd-a774-4b49-ac29-4eb5a076afd2",
+      "run.googleapis.com/build-image-uri": "australia-southeast1-docker.pkg.dev/natural-yield-analytics/cloud-run-source-deploy/woo-analytics-app",
+      "run.googleapis.com/build-name": "projects/748648400938/locations/australia-southeast1/builds/b36cc9cd-a774-4b49-ac29-4eb5a076afd2",
+      "run.googleapis.com/build-source-location": "gs://run-sources-natural-yield-analytics-australia-southeast1/services/woo-analytics-app/1781488904.393326-154e37c2f2f14100a7c8b365165ef095.zip#1781488904748124",
+      "run.googleapis.com/client-name": "gcloud",
+      "run.googleapis.com/client-version": "536.0.1",
+      "run.googleapis.com/ingress": "internal-and-cloud-load-balancing",
+      "run.googleapis.com/ingress-status": "internal-and-cloud-load-balancing",
+      "run.googleapis.com/maxScale": "100",
+      "run.googleapis.com/operation-id": "04505ec7-164c-421b-8404-6dc51005ae74",
+      "run.googleapis.com/urls": "[\"https://woo-analytics-app-748648400938.australia-southeast1.run.app\",\"https://woo-analytics-app-d6lkfuotdq-ts.a.run.app\"]",
+      "serving.knative.dev/creator": "jeremy.trevatt@naturalyield.com.au",
+      "serving.knative.dev/lastModifier": "jeremy.trevatt@naturalyield.com.au"
+    },
+    "creationTimestamp": "2026-06-13T08:14:16.526199Z",
+    "generation": 17,
+    "labels": {
+      "cloud.googleapis.com/location": "australia-southeast1",
+      "run.googleapis.com/satisfiesPzs": "true"
+    },
+    "name": "woo-analytics-app",
+    "namespace": "748648400938",
+    "resourceVersion": "AAZUQT8HoLs",
+    "selfLink": "/apis/serving.knative.dev/v1/namespaces/748648400938/services/woo-analytics-app",
+    "uid": "a1eba623-9845-4876-9c20-ff844fdcca9c"
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/maxScale": "100",
+          "run.googleapis.com/client-name": "gcloud",
+          "run.googleapis.com/client-version": "536.0.1",
+          "run.googleapis.com/startup-cpu-boost": "true"
+        },
+        "labels": {
+          "client.knative.dev/nonce": "ixfriemfpc",
+          "run.googleapis.com/startupProbeType": "Default"
+        }
+      },
+      "spec": {
+        "containerConcurrency": 80,
+        "containers": [
+          {
+            "image": "australia-southeast1-docker.pkg.dev/natural-yield-analytics/cloud-run-source-deploy/woo-analytics-app@sha256:b959dcd0f01bed9ff8d82730f033a723103a8c6bd88c7bd6ce17460e6d8d3bde",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http1"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "cpu": "1000m",
+                "memory": "512Mi"
+              }
+            },
+            "startupProbe": {
+              "failureThreshold": 1,
+              "periodSeconds": 240,
+              "tcpSocket": {
+                "port": 8080
+              },
+              "timeoutSeconds": 240
+            }
+          }
+        ],
+        "serviceAccountName": "748648400938-compute@developer.gserviceaccount.com",
+        "timeoutSeconds": 300
+      }
+    },
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100
+      }
+    ]
+  },
+  "status": {
+    "address": {
+      "url": "https://woo-analytics-app-d6lkfuotdq-ts.a.run.app"
+    },
+    "conditions": [
+      {
+        "lastTransitionTime": "2026-06-15T02:04:27.335867Z",
+        "status": "True",
+        "type": "Ready"
+      },
+      {
+        "lastTransitionTime": "2026-06-15T02:04:23.955562Z",
+        "status": "True",
+        "type": "ConfigurationsReady"
+      },
+      {
+        "lastTransitionTime": "2026-06-15T02:04:27.304718Z",
+        "status": "True",
+        "type": "RoutesReady"
+      }
+    ],
+    "latestCreatedRevisionName": "woo-analytics-app-00016-gr6",
+    "latestReadyRevisionName": "woo-analytics-app-00016-gr6",
+    "observedGeneration": 17,
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "woo-analytics-app-00016-gr6"
+      }
+    ],
+    "url": "https://woo-analytics-app-d6lkfuotdq-ts.a.run.app"
+  }
+}

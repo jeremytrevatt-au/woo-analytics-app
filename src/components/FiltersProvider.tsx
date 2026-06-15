@@ -24,11 +24,14 @@ const defaultFilters: AppFilterState = {
   endDate: isoDateToday(),
   compareStartDate: null,
   compareEndDate: null,
-  orderStatus: "all",
+  orderStatus: [],
+  stockStatus: [],
   searchText: "",
   category: "",
   skuPattern: "",
   skuPatternType: "contains",
+  sortBy: null,
+  sortDir: "desc",
 };
 
 export const FiltersContext = createContext<FiltersContextValue>({

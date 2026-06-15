@@ -6,11 +6,14 @@ export type AppFilterState = {
   endDate: string;
   compareStartDate: string | null;
   compareEndDate: string | null;
-  orderStatus: "all" | "processing" | "completed" | "on-hold" | "active" | "inactive" | "instock" | "outofstock";
+  orderStatus: string[];
+  stockStatus: string[];
   searchText: string;
   category: string;
   skuPattern: string;
   skuPatternType: "starts_with" | "ends_with" | "contains";
+  sortBy: string | null;
+  sortDir: "asc" | "desc";
 };
 
 export type KpiCardData = {

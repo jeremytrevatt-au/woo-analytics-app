@@ -126,6 +126,38 @@ export async function getOverviewKpis(_filter: AppFilterState): Promise<KpiCardD
   ];
 }
 
+export async function getBackorderRecords(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    q: filter.searchText,
+    start_date: filter.startDate,
+    end_date: filter.endDate
+  });
+  if (filter.orderStatus.length > 0) {
+    params.append("order_status", filter.orderStatus.join(","));
+  }
+  if (filter.stockStatus.length > 0) {
+    params.append("stock_status", filter.stockStatus.join(","));
+  }
+  if (filter.sortBy) {
+    params.append("sort_by", filter.sortBy);
+    params.append("sort_dir", filter.sortDir);
+  }
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/backorders?${params.toString()}`);
+  return {
+    records: response.records,
+    columns: response.columns || [],
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}
+
 export async function getOrderRecords(
   filter: AppFilterState,
   page: number,
@@ -134,15 +166,21 @@ export async function getOrderRecords(
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
-    status: filter.orderStatus,
     q: filter.searchText,
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.orderStatus.length > 0) {
+    params.append("status", filter.orderStatus.join(","));
+  }
   if (filter.category) params.append("category", filter.category);
   if (filter.skuPattern) {
     params.append("sku_pattern", filter.skuPattern);
     params.append("sku_pattern_type", filter.skuPatternType);
+  }
+  if (filter.sortBy) {
+    params.append("sort_by", filter.sortBy);
+    params.append("sort_dir", filter.sortDir);
   }
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/orders?${params.toString()}`);
   return {
@@ -160,7 +198,7 @@ export async function getCustomerRecords(
   pageSize: number
 ): Promise<PaginatedRecords> {
   const mappedStatus =
-    filter.orderStatus === "active" || filter.orderStatus === "inactive" ? filter.orderStatus : "all";
+    filter.orderStatus.includes("active") ? "active" : filter.orderStatus.includes("inactive") ? "inactive" : "all";
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -169,6 +207,10 @@ export async function getCustomerRecords(
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.sortBy) {
+    params.append("sort_by", filter.sortBy);
+    params.append("sort_dir", filter.sortDir);
+  }
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/customers?${params.toString()}`);
   return {
     records: response.records,
@@ -184,7 +226,7 @@ export async function getStockRecords(
   page: number,
   pageSize: number
 ): Promise<PaginatedRecords> {
-  const mappedStatus = filter.orderStatus === "instock" ? "instock" : filter.orderStatus === "outofstock" ? "outofstock" : "all";
+  const mappedStatus = filter.orderStatus.includes("instock") ? "instock" : filter.orderStatus.includes("outofstock") ? "outofstock" : "all";
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -197,6 +239,10 @@ export async function getStockRecords(
   if (filter.skuPattern) {
     params.append("sku_pattern", filter.skuPattern);
     params.append("sku_pattern_type", filter.skuPatternType);
+  }
+  if (filter.sortBy) {
+    params.append("sort_by", filter.sortBy);
+    params.append("sort_dir", filter.sortDir);
   }
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock?${params.toString()}`);
   return {
@@ -211,11 +257,13 @@ export async function getStockRecords(
 export async function getOrderTrends(filter: AppFilterState): Promise<TrendPoint[]> {
   const params = new URLSearchParams({
     granularity: filter.granularity,
-    status: filter.orderStatus,
     q: filter.searchText,
     start_date: filter.startDate,
     end_date: filter.endDate
   });
+  if (filter.orderStatus.length > 0) {
+    params.append("status", filter.orderStatus.join(","));
+  }
   if (filter.compareEnabled && filter.compareStartDate && filter.compareEndDate) {
     params.append("compare_start_date", filter.compareStartDate);
     params.append("compare_end_date", filter.compareEndDate);

@@ -8,6 +8,7 @@ import RevenuePage from "./pages/RevenuePage";
 import OverviewPage from "./pages/OverviewPage";
 import OrdersPage from "./pages/OrdersPage";
 import StockPage from "./pages/StockPage";
+import BackordersPage from "./pages/BackordersPage";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/stock" element={<StockPage />} />
             <Route path="/revenue" element={<RevenuePage />} />
+            <Route path="/backorders" element={<BackordersPage />} />
           </Routes>
         </DashboardLayout>
         <ApiDebugPanel />

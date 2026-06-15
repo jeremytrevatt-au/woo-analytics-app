@@ -1,5 +1,21 @@
-import { Card, CardContent, Grid, MenuItem, Stack, TextField, FormControlLabel, Switch } from "@mui/material";
+import { Card, CardContent, Grid, MenuItem, Stack, TextField, FormControlLabel, Switch, Checkbox, ListItemText, Select, InputLabel, FormControl, OutlinedInput } from "@mui/material";
 import { useFilters } from "../hooks/useFilters";
+
+const ORDER_STATUS_OPTIONS = [
+  { value: "processing", label: "Processing" },
+  { value: "completed", label: "Completed" },
+  { value: "on-hold", label: "On Hold" },
+  { value: "pending", label: "Pending Payment" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "refunded", label: "Refunded" },
+  { value: "failed", label: "Failed" },
+];
+
+const STOCK_STATUS_OPTIONS = [
+  { value: "instock", label: "In Stock" },
+  { value: "outofstock", label: "Out of Stock" },
+  { value: "onbackorder", label: "On Backorder" },
+];
 
 function FilterBar() {
   const { filters, updateFilter } = useFilters();
@@ -125,35 +141,74 @@ function FilterBar() {
             />
           </Grid>
           <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="Order status"
-              select
-              value={filters.orderStatus}
-              onChange={(event) =>
-                updateFilter(
-                  "orderStatus",
-                  event.target.value as
-                    | "all"
-                    | "processing"
-                    | "completed"
-                    | "on-hold"
-                    | "active"
-                    | "inactive"
-                    | "instock"
-                    | "outofstock"
-                )
-              }
-            >
-              <MenuItem value="all">All statuses</MenuItem>
-              <MenuItem value="processing">Processing</MenuItem>
-              <MenuItem value="completed">Completed</MenuItem>
-              <MenuItem value="on-hold">On hold</MenuItem>
-              <MenuItem value="active">Active customers</MenuItem>
-              <MenuItem value="inactive">Inactive customers</MenuItem>
-              <MenuItem value="instock">In stock</MenuItem>
-              <MenuItem value="outofstock">Out of stock</MenuItem>
-            </TextField>
+            <FormControl fullWidth>
+              <InputLabel id="order-status-label">Order status</InputLabel>
+              <Select
+                labelId="order-status-label"
+                multiple
+                value={filters.orderStatus}
+                onChange={(event) => {
+                  const {
+                    target: { value },
+                  } = event;
+                  updateFilter(
+                    "orderStatus",
+                    typeof value === 'string' ? value.split(',') : value
+                  );
+                }}
+                input={<OutlinedInput label="Order status" />}
+                renderValue={(selected) => {
+                  if (selected.length === 0) {
+                    return <em>All statuses</em>;
+                  }
+                  return selected
+                    .map((val) => ORDER_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
+                    .join(", ");
+                }}
+              >
+                {ORDER_STATUS_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    <Checkbox checked={filters.orderStatus.indexOf(option.value) > -1} />
+                    <ListItemText primary={option.label} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={2}>
+            <FormControl fullWidth>
+              <InputLabel id="stock-status-label">Stock status</InputLabel>
+              <Select
+                labelId="stock-status-label"
+                multiple
+                value={filters.stockStatus}
+                onChange={(event) => {
+                  const {
+                    target: { value },
+                  } = event;
+                  updateFilter(
+                    "stockStatus",
+                    typeof value === 'string' ? value.split(',') : value
+                  );
+                }}
+                input={<OutlinedInput label="Stock status" />}
+                renderValue={(selected) => {
+                  if (selected.length === 0) {
+                    return <em>All statuses</em>;
+                  }
+                  return selected
+                    .map((val) => STOCK_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
+                    .join(", ");
+                }}
+              >
+                {STOCK_STATUS_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    <Checkbox checked={filters.stockStatus.indexOf(option.value) > -1} />
+                    <ListItemText primary={option.label} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
           <Grid item xs={12} md={12}>
             <Stack direction="row" spacing={2}>
