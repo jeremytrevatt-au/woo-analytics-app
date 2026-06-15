@@ -94,40 +94,66 @@ export async function getOverviewKpis(filter: AppFilterState): Promise<KpiCardDa
   });
   const qs = `?${params.toString()}`;
 
-  const [orders, customers, stock] = await Promise.all([
+  let compareQs = "";
+  if (filter.compareEnabled && filter.compareStartDate && filter.compareEndDate) {
+    const compParams = new URLSearchParams({
+      start_date: filter.compareStartDate,
+      end_date: filter.compareEndDate
+    });
+    compareQs = `?${compParams.toString()}`;
+  }
+
+  const [orders, customers, stock, compOrders, compCustomers, compStock] = await Promise.all([
     fetchJson<OrdersOverviewResponse>(`/api/v1/orders/overview${qs}`),
     fetchJson<CustomersOverviewResponse>(`/api/v1/customers/overview${qs}`),
-    fetchJson<StockOverviewResponse>(`/api/v1/stock/overview${qs}`)
+    fetchJson<StockOverviewResponse>(`/api/v1/stock/overview${qs}`),
+    compareQs ? fetchJson<OrdersOverviewResponse>(`/api/v1/orders/overview${compareQs}`) : Promise.resolve(null),
+    compareQs ? fetchJson<CustomersOverviewResponse>(`/api/v1/customers/overview${compareQs}`) : Promise.resolve(null),
+    compareQs ? fetchJson<StockOverviewResponse>(`/api/v1/stock/overview${compareQs}`) : Promise.resolve(null)
   ]);
+
+  const calcDelta = (current: number, previous: number | null) => {
+    if (previous === null || previous === 0) return { delta: "0.0%", positiveDelta: true };
+    const pct = ((current - previous) / previous) * 100;
+    return {
+      delta: `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`,
+      positiveDelta: pct >= 0
+    };
+  };
+
+  const ordersDelta = calcDelta(orders.total_orders ?? 0, compOrders?.total_orders ?? null);
+  const revenueDelta = calcDelta(orders.total_revenue ?? 0, compOrders?.total_revenue ?? null);
+  const customersDelta = calcDelta(customers.customer_count ?? 0, compCustomers?.customer_count ?? null);
+  const stockDelta = calcDelta(stock.out_of_stock_skus ?? 0, compStock?.out_of_stock_skus ?? null);
 
   return [
     {
       id: "orders",
       label: "Orders",
       value: formatNumber(orders.total_orders ?? 0),
-      delta: summarizeDelta(0),
-      positiveDelta: true
+      delta: ordersDelta.delta,
+      positiveDelta: ordersDelta.positiveDelta
     },
     {
       id: "revenue",
       label: "Revenue",
       value: formatCurrency(orders.total_revenue ?? 0),
-      delta: summarizeDelta(0),
-      positiveDelta: true
+      delta: revenueDelta.delta,
+      positiveDelta: revenueDelta.positiveDelta
     },
     {
       id: "customers",
       label: "Customers",
       value: formatNumber(customers.customer_count ?? 0),
-      delta: summarizeDelta(0),
-      positiveDelta: true
+      delta: customersDelta.delta,
+      positiveDelta: customersDelta.positiveDelta
     },
     {
       id: "stockAlerts",
       label: "Stock Alerts",
       value: formatNumber(stock.out_of_stock_skus ?? 0),
-      delta: summarizeDelta(0),
-      positiveDelta: false
+      delta: stockDelta.delta,
+      positiveDelta: !stockDelta.positiveDelta // Less stock alerts is better
     }
   ];
 }

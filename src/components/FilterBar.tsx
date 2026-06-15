@@ -5,13 +5,13 @@ import { useFilters } from "../hooks/useFilters";
 import { getCategories } from "../api/analyticsApi";
 
 const ORDER_STATUS_OPTIONS = [
-  { value: "processing", label: "Processing" },
-  { value: "completed", label: "Completed" },
-  { value: "on-hold", label: "On Hold" },
-  { value: "pending", label: "Pending Payment" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "refunded", label: "Refunded" },
-  { value: "failed", label: "Failed" },
+  { value: "wc-processing", label: "Processing" },
+  { value: "wc-completed", label: "Completed" },
+  { value: "wc-on-hold", label: "On Hold" },
+  { value: "wc-pending", label: "Pending Payment" },
+  { value: "wc-cancelled", label: "Cancelled" },
+  { value: "wc-refunded", label: "Refunded" },
+  { value: "wc-failed", label: "Failed" },
 ];
 
 const STOCK_STATUS_OPTIONS = [
@@ -33,15 +33,32 @@ function FilterBar() {
   const showOrderStatus = path === "/orders" || path === "/backorders";
   const showStockStatus = path === "/stock" || path === "/backorders";
 
-  const handleDateRangeChange = (range: "custom" | "mtd" | "qtd" | "ytd" | "last_year") => {
+  const handleDateRangeChange = (range: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year") => {
     updateFilter("dateRange", range);
     
     const today = new Date();
     let endDate = today.toISOString().slice(0, 10);
     let startDate = filters.startDate;
 
-    if (range === "mtd") {
+    if (range === "today") {
+      startDate = today.toISOString().slice(0, 10);
+    } else if (range === "this_week") {
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+      startDate = new Date(today.setDate(diff)).toISOString().slice(0, 10);
+      endDate = new Date().toISOString().slice(0, 10); // reset to today
+    } else if (range === "last_week") {
+      const lastWeekEnd = new Date(today);
+      lastWeekEnd.setDate(today.getDate() - today.getDay());
+      const lastWeekStart = new Date(lastWeekEnd);
+      lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
+      startDate = lastWeekStart.toISOString().slice(0, 10);
+      endDate = lastWeekEnd.toISOString().slice(0, 10);
+    } else if (range === "mtd") {
       startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    } else if (range === "last_month") {
+      startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 10);
+      endDate = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().slice(0, 10);
     } else if (range === "qtd") {
       const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
       startDate = new Date(today.getFullYear(), quarterStartMonth, 1).toISOString().slice(0, 10);
@@ -67,7 +84,13 @@ function FilterBar() {
     let cStartDate = new Date(sDate);
     let cEndDate = new Date(eDate);
 
-    if (range === "mtd") {
+    if (range === "today") {
+      cStartDate.setDate(cStartDate.getDate() - 1);
+      cEndDate.setDate(cEndDate.getDate() - 1);
+    } else if (range === "this_week" || range === "last_week") {
+      cStartDate.setDate(cStartDate.getDate() - 7);
+      cEndDate.setDate(cEndDate.getDate() - 7);
+    } else if (range === "mtd" || range === "last_month") {
       cStartDate.setMonth(cStartDate.getMonth() - 1);
       cEndDate.setMonth(cEndDate.getMonth() - 1);
     } else if (range === "qtd") {
@@ -106,21 +129,25 @@ function FilterBar() {
     <Card>
       <CardContent>
         <Grid container spacing={2}>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="Date Range"
-              select
-              value={filters.dateRange}
-              onChange={(event) => handleDateRangeChange(event.target.value as any)}
-            >
-              <MenuItem value="custom">Custom</MenuItem>
-              <MenuItem value="mtd">Month to Date</MenuItem>
-              <MenuItem value="qtd">Quarter to Date</MenuItem>
-              <MenuItem value="ytd">Year to Date</MenuItem>
-              <MenuItem value="last_year">Last Year</MenuItem>
-            </TextField>
-          </Grid>
+            <Grid item xs={12} md={2}>
+              <TextField
+                fullWidth
+                label="Date Range"
+                select
+                value={filters.dateRange}
+                onChange={(event) => handleDateRangeChange(event.target.value as any)}
+              >
+                <MenuItem value="today">Today</MenuItem>
+                <MenuItem value="this_week">This Week</MenuItem>
+                <MenuItem value="last_week">Last Week</MenuItem>
+                <MenuItem value="mtd">Month to Date</MenuItem>
+                <MenuItem value="last_month">Last Month</MenuItem>
+                <MenuItem value="qtd">Quarter to Date</MenuItem>
+                <MenuItem value="ytd">Year to Date</MenuItem>
+                <MenuItem value="last_year">Last Year</MenuItem>
+                <MenuItem value="custom">Custom</MenuItem>
+              </TextField>
+            </Grid>
           <Grid item xs={12} md={2}>
             <TextField
               fullWidth
