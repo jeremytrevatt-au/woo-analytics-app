@@ -90,14 +90,14 @@ function StockPage() {
           <DataTablePanel
             title=""
             rows={stockForecast.records as any}
-            columns={[
-              { key: "sku", label: "Base SKU", type: "string" },
-              { key: "currentStockQty", label: "Shared Stock Pool", type: "number" },
-              { key: "avgDailyUsage", label: "Avg Daily Usage (Base Units)", type: "number" },
-              { key: "daysOfCover", label: "Days of Cover", type: "number" },
-              { key: "projectedStockoutDate", label: "Projected Stockout", type: "date" },
-              { key: "reorderWithinLeadTime", label: "Needs Reorder", type: "boolean" },
-            ]}
+              columns={[
+                { key: "sku", label: "SKU", type: "string" },
+                { key: "currentStockQty", label: "Current Stock", type: "number" },
+                { key: "avgDailyUsage", label: "Avg Daily Usage", type: "number" },
+                { key: "daysOfCover", label: "Days of Cover", type: "number" },
+                { key: "projectedStockoutDate", label: "Projected Stockout", type: "date" },
+                { key: "reorderWithinLeadTime", label: "Needs Reorder", type: "boolean" },
+              ]}
             page={stockForecast.page}
             pageSize={stockForecast.pageSize}
             totalCount={stockForecast.totalCount}
