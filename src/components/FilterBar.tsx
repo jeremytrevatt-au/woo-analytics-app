@@ -1,4 +1,5 @@
 import { Card, CardContent, Grid, MenuItem, Stack, TextField, FormControlLabel, Switch, Checkbox, ListItemText, Select, InputLabel, FormControl, OutlinedInput } from "@mui/material";
+import { useLocation } from "react-router-dom";
 import { useFilters } from "../hooks/useFilters";
 
 const ORDER_STATUS_OPTIONS = [
@@ -19,6 +20,11 @@ const STOCK_STATUS_OPTIONS = [
 
 function FilterBar() {
   const { filters, updateFilter } = useFilters();
+  const location = useLocation();
+  const path = location.pathname;
+
+  const showOrderStatus = path === "/orders" || path === "/backorders";
+  const showStockStatus = path === "/stock" || path === "/backorders";
 
   const handleDateRangeChange = (range: "custom" | "mtd" | "qtd" | "ytd") => {
     updateFilter("dateRange", range);
@@ -140,114 +146,117 @@ function FilterBar() {
               label="Compare to previous"
             />
           </Grid>
-          <Grid item xs={12} md={2}>
-            <FormControl fullWidth>
-              <InputLabel id="order-status-label">Order status</InputLabel>
-              <Select
-                labelId="order-status-label"
-                multiple
-                value={filters.orderStatus}
-                onChange={(event) => {
-                  const {
-                    target: { value },
-                  } = event;
-                  updateFilter(
-                    "orderStatus",
-                    typeof value === 'string' ? value.split(',') : value
-                  );
-                }}
-                input={<OutlinedInput label="Order status" />}
-                renderValue={(selected) => {
-                  if (selected.length === 0) {
-                    return <em>All statuses</em>;
-                  }
-                  return selected
-                    .map((val) => ORDER_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
-                    .join(", ");
-                }}
-              >
-                {ORDER_STATUS_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    <Checkbox checked={filters.orderStatus.indexOf(option.value) > -1} />
-                    <ListItemText primary={option.label} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <FormControl fullWidth>
-              <InputLabel id="stock-status-label">Stock status</InputLabel>
-              <Select
-                labelId="stock-status-label"
-                multiple
-                value={filters.stockStatus}
-                onChange={(event) => {
-                  const {
-                    target: { value },
-                  } = event;
-                  updateFilter(
-                    "stockStatus",
-                    typeof value === 'string' ? value.split(',') : value
-                  );
-                }}
-                input={<OutlinedInput label="Stock status" />}
-                renderValue={(selected) => {
-                  if (selected.length === 0) {
-                    return <em>All statuses</em>;
-                  }
-                  return selected
-                    .map((val) => STOCK_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
-                    .join(", ");
-                }}
-              >
-                {STOCK_STATUS_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    <Checkbox checked={filters.stockStatus.indexOf(option.value) > -1} />
-                    <ListItemText primary={option.label} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Search product, customer, SKU"
-              value={filters.searchText}
-              onChange={(event) => updateFilter("searchText", event.target.value)}
-            />
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="Category"
-              value={filters.category}
-              onChange={(event) => updateFilter("category", event.target.value)}
-              placeholder="e.g. Trays"
-            />
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              select
-              label="SKU Filter Type"
-              value={filters.skuPatternType}
-              onChange={(event) => updateFilter("skuPatternType", event.target.value as any)}
-            >
-              <MenuItem value="starts_with">Starts With</MenuItem>
-              <MenuItem value="ends_with">Ends With</MenuItem>
-              <MenuItem value="contains">Contains</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="SKU Pattern"
-              value={filters.skuPattern}
-              onChange={(event) => updateFilter("skuPattern", event.target.value)}
-              placeholder="e.g. BSF-TRA"
-            />
+          {showOrderStatus && (
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth sx={{ minWidth: 150 }}>
+                <InputLabel id="order-status-label">Order status</InputLabel>
+                <Select
+                  labelId="order-status-label"
+                  multiple
+                  value={filters.orderStatus}
+                  onChange={(event) => {
+                    const {
+                      target: { value },
+                    } = event;
+                    updateFilter(
+                      "orderStatus",
+                      typeof value === 'string' ? value.split(',') : value
+                    );
+                  }}
+                  input={<OutlinedInput label="Order status" />}
+                  renderValue={(selected) => {
+                    if (selected.length === 0) {
+                      return <em>All statuses</em>;
+                    }
+                    return selected
+                      .map((val) => ORDER_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
+                      .join(", ");
+                  }}
+                >
+                  {ORDER_STATUS_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      <Checkbox checked={filters.orderStatus.indexOf(option.value) > -1} />
+                      <ListItemText primary={option.label} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+          {showStockStatus && (
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth sx={{ minWidth: 150 }}>
+                <InputLabel id="stock-status-label">Stock status</InputLabel>
+                <Select
+                  labelId="stock-status-label"
+                  multiple
+                  value={filters.stockStatus}
+                  onChange={(event) => {
+                    const {
+                      target: { value },
+                    } = event;
+                    updateFilter(
+                      "stockStatus",
+                      typeof value === 'string' ? value.split(',') : value
+                    );
+                  }}
+                  input={<OutlinedInput label="Stock status" />}
+                  renderValue={(selected) => {
+                    if (selected.length === 0) {
+                      return <em>All statuses</em>;
+                    }
+                    return selected
+                      .map((val) => STOCK_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
+                      .join(", ");
+                  }}
+                >
+                  {STOCK_STATUS_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      <Checkbox checked={filters.stockStatus.indexOf(option.value) > -1} />
+                      <ListItemText primary={option.label} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+          <Grid item xs={12} md={12}>
+            <Stack direction="row" spacing={2}>
+              <TextField
+                fullWidth
+                label="Search product, customer, SKU"
+                value={filters.searchText}
+                onChange={(event) => updateFilter("searchText", event.target.value)}
+              />
+              <TextField
+                fullWidth
+                label="Category"
+                value={filters.category}
+                onChange={(event) => updateFilter("category", event.target.value)}
+                placeholder="e.g. Trays"
+              />
+              <TextField
+                fullWidth
+                label="SKU Starts With"
+                value={filters.skuStartsWith || ""}
+                onChange={(event) => updateFilter("skuStartsWith", event.target.value)}
+                placeholder="e.g. BSF"
+              />
+              <TextField
+                fullWidth
+                label="SKU Contains"
+                value={filters.skuContains || ""}
+                onChange={(event) => updateFilter("skuContains", event.target.value)}
+                placeholder="e.g. TRA"
+              />
+              <TextField
+                fullWidth
+                label="SKU Ends With"
+                value={filters.skuEndsWith || ""}
+                onChange={(event) => updateFilter("skuEndsWith", event.target.value)}
+                placeholder="e.g. 20"
+              />
+            </Stack>
           </Grid>
         </Grid>
       </CardContent>

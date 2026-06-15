@@ -87,11 +87,17 @@ type StockRow = {
   stock_status: string;
 };
 
-export async function getOverviewKpis(_filter: AppFilterState): Promise<KpiCardData[]> {
+export async function getOverviewKpis(filter: AppFilterState): Promise<KpiCardData[]> {
+  const params = new URLSearchParams({
+    start_date: filter.startDate,
+    end_date: filter.endDate
+  });
+  const qs = `?${params.toString()}`;
+
   const [orders, customers, stock] = await Promise.all([
-    fetchJson<OrdersOverviewResponse>("/api/v1/orders/overview"),
-    fetchJson<CustomersOverviewResponse>("/api/v1/customers/overview"),
-    fetchJson<StockOverviewResponse>("/api/v1/stock/overview")
+    fetchJson<OrdersOverviewResponse>(`/api/v1/orders/overview${qs}`),
+    fetchJson<CustomersOverviewResponse>(`/api/v1/customers/overview${qs}`),
+    fetchJson<StockOverviewResponse>(`/api/v1/stock/overview${qs}`)
   ]);
 
   return [
@@ -174,10 +180,9 @@ export async function getOrderRecords(
     params.append("status", filter.orderStatus.join(","));
   }
   if (filter.category) params.append("category", filter.category);
-  if (filter.skuPattern) {
-    params.append("sku_pattern", filter.skuPattern);
-    params.append("sku_pattern_type", filter.skuPatternType);
-  }
+  if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
+  if (filter.skuContains) params.append("sku_contains", filter.skuContains);
+  if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
   if (filter.sortBy) {
     params.append("sort_by", filter.sortBy);
     params.append("sort_dir", filter.sortDir);
@@ -234,10 +239,9 @@ export async function getStockRecords(
     end_date: filter.endDate
   });
   if (filter.category) params.append("category", filter.category);
-  if (filter.skuPattern) {
-    params.append("sku_pattern", filter.skuPattern);
-    params.append("sku_pattern_type", filter.skuPatternType);
-  }
+  if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
+  if (filter.skuContains) params.append("sku_contains", filter.skuContains);
+  if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
   if (filter.sortBy) {
     params.append("sort_by", filter.sortBy);
     params.append("sort_dir", filter.sortDir);
@@ -267,10 +271,9 @@ export async function getOrderTrends(filter: AppFilterState): Promise<TrendPoint
     params.append("compare_end_date", filter.compareEndDate);
   }
   if (filter.category) params.append("category", filter.category);
-  if (filter.skuPattern) {
-    params.append("sku_pattern", filter.skuPattern);
-    params.append("sku_pattern_type", filter.skuPatternType);
-  }
+  if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
+  if (filter.skuContains) params.append("sku_contains", filter.skuContains);
+  if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
   const response = await fetchJson<TrendResponse>(`/api/v1/orders/trend?${params.toString()}`);
 
   return response.points.map((point, index) => {
@@ -324,10 +327,9 @@ export async function getStockTrends(filter: AppFilterState): Promise<TrendPoint
     params.append("compare_end_date", filter.compareEndDate);
   }
   if (filter.category) params.append("category", filter.category);
-  if (filter.skuPattern) {
-    params.append("sku_pattern", filter.skuPattern);
-    params.append("sku_pattern_type", filter.skuPatternType);
-  }
+  if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
+  if (filter.skuContains) params.append("sku_contains", filter.skuContains);
+  if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
   const response = await fetchJson<TrendResponse>(`/api/v1/stock/trend?${params.toString()}`);
 
   return response.points.map((point, index) => {
@@ -352,8 +354,9 @@ export async function getStockForecast(
   method: string = "sma",
   lookbackDays: number = 365,
   category: string | null = null,
-  skuPattern: string | null = null,
-  skuPatternType: string = "contains"
+  skuStartsWith: string | null = null,
+  skuContains: string | null = null,
+  skuEndsWith: string | null = null
 ): Promise<{ records: StockForecastRecord[]; totalCount: number; page: number; pageSize: number }> {
   const params = new URLSearchParams({
     lead_time_days: String(leadTimeDays),
@@ -364,10 +367,9 @@ export async function getStockForecast(
     lookback_days: String(lookbackDays)
   });
   if (category) params.append("category", category);
-  if (skuPattern) {
-    params.append("sku_pattern", skuPattern);
-    params.append("sku_pattern_type", skuPatternType);
-  }
+  if (skuStartsWith) params.append("sku_starts_with", skuStartsWith);
+  if (skuContains) params.append("sku_contains", skuContains);
+  if (skuEndsWith) params.append("sku_ends_with", skuEndsWith);
   const response = await fetchJson<PaginatedResponse<StockForecastRow>>(`/api/v1/stock/forecast?${params.toString()}`);
   return {
     records: response.records.map((row) => ({

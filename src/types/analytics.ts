@@ -10,8 +10,9 @@ export type AppFilterState = {
   stockStatus: string[];
   searchText: string;
   category: string;
-  skuPattern: string;
-  skuPatternType: "starts_with" | "ends_with" | "contains";
+  skuStartsWith: string;
+  skuContains: string;
+  skuEndsWith: string;
   sortBy: string | null;
   sortDir: "asc" | "desc";
 };

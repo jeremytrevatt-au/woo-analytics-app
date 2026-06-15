@@ -28,8 +28,9 @@ const defaultFilters: AppFilterState = {
   stockStatus: [],
   searchText: "",
   category: "",
-  skuPattern: "",
-  skuPatternType: "contains",
+  skuStartsWith: "",
+  skuContains: "",
+  skuEndsWith: "",
   sortBy: null,
   sortDir: "desc",
 };

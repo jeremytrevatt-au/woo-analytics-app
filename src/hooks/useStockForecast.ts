@@ -29,7 +29,7 @@ export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90, met
     let mounted = true;
     setState((previous) => ({ ...previous, isLoading: true, error: null }));
 
-    getStockForecast(leadTimeDays, page, pageSize, filters.searchText, method, lookbackDays, filters.category, filters.skuPattern, filters.skuPatternType)
+    getStockForecast(leadTimeDays, page, pageSize, filters.searchText, method, lookbackDays, filters.category, filters.skuStartsWith, filters.skuContains, filters.skuEndsWith)
       .then((payload) => {
         if (!mounted) {
           return;
@@ -57,7 +57,7 @@ export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90, met
     return () => {
       mounted = false;
     };
-  }, [filters.searchText, leadTimeDays, page, pageSize, method, lookbackDays, filters.category, filters.skuPattern, filters.skuPatternType]);
+  }, [filters.searchText, leadTimeDays, page, pageSize, method, lookbackDays, filters.category, filters.skuStartsWith, filters.skuContains, filters.skuEndsWith]);
 
   return state;
 }
