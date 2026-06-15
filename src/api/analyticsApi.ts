@@ -197,12 +197,10 @@ export async function getCustomerRecords(
   page: number,
   pageSize: number
 ): Promise<PaginatedRecords> {
-  const mappedStatus =
-    filter.orderStatus.includes("active") ? "active" : filter.orderStatus.includes("inactive") ? "inactive" : "all";
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
-    status: mappedStatus,
+    status: "all",
     q: filter.searchText,
     start_date: filter.startDate,
     end_date: filter.endDate
@@ -226,7 +224,7 @@ export async function getStockRecords(
   page: number,
   pageSize: number
 ): Promise<PaginatedRecords> {
-  const mappedStatus = filter.orderStatus.includes("instock") ? "instock" : filter.orderStatus.includes("outofstock") ? "outofstock" : "all";
+  const mappedStatus = filter.stockStatus.includes("instock") ? "instock" : filter.stockStatus.includes("outofstock") ? "outofstock" : "all";
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),

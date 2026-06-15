@@ -210,40 +210,44 @@ function FilterBar() {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} md={12}>
-            <Stack direction="row" spacing={2}>
-              <TextField
-                fullWidth
-                label="Search product, customer, SKU"
-                value={filters.searchText}
-                onChange={(event) => updateFilter("searchText", event.target.value)}
-              />
-              <TextField
-                fullWidth
-                label="Category"
-                value={filters.category}
-                onChange={(event) => updateFilter("category", event.target.value)}
-                placeholder="e.g. Trays"
-              />
-              <TextField
-                select
-                label="SKU Filter Type"
-                value={filters.skuPatternType}
-                onChange={(event) => updateFilter("skuPatternType", event.target.value as any)}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value="starts_with">Starts With</MenuItem>
-                <MenuItem value="ends_with">Ends With</MenuItem>
-                <MenuItem value="contains">Contains</MenuItem>
-              </TextField>
-              <TextField
-                fullWidth
-                label="SKU Pattern"
-                value={filters.skuPattern}
-                onChange={(event) => updateFilter("skuPattern", event.target.value)}
-                placeholder="e.g. BSF-TRA"
-              />
-            </Stack>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Search product, customer, SKU"
+              value={filters.searchText}
+              onChange={(event) => updateFilter("searchText", event.target.value)}
+            />
+          </Grid>
+          <Grid item xs={12} md={2}>
+            <TextField
+              fullWidth
+              label="Category"
+              value={filters.category}
+              onChange={(event) => updateFilter("category", event.target.value)}
+              placeholder="e.g. Trays"
+            />
+          </Grid>
+          <Grid item xs={12} md={2}>
+            <TextField
+              fullWidth
+              select
+              label="SKU Filter Type"
+              value={filters.skuPatternType}
+              onChange={(event) => updateFilter("skuPatternType", event.target.value as any)}
+            >
+              <MenuItem value="starts_with">Starts With</MenuItem>
+              <MenuItem value="ends_with">Ends With</MenuItem>
+              <MenuItem value="contains">Contains</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={2}>
+            <TextField
+              fullWidth
+              label="SKU Pattern"
+              value={filters.skuPattern}
+              onChange={(event) => updateFilter("skuPattern", event.target.value)}
+              placeholder="e.g. BSF-TRA"
+            />
           </Grid>
         </Grid>
       </CardContent>
