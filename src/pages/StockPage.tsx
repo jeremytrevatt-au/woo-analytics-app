@@ -153,32 +153,46 @@ function StockPage() {
               return (
                 <Table size="small" aria-label="variants">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Variant SKU</TableCell>
-                      <TableCell>Product Name</TableCell>
-                      <TableCell align="right">Current Stock</TableCell>
-                      <TableCell align="right">Avg Daily Usage</TableCell>
-                      <TableCell align="right">Days of Cover</TableCell>
-                      <TableCell>Projected Stockout</TableCell>
-                      <TableCell>Needs Reorder</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {variants.map((v: any, idx: number) => (
-                      <TableRow key={idx}>
-                        <TableCell>
-                          <a href={`https://naturalyield.com.au/wp-admin/post.php?post=${v.product_id}&action=edit`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
-                            {v.sku}
-                          </a>
-                        </TableCell>
-                        <TableCell>{v.product_name}</TableCell>
-                        <TableCell align="right">{v.current_stock_qty}</TableCell>
-                        <TableCell align="right">{v.avg_daily_usage?.toFixed(2)}</TableCell>
-                        <TableCell align="right">{v.days_of_cover?.toFixed(1)}</TableCell>
-                        <TableCell>{v.projected_stockout_date ? new Date(v.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
-                        <TableCell>{v.reorder_within_lead_time ? "Yes" : "No"}</TableCell>
+                      <TableRow>
+                        <TableCell>Variant SKU</TableCell>
+                        <TableCell>Product Name</TableCell>
+                        <TableCell align="right">Current Stock</TableCell>
+                        <TableCell align="right">Avg Daily Usage</TableCell>
+                        <TableCell align="right">Days of Cover</TableCell>
+                        <TableCell>Projected Stockout</TableCell>
+                        <TableCell>Incoming Qty</TableCell>
+                        <TableCell>ETA</TableCell>
+                        <TableCell>Needs Reorder</TableCell>
                       </TableRow>
-                    ))}
+                    </TableHead>
+                    <TableBody>
+                      {variants.map((v: any, idx: number) => {
+                        let needsReorder = v.reorder_within_lead_time ? "Yes" : "No";
+                        if (v.reorder_within_lead_time && v.nya_stock_reorder_qty > 0 && v.nya_stock_eta) {
+                          const etaDate = new Date(v.nya_stock_eta);
+                          const stockoutDate = new Date(v.projected_stockout_date);
+                          if (etaDate <= stockoutDate) {
+                            needsReorder = "Incoming";
+                          }
+                        }
+                        return (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <a href={`https://naturalyield.com.au/wp-admin/post.php?post=${v.product_id}&action=edit`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                              {v.sku}
+                            </a>
+                          </TableCell>
+                          <TableCell>{v.product_name}</TableCell>
+                          <TableCell align="right">{v.current_stock_qty}</TableCell>
+                          <TableCell align="right">{v.avg_daily_usage?.toFixed(2)}</TableCell>
+                          <TableCell align="right">{v.days_of_cover?.toFixed(1)}</TableCell>
+                          <TableCell>{v.projected_stockout_date ? new Date(v.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
+                          <TableCell>{v.nya_stock_reorder_qty || "-"}</TableCell>
+                          <TableCell>{v.nya_stock_eta ? new Date(v.nya_stock_eta).toLocaleDateString("en-AU") : "-"}</TableCell>
+                          <TableCell>{needsReorder}</TableCell>
+                        </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               );
