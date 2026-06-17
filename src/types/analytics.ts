@@ -1,4 +1,25 @@
-export type AppFilterState = {
+export type StockLedgerEntry = {
+  id: number;
+  timestamp: string;
+  product_id: number;
+  variation_id: number;
+  wsvi_group_id: string;
+  change_amount: number;
+  new_stock_level: number;
+  reason: string;
+  reference_id: number;
+  user_id: number;
+  product_name: string;
+  sku: string;
+};
+
+export interface StockLedgerResponse {
+  items: StockLedgerEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
   dateRange: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year";
   compareEnabled: boolean;
   granularity: "day" | "week" | "month" | "quarter" | "year";

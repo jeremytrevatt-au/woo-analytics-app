@@ -87,6 +87,26 @@ type StockRow = {
   stock_status: string;
 };
 
+import { StockLedgerResponse } from "../types/analytics";
+
+export async function fetchStockLedger(
+  filter: AppFilterState,
+  page: number = 1,
+  pageSize: number = 50,
+  reason: string | null = null
+): Promise<StockLedgerResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    page_size: pageSize.toString(),
+  });
+  if (filter.searchText) params.append("q", filter.searchText);
+  if (filter.startDate) params.append("start_date", filter.startDate);
+  if (filter.endDate) params.append("end_date", filter.endDate);
+  if (reason) params.append("reason", reason);
+
+  return fetchJson<StockLedgerResponse>(`/api/v1/stock/ledger?${params.toString()}`);
+}
+
 export async function getOverviewKpis(filter: AppFilterState): Promise<KpiCardData[]> {
   const params = new URLSearchParams({
     start_date: filter.startDate,
