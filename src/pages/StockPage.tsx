@@ -40,44 +40,59 @@ function StockPage() {
       <Typography variant="body2" color="text.secondary">
         Track out-of-stock risk and stock movement by SKU and product line.
       </Typography>
-      <LoadStateBlock isLoading={isLoading} error={error} empty={!isLoading && !error && rows.length === 0} />
-      {!isLoading && !error ? (
-        <>
-          <KpiGrid cards={stockKpi ? [stockKpi] : []} />
-          <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
-          <DataTablePanel
-            title="Stock Records"
-            rows={rows as any}
-            columns={columns}
-            page={page}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={setPage}
-            getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
-          />
-        </>
-      ) : null}
       
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        <Tabs value={activeTab} onChange={handleTabChange} aria-label="stock tabs">
+          <Tab label="Stock Records" />
+          <Tab label="Stock Shortages & Affected Orders" />
+          <Tab label="Stock Reorder Forecast" />
+          <Tab label="Stock Movement Ledger" />
+        </Tabs>
+      </Box>
 
-      <LoadStateBlock isLoading={stockShortages.isLoading} error={stockShortages.error} empty={!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length === 0} />
-      {!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length > 0 ? (
-        <DataTablePanel
-          title="Stock Shortages & Affected Orders"
-          rows={stockShortages.records}
-          columns={stockShortages.columns}
-          page={stockShortages.page}
-          pageSize={stockShortages.pageSize}
-          totalCount={stockShortages.totalCount}
-          onPageChange={setShortagesPage}
-          renderExpandedRow={(row) => {
-            const orders = row.affected_orders as any[];
-            if (!orders || orders.length === 0) return <Typography variant="body2">No affected orders found.</Typography>;
-            return (
-              <Table size="small" aria-label="affected-orders">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Order ID</TableCell>
-                    <TableCell>Date</TableCell>
+      {activeTab === 0 && (
+        <>
+          <LoadStateBlock isLoading={isLoading} error={error} empty={!isLoading && !error && rows.length === 0} />
+          {!isLoading && !error ? (
+            <>
+              <KpiGrid cards={stockKpi ? [stockKpi] : []} />
+              <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
+              <DataTablePanel
+                title="Stock Records"
+                rows={rows as any}
+                columns={columns}
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
+                getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
+              />
+            </>
+          ) : null}
+        </>
+      )}
+
+      {activeTab === 1 && (
+        <>
+          <LoadStateBlock isLoading={stockShortages.isLoading} error={stockShortages.error} empty={!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length === 0} />
+          {!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length > 0 ? (
+            <DataTablePanel
+              title="Stock Shortages & Affected Orders"
+              rows={stockShortages.records}
+              columns={stockShortages.columns}
+              page={stockShortages.page}
+              pageSize={stockShortages.pageSize}
+              totalCount={stockShortages.totalCount}
+              onPageChange={setShortagesPage}
+              renderExpandedRow={(row) => {
+                const orders = row.affected_orders as any[];
+                if (!orders || orders.length === 0) return <Typography variant="body2">No affected orders found.</Typography>;
+                return (
+                  <Table size="small" aria-label="affected-orders">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Order ID</TableCell>
+                        <TableCell>Date</TableCell>
                     <TableCell>Customer</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Qty</TableCell>
@@ -99,7 +114,11 @@ function StockPage() {
           }}
         />
       ) : null}
+      </>
+      )}
 
+      {activeTab === 2 && (
+        <>
       <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
         <Grid item xs={12} md={6}>
           <Typography variant="h6" fontWeight={700}>
@@ -206,11 +225,15 @@ function StockPage() {
                       })}
                   </TableBody>
                 </Table>
-              );
-            }}
-          />
+            );
+          }}
+        />
       ) : null}
+      </>
+      )}
 
+      {activeTab === 3 && (
+        <>
       <Box sx={{ mt: 4, mb: 2, display: "flex", gap: 2, alignItems: "center" }}>
         <Typography variant="h6">Stock Movement Ledger</Typography>
         <TextField
@@ -263,6 +286,8 @@ function StockPage() {
           />
         )}
       </LoadStateBlock>
+      </>
+      )}
 
     </Stack>
   );
