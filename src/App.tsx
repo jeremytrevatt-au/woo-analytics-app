@@ -9,6 +9,7 @@ import OverviewPage from "./pages/OverviewPage";
 import OrdersPage from "./pages/OrdersPage";
 import StockPage from "./pages/StockPage";
 import BackordersPage from "./pages/BackordersPage";
+import AdminPage from "./pages/AdminPage";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/stock" element={<StockPage />} />
             <Route path="/revenue" element={<RevenuePage />} />
             <Route path="/backorders" element={<BackordersPage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </DashboardLayout>
         <ApiDebugPanel />

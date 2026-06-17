@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Stack, Typography, Grid, TextField, MenuItem } from "@mui/material";
+import { useState, SyntheticEvent } from "react";
+import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import KpiGrid from "../components/KpiGrid";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -11,6 +11,12 @@ import { useStockLedger } from "../hooks/useStockLedger";
 import { Table, TableBody, TableCell, TableHead, TableRow, Box } from "@mui/material";
 
 function StockPage() {
+  const [activeTab, setActiveTab] = useState(0);
+
+  const handleTabChange = (event: SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
   const [page, setPage] = useState(1);
   const [forecastPage, setForecastPage] = useState(1);
   const [method, setMethod] = useState("sma");
