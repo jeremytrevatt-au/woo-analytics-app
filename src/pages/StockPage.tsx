@@ -7,7 +7,8 @@ import TrendsChartPanel from "../components/TrendsChartPanel";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useStockForecast } from "../hooks/useStockForecast";
 import { useStockShortages } from "../hooks/useStockShortages";
-import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { useStockLedger } from "../hooks/useStockLedger";
+import { Table, TableBody, TableCell, TableHead, TableRow, Box } from "@mui/material";
 
 function StockPage() {
   const [page, setPage] = useState(1);
@@ -16,9 +17,13 @@ function StockPage() {
   const [lookbackDays, setLookbackDays] = useState(365);
   
   const [shortagesPage, setShortagesPage] = useState(1);
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerReason, setLedgerReason] = useState<string>("all");
+
   const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize } = useDashboardData("stock", page, 50);
   const stockForecast = useStockForecast(forecastPage, 20, 90, method, lookbackDays);
   const stockShortages = useStockShortages(shortagesPage, 50);
+  const stockLedger = useStockLedger(ledgerPage, 50, ledgerReason === "all" ? null : ledgerReason);
   const stockKpi = kpis.find((item) => item.id === "stockAlerts");
 
   return (
@@ -199,6 +204,60 @@ function StockPage() {
             }}
           />
       ) : null}
+
+      <Box sx={{ mt: 4, mb: 2, display: "flex", gap: 2, alignItems: "center" }}>
+        <Typography variant="h6">Stock Movement Ledger</Typography>
+        <TextField
+          select
+          label="Reason"
+          value={ledgerReason}
+          onChange={(e) => {
+            setLedgerReason(e.target.value);
+            setLedgerPage(1);
+          }}
+          size="small"
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="all">All Movements</MenuItem>
+          <MenuItem value="manual_edit">Manual Edit</MenuItem>
+          <MenuItem value="order_placed">Order Placed</MenuItem>
+          <MenuItem value="order_restocked">Order Restocked</MenuItem>
+          <MenuItem value="order_refunded">Order Refunded</MenuItem>
+        </TextField>
+      </Box>
+
+      <LoadStateBlock
+        loading={stockLedger.isLoading}
+        error={stockLedger.error}
+        onRetry={() => setLedgerPage(ledgerPage)}
+      >
+        {stockLedger.data && (
+          <DataTablePanel
+            title="Stock Movement History"
+            columns={[
+              { field: "timestamp", headerName: "Date/Time" },
+              { field: "sku", headerName: "SKU" },
+              { field: "product_name", headerName: "Product Name" },
+              { field: "reason", headerName: "Reason" },
+              { field: "change_amount", headerName: "Change" },
+              { field: "new_stock_level", headerName: "New Level" },
+              { field: "reference_id", headerName: "Ref ID (Order)" },
+            ]}
+            data={stockLedger.data.items.map((i: any) => ({
+              ...i,
+              timestamp: new Date(i.timestamp).toLocaleString("en-AU"),
+              change_amount: i.change_amount > 0 ? `+${i.change_amount}` : i.change_amount,
+              reference_id: i.reference_id > 0 ? i.reference_id : "-",
+            }))}
+            total={stockLedger.data.total}
+            page={ledgerPage}
+            pageSize={50}
+            onPageChange={setLedgerPage}
+            onPageSizeChange={() => {}}
+          />
+        )}
+      </LoadStateBlock>
+
     </Stack>
   );
 }
