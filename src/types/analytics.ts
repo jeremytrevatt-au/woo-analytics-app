@@ -69,7 +69,7 @@ export type ForecastPoint = {
 export type TableColumn = {
   key: string;
   label: string;
-  type: "string" | "number" | "currency" | "date" | "boolean";
+  type: "string" | "number" | "currency" | "date" | "boolean" | "node";
 };
 
 export type DynamicTableRecord = Record<string, unknown>;

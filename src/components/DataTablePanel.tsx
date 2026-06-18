@@ -52,26 +52,27 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
     updateFilter("sortBy", columnKey);
   };
   
-  const renderCellContent = (value: any, type: TableColumn["type"], row: any, col: TableColumn) => {
-    if (value === null || value === undefined) return "-";
-    
-    let formattedValue: string;
-    switch (type) {
-      case "currency":
-        formattedValue = formatCurrency(Number(value));
-        break;
-      case "number":
-        formattedValue = formatNumber(Number(value));
-        break;
-      case "boolean":
-        formattedValue = value ? "Yes" : "No";
-        break;
-      case "date":
-        formattedValue = new Date(value).toLocaleDateString("en-AU");
-        break;
-      default:
-        formattedValue = String(value);
-    }
+    const renderCellContent = (value: any, type: TableColumn["type"], row: any, col: TableColumn) => {
+      if (value === null || value === undefined) return "-";
+      if (type === "node") return value;
+      
+      let formattedValue: string;
+      switch (type) {
+        case "currency":
+          formattedValue = formatCurrency(Number(value));
+          break;
+        case "number":
+          formattedValue = formatNumber(Number(value));
+          break;
+        case "boolean":
+          formattedValue = value ? "Yes" : "No";
+          break;
+        case "date":
+          formattedValue = new Date(value).toLocaleDateString("en-AU");
+          break;
+        default:
+          formattedValue = String(value);
+      }
 
     const linkUrl = getLinkUrl ? getLinkUrl(row, col) : null;
     if (linkUrl) {
