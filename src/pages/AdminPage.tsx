@@ -67,14 +67,18 @@ function AdminPage() {
           Danger Zone
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Purge the entire Stock Movement Ledger. This will back up the current ledger to a backup table in the MySQL database and then truncate the ledger in both MySQL and BigQuery.
+          Purge the Stock Movement Ledger from BigQuery. Note: This does not delete the original records in the WooCommerce MySQL database. A global re-sync will restore them.
         </Typography>
         
         <Box sx={{ mt: 2, display: "flex", alignItems: "center", gap: 2 }}>
           <Button 
             variant="outlined" 
             color="error" 
-            onClick={() => setPurgeDialogOpen(true)} 
+            onClick={() => {
+              if (window.confirm("Are you absolutely sure you want to purge the Stock Ledger?")) {
+                setPurgeDialogOpen(true);
+              }
+            }} 
             disabled={loading || purging}
           >
             {purging ? <CircularProgress size={24} color="error" /> : "Purge Stock Ledger"}
@@ -99,9 +103,9 @@ function AdminPage() {
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="alert-dialog-description">
-            Are you sure you want to purge the Stock Movement Ledger? 
+            Are you sure you want to purge the Stock Movement Ledger from the Analytics reporting database? 
             <br /><br />
-            This action will copy all current ledger entries to a backup table in the source database, and then permanently delete the active ledger data from both MySQL and BigQuery.
+            This will clear the frontend tables immediately. However, because the Analytics service has read-only access to WooCommerce, it cannot delete the source records in MySQL. Running a Global Re-Sync later will pull the old records back in unless they are manually purged from MySQL.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
