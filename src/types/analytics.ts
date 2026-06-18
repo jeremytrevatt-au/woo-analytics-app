@@ -82,14 +82,28 @@ export type PaginatedRecords = {
   totalCount: number;
 };
 
-export type StockForecastRecord = {
-  productId: number;
+export type StockForecastVariant = {
+  product_id: number;
+  parent_id: number | null;
   sku: string;
-  currentStockQty: number;
-  avgDailyUsage: number;
-  daysOfCover: number | null;
-  projectedStockoutDate: string | null;
-  reorderWithinLeadTime: boolean;
+  product_name: string;
+  current_stock_qty: number;
+  avg_daily_usage: number;
+  days_of_cover: number | null;
+  projected_stockout_date: string | null;
+  reorder_within_lead_time: boolean;
+  lead_time_days: number;
+  nya_stock_eta: string | null;
+  nya_stock_reorder_qty: number | null;
+};
+
+export type StockForecastRecord = {
+  base_sku: string;
+  category: string;
+  product_name: string;
+  any_reorder: boolean;
+  min_days_of_cover: number | null;
+  variants: StockForecastVariant[];
 };
 
 export type ApiDebugEvent = {

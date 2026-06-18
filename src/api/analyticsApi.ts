@@ -44,16 +44,6 @@ type TrendResponse = {
   }>;
 };
 
-type StockForecastRow = {
-  product_id: number;
-  parent_id?: number | null;
-  sku: string | null;
-  current_stock_qty: number;
-  avg_daily_usage: number;
-  days_of_cover: number | null;
-  projected_stockout_date: string | null;
-  reorder_within_lead_time: boolean;
-};
 
 type PaginatedResponse<T> = {
   records: T[];
@@ -89,17 +79,24 @@ type StockRow = {
 
 import { StockLedgerResponse } from "../types/analytics";
 
+export async function fetchStockLedgerChart(sku: string): Promise<any[]> {
+  const params = new URLSearchParams({ sku });
+  return fetchJson<any[]>(`/api/v1/stock/ledger/chart?${params.toString()}`);
+}
+
 export async function fetchStockLedger(
   filter: AppFilterState,
   page: number = 1,
   pageSize: number = 50,
-  reason: string | null = null
+  reason: string | null = null,
+  localSearch: string = ""
 ): Promise<StockLedgerResponse> {
   const params = new URLSearchParams({
     page: page.toString(),
     page_size: pageSize.toString(),
   });
-  if (filter.searchText) params.append("q", filter.searchText);
+  const q = localSearch || filter.searchText;
+  if (q) params.append("q", q);
   if (filter.startDate) params.append("start_date", filter.startDate);
   if (filter.endDate) params.append("end_date", filter.endDate);
   if (reason) params.append("reason", reason);
@@ -408,35 +405,27 @@ export async function getStockForecast(
   skuStartsWith: string | null = null,
   skuContains: string | null = null,
   skuEndsWith: string | null = null
-): Promise<{ records: StockForecastRecord[]; totalCount: number; page: number; pageSize: number }> {
-  const params = new URLSearchParams({
-    lead_time_days: String(leadTimeDays),
-    page: String(page),
-    page_size: String(pageSize),
-    q,
-    method,
-    lookback_days: String(lookbackDays)
-  });
-  if (category) params.append("category", category);
-  if (skuStartsWith) params.append("sku_starts_with", skuStartsWith);
-  if (skuContains) params.append("sku_contains", skuContains);
-  if (skuEndsWith) params.append("sku_ends_with", skuEndsWith);
-  const response = await fetchJson<PaginatedResponse<StockForecastRow>>(`/api/v1/stock/forecast?${params.toString()}`);
-  return {
-    records: response.records.map((row) => ({
-      productId: row.parent_id || row.product_id,
-      sku: row.sku ?? "",
-      currentStockQty: row.current_stock_qty,
-      avgDailyUsage: row.avg_daily_usage,
-      daysOfCover: row.days_of_cover,
-      projectedStockoutDate: row.projected_stockout_date,
-      reorderWithinLeadTime: row.reorder_within_lead_time
-    })),
-    totalCount: response.total_count,
-    page: response.page,
-    pageSize: response.page_size
-  };
-}
+  ): Promise<{ records: StockForecastRecord[]; totalCount: number; page: number; pageSize: number }> {
+    const params = new URLSearchParams({
+      lead_time_days: String(leadTimeDays),
+      page: String(page),
+      page_size: String(pageSize),
+      q,
+      method,
+      lookback_days: String(lookbackDays)
+    });
+    if (category) params.append("category", category);
+    if (skuStartsWith) params.append("sku_starts_with", skuStartsWith);
+    if (skuContains) params.append("sku_contains", skuContains);
+    if (skuEndsWith) params.append("sku_ends_with", skuEndsWith);
+    const response = await fetchJson<PaginatedResponse<StockForecastRecord>>(`/api/v1/stock/forecast?${params.toString()}`);
+    return {
+      records: response.records,
+      totalCount: response.total_count,
+      page: response.page,
+      pageSize: response.page_size
+    };
+  }
 
 export function buildForecastFromTrends(trends: TrendPoint[], granularity: string = "day"): ForecastPoint[] {
   if (trends.length === 0) return [];
