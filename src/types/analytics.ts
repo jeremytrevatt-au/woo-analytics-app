@@ -95,6 +95,7 @@ export type StockForecastVariant = {
   lead_time_days: number;
   nya_stock_eta: string | null;
   nya_stock_reorder_qty: number | null;
+  nya_default_lead_time: number | null;
 };
 
 export type StockForecastRecord = {

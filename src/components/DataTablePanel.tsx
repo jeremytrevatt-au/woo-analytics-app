@@ -15,7 +15,8 @@ import {
   Link,
   Collapse,
   TableSortLabel,
-  TableContainer
+  TableContainer,
+  Checkbox
 } from "@mui/material";
 import { ChevronLeft, ChevronRight, KeyboardArrowDown, KeyboardArrowUp } from "@mui/icons-material";
 import { formatCurrency, formatNumber } from "../lib/format";
@@ -33,9 +34,13 @@ type Props = {
   onPageChange: (page: number) => void;
   getLinkUrl?: (row: any, col: TableColumn) => string | null;
   renderExpandedRow?: (row: any) => React.ReactNode;
+  selectable?: boolean;
+  selectedRows?: any[];
+  onSelectionChange?: (selected: any[]) => void;
+  rowIdKey?: string;
 };
 
-function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow }: Props) {
+function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow, selectable, selectedRows = [], onSelectionChange, rowIdKey = "id" }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const { filters, updateFilter } = useFilters();
@@ -45,6 +50,42 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
   const toggleRow = (index: number) => {
     setExpandedRows(prev => ({ ...prev, [index]: !prev[index] }));
   };
+
+  const isSelected = (row: any) => selectedRows.some(r => r[rowIdKey] === row[rowIdKey]);
+
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (onSelectionChange) {
+      if (event.target.checked) {
+        // Add all current page rows that aren't already selected
+        const newSelected = [...selectedRows];
+        rows.forEach(row => {
+          if (!isSelected(row)) {
+            newSelected.push(row);
+          }
+        });
+        onSelectionChange(newSelected);
+      } else {
+        // Remove all current page rows from selection
+        const newSelected = selectedRows.filter(
+          selectedRow => !rows.some(row => row[rowIdKey] === selectedRow[rowIdKey])
+        );
+        onSelectionChange(newSelected);
+      }
+    }
+  };
+
+  const handleSelectRow = (event: React.ChangeEvent<HTMLInputElement>, row: any) => {
+    if (onSelectionChange) {
+      if (event.target.checked) {
+        onSelectionChange([...selectedRows, row]);
+      } else {
+        onSelectionChange(selectedRows.filter(r => r[rowIdKey] !== row[rowIdKey]));
+      }
+    }
+  };
+
+  const isAllSelected = rows.length > 0 && rows.every(row => isSelected(row));
+  const isSomeSelected = rows.some(row => isSelected(row)) && !isAllSelected;
 
   const handleSort = (columnKey: string) => {
     const isAsc = filters.sortBy === columnKey && filters.sortDir === "asc";
@@ -106,6 +147,16 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  {selectable && (
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        color="primary"
+                        indeterminate={isSomeSelected}
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                      />
+                    </TableCell>
+                  )}
                   {renderExpandedRow && <TableCell width={40} />}
                   {columns.map((col) => (
                     <TableCell key={col.key} align={col.type === "number" || col.type === "currency" ? "right" : "left"}>
@@ -121,9 +172,24 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
                 </TableRow>
               </TableHead>
             <TableBody>
-              {rows.map((row, index) => (
+              {rows.map((row, index) => {
+                const isItemSelected = isSelected(row);
+                return (
                 <Fragment key={index}>
-                  <TableRow sx={{ '& > *': { borderBottom: renderExpandedRow ? 'unset' : undefined } }}>
+                  <TableRow 
+                    hover
+                    selected={isItemSelected}
+                    sx={{ '& > *': { borderBottom: renderExpandedRow ? 'unset' : undefined } }}
+                  >
+                    {selectable && (
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          color="primary"
+                          checked={isItemSelected}
+                          onChange={(event) => handleSelectRow(event, row)}
+                        />
+                      </TableCell>
+                    )}
                     {renderExpandedRow && (
                       <TableCell>
                         <IconButton
@@ -160,8 +226,9 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
                       </TableCell>
                     </TableRow>
                   )}
-                </Fragment>
-              ))}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
           </TableContainer>

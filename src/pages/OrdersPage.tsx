@@ -44,19 +44,32 @@ function OrdersPage() {
                       <TableCell>Category</TableCell>
                       <TableCell align="right">Qty</TableCell>
                       <TableCell align="right">Total</TableCell>
+                      <TableCell>ETA</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {lines.map((line: any, idx: number) => (
-                      <TableRow key={idx}>
-                        <TableCell component="th" scope="row">
-                          {line.sku || "N/A"}
-                        </TableCell>
-                        <TableCell>{line.category || "N/A"}</TableCell>
-                        <TableCell align="right">{line.qty}</TableCell>
-                        <TableCell align="right">{formatCurrency(line.line_total)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {lines.map((line: any, idx: number) => {
+                      let etaText = "-";
+                      if (line.nya_stock_eta) {
+                        etaText = new Date(line.nya_stock_eta).toLocaleDateString("en-AU");
+                      } else if (line.nya_default_lead_time) {
+                        const etaDate = new Date();
+                        etaDate.setDate(etaDate.getDate() + line.nya_default_lead_time);
+                        etaText = etaDate.toLocaleDateString("en-AU") + " (Est)";
+                      }
+                      
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell component="th" scope="row">
+                            {line.sku || "N/A"}
+                          </TableCell>
+                          <TableCell>{line.category || "N/A"}</TableCell>
+                          <TableCell align="right">{line.qty}</TableCell>
+                          <TableCell align="right">{formatCurrency(line.line_total)}</TableCell>
+                          <TableCell>{etaText}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               );

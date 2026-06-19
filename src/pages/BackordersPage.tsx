@@ -21,32 +21,45 @@ function BackordersPage() {
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={2}><Typography variant="caption" fontWeight="bold">SKU</Typography></Grid>
-          <Grid item xs={3}><Typography variant="caption" fontWeight="bold">Category</Typography></Grid>
+          <Grid item xs={2}><Typography variant="caption" fontWeight="bold">Category</Typography></Grid>
           <Grid item xs={1}><Typography variant="caption" fontWeight="bold">Qty</Typography></Grid>
-          <Grid item xs={2}><Typography variant="caption" fontWeight="bold">Total</Typography></Grid>
+          <Grid item xs={1}><Typography variant="caption" fontWeight="bold">Total</Typography></Grid>
           <Grid item xs={2}><Typography variant="caption" fontWeight="bold">Stock Status</Typography></Grid>
-          <Grid item xs={2}><Typography variant="caption" fontWeight="bold">Stock Qty</Typography></Grid>
+          <Grid item xs={1}><Typography variant="caption" fontWeight="bold">Stock Qty</Typography></Grid>
+          <Grid item xs={3}><Typography variant="caption" fontWeight="bold">ETA</Typography></Grid>
         </Grid>
-        {row.lines.map((line: any, idx: number) => (
-          <Grid container spacing={2} key={idx} sx={{ mt: 0.5, borderTop: '1px solid', borderColor: 'divider', pt: 0.5 }}>
-            <Grid item xs={2}><Typography variant="body2">{line.sku}</Typography></Grid>
-            <Grid item xs={3}><Typography variant="body2" noWrap title={line.category}>{line.category}</Typography></Grid>
-            <Grid item xs={1}><Typography variant="body2">{line.qty}</Typography></Grid>
-            <Grid item xs={2}><Typography variant="body2">{formatCurrency(line.line_total)}</Typography></Grid>
-            <Grid item xs={2}>
-              <Chip 
-                size="small" 
-                label={line.stock_status || 'unknown'} 
-                color={
-                  line.stock_status === 'instock' ? 'success' : 
-                  line.stock_status === 'onbackorder' ? 'warning' : 
-                  line.stock_status === 'outofstock' ? 'error' : 'default'
-                }
-              />
+        {row.lines.map((line: any, idx: number) => {
+          let etaText = "-";
+          if (line.nya_stock_eta) {
+            etaText = new Date(line.nya_stock_eta).toLocaleDateString("en-AU");
+          } else if (line.nya_default_lead_time) {
+            const etaDate = new Date();
+            etaDate.setDate(etaDate.getDate() + line.nya_default_lead_time);
+            etaText = etaDate.toLocaleDateString("en-AU") + " (Est)";
+          }
+
+          return (
+            <Grid container spacing={2} key={idx} sx={{ mt: 0.5, borderTop: '1px solid', borderColor: 'divider', pt: 0.5 }}>
+              <Grid item xs={2}><Typography variant="body2">{line.sku}</Typography></Grid>
+              <Grid item xs={2}><Typography variant="body2" noWrap title={line.category}>{line.category}</Typography></Grid>
+              <Grid item xs={1}><Typography variant="body2">{line.qty}</Typography></Grid>
+              <Grid item xs={1}><Typography variant="body2">{formatCurrency(line.line_total)}</Typography></Grid>
+              <Grid item xs={2}>
+                <Chip 
+                  size="small" 
+                  label={line.stock_status || 'unknown'} 
+                  color={
+                    line.stock_status === 'instock' ? 'success' : 
+                    line.stock_status === 'onbackorder' ? 'warning' : 
+                    line.stock_status === 'outofstock' ? 'error' : 'default'
+                  }
+                />
+              </Grid>
+              <Grid item xs={1}><Typography variant="body2">{line.stock_qty ?? '-'}</Typography></Grid>
+              <Grid item xs={3}><Typography variant="body2">{etaText}</Typography></Grid>
             </Grid>
-            <Grid item xs={2}><Typography variant="body2">{line.stock_qty ?? '-'}</Typography></Grid>
-          </Grid>
-        ))}
+          );
+        })}
       </Box>
     );
   };

@@ -560,3 +560,10 @@ export async function getStockShortages(
     totalCount: response.total_count
   };
 }
+
+export async function bulkUpdateStock(productIds: number[], metaData: Record<string, any>): Promise<{ success: boolean; message: string; updated_count: number }> {
+  return fetchJson<{ success: boolean; message: string; updated_count: number }>("/api/v1/stock/bulk-update", {
+    method: "POST",
+    body: JSON.stringify({ product_ids: productIds, meta_data: metaData })
+  });
+}

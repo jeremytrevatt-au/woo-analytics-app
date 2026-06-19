@@ -1,5 +1,5 @@
 import { useState, SyntheticEvent } from "react";
-import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box } from "@mui/material";
+import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import KpiGrid from "../components/KpiGrid";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -9,7 +9,8 @@ import { useStockForecast } from "../hooks/useStockForecast";
 import { useStockShortages } from "../hooks/useStockShortages";
 import { useStockLedger } from "../hooks/useStockLedger";
 import StockLedgerChartModal from "../components/StockLedgerChartModal";
-import { Table, TableBody, TableCell, TableHead, TableRow, Button } from "@mui/material";
+import BulkUpdateModal from "../components/BulkUpdateModal";
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 
 function StockPage() {
   const [activeTab, setActiveTab] = useState(0);
@@ -29,11 +30,21 @@ function StockPage() {
   const [ledgerSearch, setLedgerSearch] = useState<string>("");
   const [selectedSku, setSelectedSku] = useState<{sku: string, name: string} | null>(null);
 
-  const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize } = useDashboardData("stock", page, 50);
+  const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
   const stockForecast = useStockForecast(forecastPage, 20, 90, method, lookbackDays);
   const stockShortages = useStockShortages(shortagesPage, 50);
   const stockLedger = useStockLedger(ledgerPage, 50, ledgerReason === "all" ? null : ledgerReason, ledgerSearch);
   const stockKpi = kpis.find((item) => item.id === "stockAlerts");
+
+  const [selectedStockRecords, setSelectedStockRecords] = useState<any[]>([]);
+  const [bulkUpdateModalOpen, setBulkUpdateModalOpen] = useState(false);
+
+  const handleBulkUpdateSuccess = () => {
+    setSelectedStockRecords([]);
+    refetch();
+    stockForecast.refetch();
+    stockShortages.refetch();
+  };
 
   return (
     <Stack spacing={2}>
@@ -57,20 +68,33 @@ function StockPage() {
         <>
           <LoadStateBlock isLoading={isLoading} error={error} empty={!isLoading && !error && rows.length === 0} />
           {!isLoading && !error ? (
-            <>
-              <KpiGrid cards={stockKpi ? [stockKpi] : []} />
-              <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
-              <DataTablePanel
-                title="Stock Records"
-                rows={rows as any}
-                columns={columns}
-                page={page}
-                pageSize={pageSize}
-                totalCount={totalCount}
-                onPageChange={setPage}
-                getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
-              />
-            </>
+              <>
+                <KpiGrid cards={stockKpi ? [stockKpi] : []} />
+                <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
+                <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
+                  <Button 
+                    variant="contained" 
+                    disabled={selectedStockRecords.length === 0}
+                    onClick={() => setBulkUpdateModalOpen(true)}
+                  >
+                    Bulk Update Reorder Fields ({selectedStockRecords.length})
+                  </Button>
+                </Box>
+                <DataTablePanel
+                  title="Stock Records"
+                  rows={rows as any}
+                  columns={columns}
+                  page={page}
+                  pageSize={pageSize}
+                  totalCount={totalCount}
+                  onPageChange={setPage}
+                  getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
+                  selectable
+                  selectedRows={selectedStockRecords}
+                  onSelectionChange={setSelectedStockRecords}
+                  rowIdKey="product_id"
+                />
+              </>
           ) : null}
         </>
       )}
@@ -328,6 +352,12 @@ function StockPage() {
         </>
       )}
 
+      <BulkUpdateModal
+        open={bulkUpdateModalOpen}
+        onClose={() => setBulkUpdateModalOpen(false)}
+        selectedProducts={selectedStockRecords}
+        onSuccess={handleBulkUpdateSuccess}
+      />
     </Stack>
   );
 }
