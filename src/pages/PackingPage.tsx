@@ -80,7 +80,9 @@ function PackingPage() {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
-                  <Chip size="small" label={formatCurrency(order.order_total)} variant="outlined" />
+                  <Chip size="small" label={`Sub: ${formatCurrency(order.order_total - (order.shipping_total || 0))}`} variant="outlined" />
+                  <Chip size="small" label={`Ship: ${formatCurrency(order.shipping_total || 0)}`} variant="outlined" />
+                  <Chip size="small" label={`Tot: ${formatCurrency(order.order_total)}`} variant="outlined" color="primary" />
                   {order.courier_allocation && (
                     <Chip size="small" label={order.courier_allocation} color="primary" variant="outlined" />
                   )}
