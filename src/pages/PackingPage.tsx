@@ -1,6 +1,6 @@
 import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider } from "@mui/material";
 import { useState } from "react";
-import { KeyboardArrowDown, KeyboardArrowUp, CheckCircleOutline } from "@mui/icons-material";
+import { CheckCircleOutline } from "@mui/icons-material";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatCurrency } from "../lib/format";
@@ -10,18 +10,21 @@ function PackingPage() {
   const [page, setPage] = useState(1);
   const { rows, isLoading, error, refetch } = useDashboardData("packing", page, 100);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-  const [packingState, setPackingState] = useState<Record<string, boolean>>({}); // optimistic UI updates
+  const [packingState, setPackingState] = useState<Record<string, string | boolean>>({}); // optimistic UI updates
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
   };
 
-  const handlePack = async (orderId: number) => {
+  const handlePack = async (orderId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     // Optimistic update
-    setPackingState(prev => ({ ...prev, [orderId]: true }));
+    setPackingState(prev => ({ ...prev, [orderId]: "You" }));
     try {
       const res = await markOrderPacked(orderId);
       if (res.success) {
+        // Update with actual user if available
+        setPackingState(prev => ({ ...prev, [orderId]: res.packed_by || "You" }));
         // Refetch to get updated list
         refetch();
       } else {
@@ -43,32 +46,35 @@ function PackingPage() {
   const renderOrderCard = (order: any) => {
     const isExpanded = expandedOrders[order.order_id];
     const isPacked = order.is_packed || packingState[order.order_id];
+    const packedBy = typeof packingState[order.order_id] === 'string' ? packingState[order.order_id] : order.packed_by;
 
     return (
       <Card key={order.order_id} variant="outlined" sx={{ mb: 2, borderColor: isPacked ? 'success.main' : 'divider' }}>
-        <CardContent sx={{ pb: 1 }}>
-          <Grid container spacing={1} alignItems="center">
-            <Grid item xs={12} sm={6}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                Order #{order.order_id}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
-              </Typography>
+        <Box onClick={() => toggleOrder(order.order_id)} sx={{ cursor: 'pointer' }}>
+          <CardContent sx={{ pb: 1 }}>
+            <Grid container spacing={1} alignItems="center">
+              <Grid item xs={12} sm={6}>
+                <Typography variant="subtitle1" fontWeight="bold">
+                  Order #{order.order_id}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
+                  <Chip size="small" label={formatCurrency(order.order_total)} variant="outlined" />
+                  {order.courier_allocation && (
+                    <Chip size="small" label={order.courier_allocation} color="primary" variant="outlined" />
+                  )}
+                  {isPacked && (
+                    <Chip size="small" icon={<CheckCircleOutline />} label={`Packed by: ${packedBy || 'You'}`} color="success" />
+                  )}
+                </Stack>
+              </Grid>
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
-                <Chip size="small" label={formatCurrency(order.order_total)} variant="outlined" />
-                {order.courier_allocation && (
-                  <Chip size="small" label={order.courier_allocation} color="primary" variant="outlined" />
-                )}
-                {isPacked && (
-                  <Chip size="small" icon={<CheckCircleOutline />} label="Packed" color="success" />
-                )}
-              </Stack>
-            </Grid>
-          </Grid>
-        </CardContent>
+          </CardContent>
+        </Box>
 
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <Divider />
@@ -82,7 +88,7 @@ function PackingPage() {
                       {line.qty}x {line.sku}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" display="block">
-                      {line.category}
+                      {line.product_name || line.category}
                     </Typography>
                   </Grid>
                   <Grid item xs={4} sm={3} textAlign="right">
@@ -103,26 +109,21 @@ function PackingPage() {
           </CardContent>
         </Collapse>
 
-        <Divider />
-        <CardActions sx={{ justifyContent: 'space-between' }}>
-          <Button 
-            size="small" 
-            onClick={() => toggleOrder(order.order_id)}
-            endIcon={isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
-          >
-            {isExpanded ? "Hide Details" : "Show Details"}
-          </Button>
-          {!isPacked && (
-            <Button 
-              size="small" 
-              variant="contained" 
-              color="success"
-              onClick={() => handlePack(order.order_id)}
-            >
-              Mark as Packed
-            </Button>
-          )}
-        </CardActions>
+        {!isPacked && (
+          <>
+            <Divider />
+            <CardActions sx={{ justifyContent: 'flex-end' }}>
+              <Button 
+                size="small" 
+                variant="contained" 
+                color="success"
+                onClick={(e) => handlePack(order.order_id, e)}
+              >
+                Mark as Packed
+              </Button>
+            </CardActions>
+          </>
+        )}
       </Card>
     );
   };

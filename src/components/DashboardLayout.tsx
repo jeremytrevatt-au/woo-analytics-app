@@ -1,6 +1,6 @@
 import { AppBar, Box, Button, Container, Stack, Toolbar, Typography } from "@mui/material";
 import TimelineIcon from "@mui/icons-material/Timeline";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import FilterBar from "./FilterBar";
 
 type Props = {
@@ -19,6 +19,9 @@ const navItems = [
 ];
 
 function DashboardLayout({ children }: Props) {
+  const location = useLocation();
+  const isPackingPage = location.pathname === "/packing";
+
   return (
     <Box>
       <AppBar position="sticky" color="inherit" elevation={1}>
@@ -51,8 +54,8 @@ function DashboardLayout({ children }: Props) {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        <FilterBar />
-        <Box sx={{ mt: 3 }}>{children}</Box>
+        {!isPackingPage && <FilterBar />}
+        <Box sx={{ mt: isPackingPage ? 0 : 3 }}>{children}</Box>
       </Container>
     </Box>
   );
