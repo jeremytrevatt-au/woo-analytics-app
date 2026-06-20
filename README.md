@@ -108,3 +108,10 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 1. Build: `npm run build`
 2. Authenticate: `firebase login`
 3. Deploy: `firebase deploy --only hosting`
+
+## 2026-06-20 06:35 UTC
+1. Updated PackingPage to show product_name (with attributes) instead of category.
+2. Updated PackingPage to show 'Packed by: [username]' using IAP email.
+3. Hidden FilterBar on PackingPage.
+4. Made order cards clickable to expand/collapse and removed Show/Hide details buttons.
+- Git build reference: fb70665b9008118b85cc29805c9fb5ca6cbbe79d
