@@ -123,3 +123,8 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 ## 2026-06-20 09:45 UTC
 1. Updated PackingPage to support 3 states (unpacked, packing, packed) with appropriate buttons and labels.
 - Git build reference: 3ef883941949b36d6181a54c0c214a009edc418e
+
+## 2026-06-20 11:05 UTC
+1. Fixed 422 error on packing by setting correct Content-Type header in fetchJson.
+2. Displayed Subtotal, Shipping, and Total on PackingPage.
+- Git build reference: ba8b4ace61505b9b2c874efb2c7cd240882e07db
