@@ -594,6 +594,9 @@ export async function getPackingOrders(
 export async function markOrderPacked(orderId: number, status: string = "packed"): Promise<{ success: boolean; message: string; packed_by?: string }> {
   return fetchJson<{ success: boolean; message: string; packed_by?: string }>("/api/v1/packing/pack", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({ order_id: orderId, status })
   });
 }
