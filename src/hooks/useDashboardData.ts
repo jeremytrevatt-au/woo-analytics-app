@@ -9,7 +9,8 @@ import {
   getStockRecords,
   getStockTrends,
   getBackorderRecords,
-  getStockShortages
+  getStockShortages,
+  getPackingOrders
 } from "../api/analyticsApi";
 import { ForecastPoint, KpiCardData, DynamicTableRecord, TrendPoint, TableColumn } from "../types/analytics";
 import { useFilters } from "./useFilters";
@@ -58,8 +59,10 @@ export function useDashboardData(domain: "overview" | "orders" | "customers" | "
             ? getBackorderRecords(filters, page, pageSize)
             : domain === "stock_shortages"
               ? getStockShortages(filters, page, pageSize)
-              : getStockRecords(filters, page, pageSize),
-      domain === "orders" || domain === "overview" || domain === "forecast" || domain === "backorders"
+              : domain === "packing"
+                ? getPackingOrders(filters, page, pageSize)
+                : getStockRecords(filters, page, pageSize),
+      domain === "orders" || domain === "overview" || domain === "forecast" || domain === "backorders" || domain === "packing"
         ? getOrderTrends(filters)
         : domain === "customers"
           ? getCustomerTrends(filters)

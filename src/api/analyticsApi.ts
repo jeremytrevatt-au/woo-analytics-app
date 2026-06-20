@@ -567,3 +567,33 @@ export async function bulkUpdateStock(productIds: number[], metaData: Record<str
     body: JSON.stringify({ product_ids: productIds, meta_data: metaData })
   });
 }
+
+export async function getPackingOrders(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    q: filter.searchText,
+  });
+  if (filter.startDate) params.append("start_date", filter.startDate);
+  if (filter.endDate) params.append("end_date", filter.endDate);
+
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/packing/orders?${params.toString()}`);
+  return {
+    records: response.records,
+    columns: response.columns || [],
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}
+
+export async function markOrderPacked(orderId: number): Promise<{ success: boolean; message: string }> {
+  return fetchJson<{ success: boolean; message: string }>("/api/v1/packing/pack", {
+    method: "POST",
+    body: JSON.stringify({ order_id: orderId })
+  });
+}

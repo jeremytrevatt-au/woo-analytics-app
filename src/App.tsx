@@ -9,6 +9,7 @@ import OverviewPage from "./pages/OverviewPage";
 import OrdersPage from "./pages/OrdersPage";
 import StockPage from "./pages/StockPage";
 import BackordersPage from "./pages/BackordersPage";
+import PackingPage from "./pages/PackingPage";
 import AdminPage from "./pages/AdminPage";
 
 function App() {
@@ -16,15 +17,16 @@ function App() {
     <FiltersProvider>
       <Box sx={{ minHeight: "100vh" }}>
         <DashboardLayout>
-          <Routes>
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/stock" element={<StockPage />} />
-            <Route path="/revenue" element={<RevenuePage />} />
-            <Route path="/backorders" element={<BackordersPage />} />
-            <Route path="/admin" element={<AdminPage />} />
-          </Routes>
+            <Routes>
+              <Route path="/" element={<OverviewPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/stock" element={<StockPage />} />
+              <Route path="/revenue" element={<RevenuePage />} />
+              <Route path="/backorders" element={<BackordersPage />} />
+              <Route path="/packing" element={<PackingPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+            </Routes>
         </DashboardLayout>
         <ApiDebugPanel />
       </Box>
