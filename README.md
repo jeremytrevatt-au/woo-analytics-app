@@ -115,3 +115,7 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Hidden FilterBar on PackingPage.
 4. Made order cards clickable to expand/collapse and removed Show/Hide details buttons.
 - Git build reference: fb70665b9008118b85cc29805c9fb5ca6cbbe79d
+
+## 2026-06-20 09:05 UTC
+1. Updated DashboardLayout to use a hamburger menu and drawer for better mobile responsiveness.
+- Git build reference: d80da5823ffa8237b9eaf705841f2bf44f759917
