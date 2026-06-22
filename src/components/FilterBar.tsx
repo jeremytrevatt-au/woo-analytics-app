@@ -6,6 +6,7 @@ import { getCategories } from "../api/analyticsApi";
 
 const ORDER_STATUS_OPTIONS = [
   { value: "wc-processing", label: "Processing" },
+  { value: "wc-pre-ordered", label: "Pre Ordered" },
   { value: "wc-completed", label: "Completed" },
   { value: "wc-on-hold", label: "On Hold" },
   { value: "wc-pending", label: "Pending Payment" },
@@ -30,8 +31,9 @@ function FilterBar() {
     getCategories().then(setCategories).catch(console.error);
   }, []);
 
-  const showOrderStatus = path === "/orders" || path === "/backorders";
+  const showOrderStatus = path === "/orders" || path === "/backorders" || path === "/packing";
   const showStockStatus = path === "/stock" || path === "/backorders";
+  const hideDateRange = path === "/packing";
 
   const handleDateRangeChange = (range: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year") => {
     updateFilter("dateRange", range);
@@ -129,76 +131,80 @@ function FilterBar() {
     <Card>
       <CardContent>
         <Grid container spacing={2}>
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                label="Date Range"
-                select
-                value={filters.dateRange}
-                onChange={(event) => handleDateRangeChange(event.target.value as any)}
-              >
-                <MenuItem value="today">Today</MenuItem>
-                <MenuItem value="this_week">This Week</MenuItem>
-                <MenuItem value="last_week">Last Week</MenuItem>
-                <MenuItem value="mtd">Month to Date</MenuItem>
-                <MenuItem value="last_month">Last Month</MenuItem>
-                <MenuItem value="qtd">Quarter to Date</MenuItem>
-                <MenuItem value="ytd">Year to Date</MenuItem>
-                <MenuItem value="last_year">Last Year</MenuItem>
-                <MenuItem value="custom">Custom</MenuItem>
-              </TextField>
-            </Grid>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="Start date"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              value={filters.startDate}
-              onChange={(event) => {
-                updateFilter("startDate", event.target.value);
-                updateFilter("dateRange", "custom");
-                if (filters.compareEnabled) updateCompareDates(event.target.value, filters.endDate);
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="End date"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              value={filters.endDate}
-              onChange={(event) => {
-                updateFilter("endDate", event.target.value);
-                updateFilter("dateRange", "custom");
-                if (filters.compareEnabled) updateCompareDates(filters.startDate, event.target.value);
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <TextField
-              fullWidth
-              label="Granularity"
-              select
-              value={filters.granularity}
-              onChange={(event) =>
-                updateFilter("granularity", event.target.value as "day" | "week" | "month" | "quarter" | "year")
-              }
-            >
-              <MenuItem value="day">Daily</MenuItem>
-              <MenuItem value="week">Weekly</MenuItem>
-              <MenuItem value="month">Monthly</MenuItem>
-              <MenuItem value="quarter">Quarterly</MenuItem>
-              <MenuItem value="year">Yearly</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <FormControlLabel
-              control={<Switch checked={filters.compareEnabled} onChange={handleCompareToggle} />}
-              label="Compare to previous"
-            />
-          </Grid>
+          {!hideDateRange && (
+            <>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  label="Date Range"
+                  select
+                  value={filters.dateRange}
+                  onChange={(event) => handleDateRangeChange(event.target.value as any)}
+                >
+                  <MenuItem value="today">Today</MenuItem>
+                  <MenuItem value="this_week">This Week</MenuItem>
+                  <MenuItem value="last_week">Last Week</MenuItem>
+                  <MenuItem value="mtd">Month to Date</MenuItem>
+                  <MenuItem value="last_month">Last Month</MenuItem>
+                  <MenuItem value="qtd">Quarter to Date</MenuItem>
+                  <MenuItem value="ytd">Year to Date</MenuItem>
+                  <MenuItem value="last_year">Last Year</MenuItem>
+                  <MenuItem value="custom">Custom</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  label="Start date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={filters.startDate}
+                  onChange={(event) => {
+                    updateFilter("startDate", event.target.value);
+                    updateFilter("dateRange", "custom");
+                    if (filters.compareEnabled) updateCompareDates(event.target.value, filters.endDate);
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  label="End date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={filters.endDate}
+                  onChange={(event) => {
+                    updateFilter("endDate", event.target.value);
+                    updateFilter("dateRange", "custom");
+                    if (filters.compareEnabled) updateCompareDates(filters.startDate, event.target.value);
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  label="Granularity"
+                  select
+                  value={filters.granularity}
+                  onChange={(event) =>
+                    updateFilter("granularity", event.target.value as "day" | "week" | "month" | "quarter" | "year")
+                  }
+                >
+                  <MenuItem value="day">Daily</MenuItem>
+                  <MenuItem value="week">Weekly</MenuItem>
+                  <MenuItem value="month">Monthly</MenuItem>
+                  <MenuItem value="quarter">Quarterly</MenuItem>
+                  <MenuItem value="year">Yearly</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <FormControlLabel
+                  control={<Switch checked={filters.compareEnabled} onChange={handleCompareToggle} />}
+                  label="Compare to previous"
+                />
+              </Grid>
+            </>
+          )}
           {showOrderStatus && (
             <Grid item xs={12} md={2}>
               <FormControl fullWidth sx={{ minWidth: 150 }}>

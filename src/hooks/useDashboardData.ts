@@ -41,9 +41,12 @@ const initialState: DashboardDataState = {
   error: null
 };
 
-export function useDashboardData(domain: "overview" | "orders" | "customers" | "stock" | "forecast" | "backorders" | "stock_shortages", page = 1, pageSize = 50) {
+export function useDashboardData(domain: "overview" | "orders" | "customers" | "stock" | "forecast" | "backorders" | "stock_shortages" | "packing", page = 1, pageSize = 50) {
   const { filters } = useFilters();
   const [state, setState] = useState<DashboardDataState>(initialState);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  const refetch = () => setRefetchTrigger(prev => prev + 1);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -99,7 +102,7 @@ export function useDashboardData(domain: "overview" | "orders" | "customers" | "
     return () => {
       isSubscribed = false;
     };
-  }, [domain, filters, page, pageSize]);
+  }, [domain, filters, page, pageSize, refetchTrigger]);
 
-  return state;
+  return { ...state, refetch };
 }

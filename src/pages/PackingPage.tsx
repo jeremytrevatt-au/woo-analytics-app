@@ -52,10 +52,11 @@ function PackingPage() {
     return order.status || 'unpacked';
   };
 
-  const readyToPack = rows.filter(r => !r.has_backorders && getOrderStatus(r) === 'unpacked');
-  const awaitingStock = rows.filter(r => r.has_backorders && getOrderStatus(r) === 'unpacked');
-  const currentlyPacking = rows.filter(r => getOrderStatus(r) === 'packing');
-  const recentlyPacked = rows.filter(r => getOrderStatus(r) === 'packed');
+  const preOrders = rows.filter(r => r.order_status === 'wc-pre-ordered');
+  const readyToPack = rows.filter(r => r.order_status !== 'wc-pre-ordered' && !r.has_backorders && getOrderStatus(r) === 'unpacked');
+  const awaitingStock = rows.filter(r => r.order_status !== 'wc-pre-ordered' && r.has_backorders && getOrderStatus(r) === 'unpacked');
+  const currentlyPacking = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packing');
+  const recentlyPacked = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packed');
 
   const renderOrderCard = (order: any) => {
     const isExpanded = expandedOrders[order.order_id];
@@ -77,6 +78,18 @@ function PackingPage() {
                 <Typography variant="body2" color="text.secondary">
                   {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
                 </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  <Chip 
+                    size="small" 
+                    label="Woo" 
+                    component="a" 
+                    href={`https://naturalyield.com.au/wp-admin/admin.php?page=wc-orders&action=edit&id=${order.order_id}`} 
+                    target="_blank" 
+                    clickable 
+                    onClick={(e) => e.stopPropagation()} 
+                    sx={{ cursor: 'pointer' }}
+                  />
+                </Box>
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
@@ -105,32 +118,61 @@ function PackingPage() {
           <Divider />
           <CardContent sx={{ bgcolor: 'background.default', pt: 1, pb: 1 }}>
             <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 1 }}>Items to Pack:</Typography>
-            {order.lines && order.lines.map((line: any, idx: number) => (
-              <Box key={idx} sx={{ mb: 1, pb: 1, borderBottom: idx < order.lines.length - 1 ? '1px dashed' : 'none', borderColor: 'divider' }}>
-                <Grid container spacing={1} alignItems="center">
-                  <Grid item xs={8} sm={9}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {line.qty}x {line.sku}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      {line.product_name || line.category}
-                    </Typography>
+            {order.lines && order.lines.map((line: any, idx: number) => {
+              const isParentBundle = !!line.bundle_cart_key;
+              const isChildItem = !!line.bundled_by;
+              return (
+                <Box key={idx} sx={{ 
+                  mb: 1, 
+                  pb: 1, 
+                  borderBottom: idx < order.lines.length - 1 ? '1px dashed' : 'none', 
+                  borderColor: 'divider',
+                  ml: isChildItem ? 4 : 0,
+                  pl: isChildItem ? 1 : 0,
+                  borderLeft: isChildItem ? '2px solid' : 'none',
+                  borderLeftColor: 'primary.light',
+                  bgcolor: isParentBundle ? 'action.hover' : 'transparent',
+                  borderRadius: isParentBundle ? 1 : 0,
+                  p: isParentBundle ? 1 : 0
+                }}>
+                  <Grid container spacing={1} alignItems="center">
+                    <Grid item xs={8} sm={9}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {line.qty}x {line.sku}
+                        {isParentBundle && (
+                          <Chip size="small" label="Bundle" color="primary" variant="outlined" sx={{ ml: 1, height: '20px', fontSize: '0.7rem' }} />
+                        )}
+                        <Chip 
+                          size="small" 
+                          label="Woo" 
+                          component="a" 
+                          href={`https://naturalyield.com.au/wp-admin/post.php?post=${line.product_id}&action=edit`} 
+                          target="_blank" 
+                          clickable 
+                          onClick={(e) => e.stopPropagation()} 
+                          sx={{ cursor: 'pointer', ml: 1, height: '20px', fontSize: '0.7rem' }}
+                        />
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {line.product_name || line.category}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sm={3} textAlign="right">
+                      <Chip 
+                        size="small" 
+                        label={line.stock_status} 
+                        color={
+                          line.stock_status === 'instock' ? 'success' : 
+                          line.stock_status === 'onbackorder' ? 'warning' : 
+                          line.stock_status === 'outofstock' ? 'error' : 'default'
+                        }
+                        sx={{ height: 20, fontSize: '0.7rem' }}
+                      />
+                    </Grid>
                   </Grid>
-                  <Grid item xs={4} sm={3} textAlign="right">
-                    <Chip 
-                      size="small" 
-                      label={line.stock_status} 
-                      color={
-                        line.stock_status === 'instock' ? 'success' : 
-                        line.stock_status === 'onbackorder' ? 'warning' : 
-                        line.stock_status === 'outofstock' ? 'error' : 'default'
-                      }
-                      sx={{ height: 20, fontSize: '0.7rem' }}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            ))}
+                </Box>
+              );
+            })}
           </CardContent>
         </Collapse>
 
@@ -186,6 +228,14 @@ function PackingPage() {
 
       {!isLoading && !error && (
         <>
+          {preOrders.length > 0 && (
+            <Box>
+              <Typography variant="h6" color="secondary.main" gutterBottom>
+                Pre Orders ({preOrders.length})
+              </Typography>
+              {preOrders.map(renderOrderCard)}
+            </Box>
+          )}
           <Box>
             <Typography variant="h6" color="success.main" gutterBottom>
               Ready to Pack ({readyToPack.length})

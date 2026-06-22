@@ -578,8 +578,9 @@ export async function getPackingOrders(
     page_size: String(pageSize),
     q: filter.searchText,
   });
-  if (filter.startDate) params.append("start_date", filter.startDate);
-  if (filter.endDate) params.append("end_date", filter.endDate);
+  if (filter.statuses && filter.statuses.length > 0) {
+    filter.statuses.forEach(status => params.append("statuses", status));
+  }
 
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/packing/orders?${params.toString()}`);
   return {

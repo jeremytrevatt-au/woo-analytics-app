@@ -101,8 +101,8 @@ function DashboardLayout({ children }: Props) {
       </nav>
 
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        {!isPackingPage && <FilterBar />}
-        <Box sx={{ mt: isPackingPage ? 0 : 3 }}>{children}</Box>
+        <FilterBar />
+        <Box sx={{ mt: 3 }}>{children}</Box>
       </Container>
     </Box>
   );
