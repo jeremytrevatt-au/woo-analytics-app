@@ -71,14 +71,22 @@ function PackingPage() {
         <Box onClick={() => toggleOrder(order.order_id)} sx={{ cursor: 'pointer' }}>
           <CardContent sx={{ pb: 1 }}>
             <Grid container spacing={1} alignItems="center">
-              <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle1" fontWeight="bold">
-                  Order #{order.order_id}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
-                </Typography>
-                <Box sx={{ mt: 0.5 }}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    Order #{order.order_id}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
+                    {order.is_first_order && (
+                      <Chip 
+                        size="small" 
+                        label="1st Order" 
+                        color="secondary" 
+                        sx={{ ml: 1, height: '20px', fontSize: '0.7rem' }} 
+                      />
+                    )}
+                  </Typography>
+                  <Box sx={{ mt: 0.5 }}>
                   <Chip 
                     size="small" 
                     label="Woo" 
@@ -228,14 +236,6 @@ function PackingPage() {
 
       {!isLoading && !error && (
         <>
-          {preOrders.length > 0 && (
-            <Box>
-              <Typography variant="h6" color="secondary.main" gutterBottom>
-                Pre Orders ({preOrders.length})
-              </Typography>
-              {preOrders.map(renderOrderCard)}
-            </Box>
-          )}
           <Box>
             <Typography variant="h6" color="success.main" gutterBottom>
               Ready to Pack ({readyToPack.length})
@@ -257,6 +257,15 @@ function PackingPage() {
               awaitingStock.map(renderOrderCard)
             )}
           </Box>
+
+          {preOrders.length > 0 && (
+            <Box>
+              <Typography variant="h6" color="secondary.main" gutterBottom>
+                Pre Orders ({preOrders.length})
+              </Typography>
+              {preOrders.map(renderOrderCard)}
+            </Box>
+          )}
 
           {currentlyPacking.length > 0 && (
             <Box>
