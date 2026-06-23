@@ -128,3 +128,9 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 1. Fixed 422 error on packing by setting correct Content-Type header in fetchJson.
 2. Displayed Subtotal, Shipping, and Total on PackingPage.
 - Git build reference: ba8b4ace61505b9b2c874efb2c7cd240882e07db
+
+## 2026-06-23 01:20 UTC
+1. Added support for YITH Product Bundles (visual grouping and indentation).
+2. Added First Time Customer indicator (1st Order badge).
+3. Moved Pre Orders section to the bottom of the layout.
+- Git build reference: 17bfb124c449d46ec290266b37d8bc5f68f169ed
