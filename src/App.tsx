@@ -11,6 +11,7 @@ import StockPage from "./pages/StockPage";
 import BackordersPage from "./pages/BackordersPage";
 import PackingPage from "./pages/PackingPage";
 import AdminPage from "./pages/AdminPage";
+import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
               <Route path="/revenue" element={<RevenuePage />} />
               <Route path="/backorders" element={<BackordersPage />} />
               <Route path="/packing" element={<PackingPage />} />
+              <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
               <Route path="/admin" element={<AdminPage />} />
             </Routes>
         </DashboardLayout>
