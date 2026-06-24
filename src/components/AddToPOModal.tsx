@@ -31,7 +31,7 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
       if (selectedPoId === "new") {
         // Create new PO
         const newPo = await purchaseOrdersApi.create({
-          po_number: \PO-\-\\,
+          po_number: `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 1000)}`,
           status: "draft",
           created_date: new Date().toISOString().slice(0, 19).replace("T", " "),
           created_by: "System",

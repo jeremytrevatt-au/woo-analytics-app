@@ -77,7 +77,7 @@ function PurchaseOrdersPage() {
                 <TableCell>{new Date(po.created_date).toLocaleDateString()}</TableCell>
                 <TableCell>{po.eta_date ? new Date(po.eta_date).toLocaleDateString() : '-'}</TableCell>
                 <TableCell>{po.shipping_type || '-'}</TableCell>
-                <TableCell>\</TableCell>
+                <TableCell>${Number(po.total_cost_aud || 0).toFixed(2)}</TableCell>
                 <TableCell align="right">
                   <IconButton onClick={() => handleEdit(po)} size="small">
                     <EditIcon />

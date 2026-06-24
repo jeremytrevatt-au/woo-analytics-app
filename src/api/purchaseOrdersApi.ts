@@ -42,12 +42,12 @@ export const purchaseOrdersApi = {
     if (productId) params.append("product_id", productId.toString());
     
     const qs = params.toString();
-    const url = \/api/v1/purchase-orders\\;
+    const url = `/api/v1/purchase-orders${qs ? "?" + qs : ""}`;
     return fetchJson<PurchaseOrder[]>(url);
   },
 
   async get(id: number): Promise<PurchaseOrder> {
-    return fetchJson<PurchaseOrder>(\/api/v1/purchase-orders/\\);
+    return fetchJson<PurchaseOrder>(`/api/v1/purchase-orders/${id}`);
   },
 
   async create(po: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
@@ -58,14 +58,14 @@ export const purchaseOrdersApi = {
   },
 
   async update(id: number, po: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
-    return fetchJson<PurchaseOrder>(\/api/v1/purchase-orders/\\, {
+    return fetchJson<PurchaseOrder>(`/api/v1/purchase-orders/${id}`, {
       method: "PUT",
       body: JSON.stringify(po)
     });
   },
 
   async delete(id: number): Promise<{ deleted: boolean }> {
-    return fetchJson<{ deleted: boolean }>(\/api/v1/purchase-orders/\\, {
+    return fetchJson<{ deleted: boolean }>(`/api/v1/purchase-orders/${id}`, {
       method: "DELETE"
     });
   }
