@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
@@ -96,28 +96,23 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     });
   };
 
-  const handleAddLine = () => {
+  const handleAddBlankLine = () => {
     const newLines = [...(formData.lines || []), { product_id: 0, sku: "", product_name: "", qty: 1 }];
     setFormData(prev => ({ ...prev, lines: newLines }));
   };
 
-  const handleProductSelect = (index: number, product: ProductSearchResult | null) => {
-    const newLines = [...(formData.lines || [])];
-    if (product) {
-      newLines[index] = { 
-        ...newLines[index], 
-        product_id: product.id, 
-        sku: product.sku || "", 
-        product_name: product.name 
-      };
-    } else {
-      newLines[index] = { 
-        ...newLines[index], 
-        product_id: 0, 
-        sku: "", 
-        product_name: "" 
-      };
-    }
+  const handleAddProductFromSearch = (product: ProductSearchResult | null) => {
+    if (!product) return;
+    const newLines = [...(formData.lines || []), { 
+      product_id: product.id, 
+      sku: product.sku || "", 
+      product_name: product.name,
+      qty: 1,
+      supplier_unit_price: 0,
+      unit_price_aud: 0,
+      supplier_total: 0,
+      total_aud: 0
+    }];
     setFormData(prev => ({ ...prev, lines: newLines }));
   };
 
@@ -358,19 +353,29 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
           <Grid item xs={12}>
             <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Line Items</Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <ProductSearchAutocomplete
+                value={null}
+                onChange={handleAddProductFromSearch}
+                label="Search to Add Product..."
+                size="medium"
+              />
+            </Box>
+
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell width="35%">Product</TableCell>
-                    <TableCell>SKU</TableCell>
+                    <TableCell width="35%">Product Name</TableCell>
+                    <TableCell width="15%">SKU</TableCell>
                     <TableCell>Qty</TableCell>
                     <TableCell>Unit Price (Origin)</TableCell>
                     <TableCell>Unit Price (AUD)</TableCell>
                     <TableCell>Total (Origin)</TableCell>
                     <TableCell>Total (AUD)</TableCell>
                     <TableCell align="right">
-                      <IconButton size="small" onClick={handleAddLine} color="primary">
+                      <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
                         <AddIcon />
                       </IconButton>
                     </TableCell>
@@ -380,15 +385,17 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   {(formData.lines || []).map((line, index) => (
                     <TableRow key={index}>
                       <TableCell>
-                        <ProductSearchAutocomplete
-                          value={line.product_id ? { id: line.product_id, name: line.product_name, sku: line.sku, type: 'product' } : null}
-                          onChange={(val) => handleProductSelect(index, val)}
-                          label="Search Product"
+                        <TextField
+                          size="small"
+                          fullWidth
+                          value={line.product_name || ""}
+                          onChange={(e) => handleLineChange(index, "product_name", e.target.value)}
                         />
                       </TableCell>
                       <TableCell>
                         <TextField
                           size="small"
+                          fullWidth
                           value={line.sku || ""}
                           onChange={(e) => handleLineChange(index, "sku", e.target.value)}
                         />

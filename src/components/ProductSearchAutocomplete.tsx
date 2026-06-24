@@ -18,10 +18,10 @@ export default function ProductSearchAutocomplete({ value, onChange, label = "Se
   useEffect(() => {
     let active = true;
 
-    if (inputValue.length < 2) {
-      setOptions(value ? [value] : []);
-      return undefined;
-    }
+      if (inputValue.length < 2) {
+        setOptions([]);
+        return undefined;
+      }
 
     setLoading(true);
 
@@ -61,7 +61,10 @@ export default function ProductSearchAutocomplete({ value, onChange, label = "Se
       value={value}
       onChange={(event: any, newValue: ProductSearchResult | null) => {
         onChange(newValue);
+        // Clear input after selection
+        setInputValue('');
       }}
+      inputValue={inputValue}
       onInputChange={(event, newInputValue) => {
         setInputValue(newInputValue);
       }}
