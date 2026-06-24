@@ -13,6 +13,8 @@ import PackingPage from "./pages/PackingPage";
 import AdminPage from "./pages/AdminPage";
 import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 
+import SuppliersPage from "./pages/SuppliersPage";
+
 function App() {
   return (
     <FiltersProvider>
@@ -27,6 +29,7 @@ function App() {
               <Route path="/backorders" element={<BackordersPage />} />
               <Route path="/packing" element={<PackingPage />} />
               <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+              <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/admin" element={<AdminPage />} />
             </Routes>
         </DashboardLayout>

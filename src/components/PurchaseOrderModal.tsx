@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Autocomplete } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Autocomplete, CircularProgress } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
+import { Supplier, suppliersApi } from "../api/suppliersApi";
 import ProductSearchAutocomplete from "./ProductSearchAutocomplete";
 import { ProductSearchResult } from "../api/productsApi";
 
@@ -17,7 +18,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   status: "draft",
   created_date: new Date().toISOString().slice(0, 19).replace("T", " "),
   created_by: "",
-  supplier: "",
+  supplier_id: undefined,
   shipping_type: "sea",
   lead_time_days: 0,
   eta_date: null,
@@ -38,6 +39,11 @@ const defaultPo: Partial<PurchaseOrder> = {
 export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   const [formData, setFormData] = useState<Partial<PurchaseOrder>>(defaultPo);
   const [loading, setLoading] = useState(false);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  useEffect(() => {
+    suppliersApi.getAll().then(setSuppliers).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (po) {
@@ -155,21 +161,19 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Autocomplete
-                freeSolo
-                options={["Bootstrap Farmer", "GreenStalk", "Dome Garden"]}
-                value={formData.supplier || ""}
-                onChange={(_, newValue) => handleChange("supplier", newValue || "")}
-                onInputChange={(_, newInputValue) => handleChange("supplier", newInputValue)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    label="Supplier"
-                    margin="normal"
-                  />
-                )}
-              />
+              <TextField
+                fullWidth
+                select
+                label="Supplier"
+                value={formData.supplier_id || ""}
+                onChange={(e) => handleChange("supplier_id", parseInt(e.target.value) || undefined)}
+                margin="normal"
+              >
+                <MenuItem value=""><em>None</em></MenuItem>
+                {suppliers.map(s => (
+                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                ))}
+              </TextField>
             </Grid>
             <Grid item xs={12} sm={4}>
               <TextField
