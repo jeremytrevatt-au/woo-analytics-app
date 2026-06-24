@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Autocomplete } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
@@ -17,6 +17,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   status: "draft",
   created_date: new Date().toISOString().slice(0, 19).replace("T", " "),
   created_by: "",
+  supplier: "",
   shipping_type: "sea",
   lead_time_days: 0,
   eta_date: null,
@@ -144,24 +145,41 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="PO Number"
-              value={formData.po_number || ""}
-              onChange={(e) => handleChange("po_number", e.target.value)}
-              margin="normal"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              select
-              label="Status"
-              value={formData.status || "draft"}
-              onChange={(e) => handleChange("status", e.target.value)}
-              margin="normal"
-            >
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="PO Number"
+                value={formData.po_number || ""}
+                onChange={(e) => handleChange("po_number", e.target.value)}
+                margin="normal"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Autocomplete
+                freeSolo
+                options={["Bootstrap Farmer", "GreenStalk", "Dome Garden"]}
+                value={formData.supplier || ""}
+                onChange={(_, newValue) => handleChange("supplier", newValue || "")}
+                onInputChange={(_, newInputValue) => handleChange("supplier", newInputValue)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    label="Supplier"
+                    margin="normal"
+                  />
+                )}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                select
+                label="Status"
+                value={formData.status || "draft"}
+                onChange={(e) => handleChange("status", e.target.value)}
+                margin="normal"
+              >
               <MenuItem value="draft">Draft</MenuItem>
               <MenuItem value="ordered">Ordered</MenuItem>
               <MenuItem value="shipped">Shipped</MenuItem>
@@ -266,9 +284,12 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             />
           </Grid>
 
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" color="textSecondary">Origin Costs (Supplier Currency)</Typography>
-          </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ mt: 2, mb: 1 }}>
+                <Typography variant="h6" color="primary">Origin Costs (Supplier Currency)</Typography>
+                <Divider />
+              </Box>
+            </Grid>
           <Grid item xs={12} sm={4}>
             <TextField
               fullWidth
@@ -303,9 +324,12 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             />
           </Grid>
 
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" color="textSecondary" sx={{ mt: 1 }}>Landed Costs (AUD)</Typography>
-          </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ mt: 2, mb: 1 }}>
+                <Typography variant="h6" color="primary">Landed Costs (AUD)</Typography>
+                <Divider />
+              </Box>
+            </Grid>
           <Grid item xs={12} sm={3}>
             <TextField
               fullWidth
@@ -352,7 +376,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
           </Grid>
 
           <Grid item xs={12}>
-            <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Line Items</Typography>
+            <Box sx={{ mt: 3, mb: 1 }}>
+              <Typography variant="h6" color="primary">Line Items</Typography>
+              <Divider sx={{ mb: 2 }} />
+            </Box>
             
             <Box sx={{ mb: 2 }}>
               <ProductSearchAutocomplete
@@ -363,18 +390,18 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Box>
 
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
+            <TableContainer component={Paper} variant="outlined" sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table size="small" sx={{ minWidth: 1000 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell width="35%">Product Name</TableCell>
-                    <TableCell width="15%">SKU</TableCell>
-                    <TableCell>Qty</TableCell>
-                    <TableCell>Unit Price (Origin)</TableCell>
-                    <TableCell>Unit Price (AUD)</TableCell>
-                    <TableCell>Total (Origin)</TableCell>
-                    <TableCell>Total (AUD)</TableCell>
-                    <TableCell align="right">
+                    <TableCell width="25%">SKU</TableCell>
+                    <TableCell width="8%">Qty</TableCell>
+                    <TableCell width="10%">Unit Price (Origin)</TableCell>
+                    <TableCell width="10%">Unit Price (AUD)</TableCell>
+                    <TableCell width="10%">Total (Origin)</TableCell>
+                    <TableCell width="10%">Total (AUD)</TableCell>
+                    <TableCell width="2%" align="right">
                       <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
                         <AddIcon />
                       </IconButton>

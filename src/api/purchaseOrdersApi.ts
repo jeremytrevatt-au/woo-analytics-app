@@ -18,6 +18,7 @@ export type PurchaseOrder = {
   status: string;
   created_date: string;
   created_by: string;
+  supplier?: string;
   shipping_type: string;
   lead_time_days: number;
   eta_date: string | null;
