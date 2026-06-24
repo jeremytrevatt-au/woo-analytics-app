@@ -3,6 +3,8 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, G
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
+import ProductSearchAutocomplete from "./ProductSearchAutocomplete";
+import { ProductSearchResult } from "../api/productsApi";
 
 type Props = {
   open: boolean;
@@ -56,6 +58,26 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
   const handleAddLine = () => {
     const newLines = [...(formData.lines || []), { product_id: 0, sku: "", product_name: "", qty: 1 }];
+    setFormData(prev => ({ ...prev, lines: newLines }));
+  };
+
+  const handleProductSelect = (index: number, product: ProductSearchResult | null) => {
+    const newLines = [...(formData.lines || [])];
+    if (product) {
+      newLines[index] = { 
+        ...newLines[index], 
+        product_id: product.id, 
+        sku: product.sku || "", 
+        product_name: product.name 
+      };
+    } else {
+      newLines[index] = { 
+        ...newLines[index], 
+        product_id: 0, 
+        sku: "", 
+        product_name: "" 
+      };
+    }
     setFormData(prev => ({ ...prev, lines: newLines }));
   };
 
@@ -165,9 +187,9 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell width="40%">Product</TableCell>
                     <TableCell>Product ID</TableCell>
                     <TableCell>SKU</TableCell>
-                    <TableCell>Product Name</TableCell>
                     <TableCell>Qty</TableCell>
                     <TableCell align="right">
                       <IconButton size="small" onClick={handleAddLine} color="primary">
@@ -179,6 +201,13 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <TableBody>
                   {(formData.lines || []).map((line, index) => (
                     <TableRow key={index}>
+                      <TableCell>
+                        <ProductSearchAutocomplete
+                          value={line.product_id ? { id: line.product_id, name: line.product_name, sku: line.sku, type: 'product' } : null}
+                          onChange={(val) => handleProductSelect(index, val)}
+                          label="Search Product"
+                        />
+                      </TableCell>
                       <TableCell>
                         <TextField
                           size="small"
@@ -192,14 +221,6 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                           size="small"
                           value={line.sku || ""}
                           onChange={(e) => handleLineChange(index, "sku", e.target.value)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          value={line.product_name || ""}
-                          onChange={(e) => handleLineChange(index, "product_name", e.target.value)}
                         />
                       </TableCell>
                       <TableCell>
