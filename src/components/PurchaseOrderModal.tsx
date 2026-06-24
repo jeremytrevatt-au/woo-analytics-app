@@ -47,13 +47,54 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      // Auto-calculate AUD fields based on conversion rate
+      const rate = field === 'currency_conversion_rate' ? (parseFloat(value) || 1.0) : (prev.currency_conversion_rate || 1.0);
+      
+      if (field === 'product_cost_origin' || field === 'currency_conversion_rate') {
+        updated.product_cost_aud = parseFloat(((updated.product_cost_origin || 0) * rate).toFixed(2));
+      }
+      if (field === 'shipping_cost_origin' || field === 'currency_conversion_rate') {
+        updated.shipping_cost_aud = parseFloat(((updated.shipping_cost_origin || 0) * rate).toFixed(2));
+      }
+      if (field === 'total_cost_origin' || field === 'currency_conversion_rate') {
+        updated.total_cost_aud = parseFloat(((updated.total_cost_origin || 0) * rate).toFixed(2));
+      }
+
+      // Auto-calculate line items if conversion rate changes
+      if (field === 'currency_conversion_rate' && updated.lines) {
+        updated.lines = updated.lines.map(line => ({
+          ...line,
+          unit_price_aud: parseFloat(((line.supplier_unit_price || 0) * rate).toFixed(2)),
+          total_aud: parseFloat(((line.supplier_total || 0) * rate).toFixed(2))
+        }));
+      }
+
+      return updated;
+    });
   };
 
   const handleLineChange = (index: number, field: keyof PurchaseOrderLine, value: any) => {
-    const newLines = [...(formData.lines || [])];
-    newLines[index] = { ...newLines[index], [field]: value };
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    setFormData(prev => {
+      const newLines = [...(prev.lines || [])];
+      const line = { ...newLines[index], [field]: value };
+      const rate = prev.currency_conversion_rate || 1.0;
+
+      // Auto-calculate line totals and AUD prices
+      if (field === 'qty' || field === 'supplier_unit_price') {
+        const qty = field === 'qty' ? (parseInt(value) || 0) : (line.qty || 0);
+        const unitPrice = field === 'supplier_unit_price' ? (parseFloat(value) || 0) : (line.supplier_unit_price || 0);
+        
+        line.supplier_total = parseFloat((qty * unitPrice).toFixed(2));
+        line.unit_price_aud = parseFloat((unitPrice * rate).toFixed(2));
+        line.total_aud = parseFloat((line.supplier_total * rate).toFixed(2));
+      }
+
+      newLines[index] = line;
+      return { ...prev, lines: newLines };
+    });
   };
 
   const handleAddLine = () => {
@@ -105,7 +146,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={() => onClose(false)} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={() => onClose(false)} maxWidth="xl" fullWidth>
       <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2}>

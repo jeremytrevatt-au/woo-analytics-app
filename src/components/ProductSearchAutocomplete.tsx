@@ -48,6 +48,7 @@ export default function ProductSearchAutocomplete({ value, onChange, label = "Se
 
   return (
     <Autocomplete
+      fullWidth
       id="product-search-autocomplete"
       size={size}
       open={open}
