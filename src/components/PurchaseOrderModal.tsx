@@ -181,16 +181,154 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             />
           </Grid>
 
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              select
+              label="Supplier Currency"
+              value={formData.supplier_currency || "AUD"}
+              onChange={(e) => handleChange("supplier_currency", e.target.value)}
+              margin="normal"
+            >
+              <MenuItem value="AUD">AUD</MenuItem>
+              <MenuItem value="USD">USD</MenuItem>
+              <MenuItem value="EUR">EUR</MenuItem>
+              <MenuItem value="GBP">GBP</MenuItem>
+              <MenuItem value="CNY">CNY</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="Conversion Rate"
+              type="number"
+              value={formData.currency_conversion_rate || 1.0}
+              onChange={(e) => handleChange("currency_conversion_rate", parseFloat(e.target.value) || 1.0)}
+              margin="normal"
+              inputProps={{ step: "0.0001" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="M3"
+              type="number"
+              value={formData.m3 || 0}
+              onChange={(e) => handleChange("m3", parseFloat(e.target.value) || 0)}
+              margin="normal"
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="M3 Rate"
+              type="number"
+              value={formData.m3_rate || 0}
+              onChange={(e) => handleChange("m3_rate", parseFloat(e.target.value) || 0)}
+              margin="normal"
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" color="textSecondary">Origin Costs (Supplier Currency)</Typography>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Product Cost"
+              type="number"
+              value={formData.product_cost_origin || 0}
+              onChange={(e) => handleChange("product_cost_origin", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Shipping Cost"
+              type="number"
+              value={formData.shipping_cost_origin || 0}
+              onChange={(e) => handleChange("shipping_cost_origin", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Total Cost"
+              type="number"
+              value={formData.total_cost_origin || 0}
+              onChange={(e) => handleChange("total_cost_origin", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" color="textSecondary" sx={{ mt: 1 }}>Landed Costs (AUD)</Typography>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Product Cost"
+              type="number"
+              value={formData.product_cost_aud || 0}
+              onChange={(e) => handleChange("product_cost_aud", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Adjustments"
+              type="number"
+              value={formData.product_cost_adjustments_aud || 0}
+              onChange={(e) => handleChange("product_cost_adjustments_aud", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Shipping Cost"
+              type="number"
+              value={formData.shipping_cost_aud || 0}
+              onChange={(e) => handleChange("shipping_cost_aud", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Total Cost"
+              type="number"
+              value={formData.total_cost_aud || 0}
+              onChange={(e) => handleChange("total_cost_aud", parseFloat(e.target.value) || 0)}
+              inputProps={{ step: "0.01" }}
+            />
+          </Grid>
+
           <Grid item xs={12}>
             <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Line Items</Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell width="40%">Product</TableCell>
-                    <TableCell>Product ID</TableCell>
+                    <TableCell width="35%">Product</TableCell>
                     <TableCell>SKU</TableCell>
                     <TableCell>Qty</TableCell>
+                    <TableCell>Unit Price (Origin)</TableCell>
+                    <TableCell>Unit Price (AUD)</TableCell>
+                    <TableCell>Total (Origin)</TableCell>
+                    <TableCell>Total (AUD)</TableCell>
                     <TableCell align="right">
                       <IconButton size="small" onClick={handleAddLine} color="primary">
                         <AddIcon />
@@ -211,14 +349,6 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                       <TableCell>
                         <TextField
                           size="small"
-                          type="number"
-                          value={line.product_id || ""}
-                          onChange={(e) => handleLineChange(index, "product_id", parseInt(e.target.value) || 0)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
                           value={line.sku || ""}
                           onChange={(e) => handleLineChange(index, "sku", e.target.value)}
                         />
@@ -229,6 +359,47 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                           type="number"
                           value={line.qty || 0}
                           onChange={(e) => handleLineChange(index, "qty", parseInt(e.target.value) || 0)}
+                          sx={{ width: 80 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={line.supplier_unit_price || 0}
+                          onChange={(e) => handleLineChange(index, "supplier_unit_price", parseFloat(e.target.value) || 0)}
+                          inputProps={{ step: "0.01" }}
+                          sx={{ width: 100 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={line.unit_price_aud || 0}
+                          onChange={(e) => handleLineChange(index, "unit_price_aud", parseFloat(e.target.value) || 0)}
+                          inputProps={{ step: "0.01" }}
+                          sx={{ width: 100 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={line.supplier_total || 0}
+                          onChange={(e) => handleLineChange(index, "supplier_total", parseFloat(e.target.value) || 0)}
+                          inputProps={{ step: "0.01" }}
+                          sx={{ width: 100 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={line.total_aud || 0}
+                          onChange={(e) => handleLineChange(index, "total_aud", parseFloat(e.target.value) || 0)}
+                          inputProps={{ step: "0.01" }}
+                          sx={{ width: 100 }}
                         />
                       </TableCell>
                       <TableCell align="right">
