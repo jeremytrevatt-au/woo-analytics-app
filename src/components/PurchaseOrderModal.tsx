@@ -53,14 +53,9 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       // Auto-calculate AUD fields based on conversion rate
       const rate = field === 'currency_conversion_rate' ? (parseFloat(value) || 1.0) : (prev.currency_conversion_rate || 1.0);
       
+      // Only product cost is affected by conversion rate
       if (field === 'product_cost_origin' || field === 'currency_conversion_rate') {
         updated.product_cost_aud = parseFloat(((updated.product_cost_origin || 0) * rate).toFixed(2));
-      }
-      if (field === 'shipping_cost_origin' || field === 'currency_conversion_rate') {
-        updated.shipping_cost_aud = parseFloat(((updated.shipping_cost_origin || 0) * rate).toFixed(2));
-      }
-      if (field === 'total_cost_origin' || field === 'currency_conversion_rate') {
-        updated.total_cost_aud = parseFloat(((updated.total_cost_origin || 0) * rate).toFixed(2));
       }
 
       // Auto-calculate line items if conversion rate changes
@@ -71,6 +66,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
           total_aud: parseFloat(((line.supplier_total || 0) * rate).toFixed(2))
         }));
       }
+
+      // Recalculate totals
+      updated.total_cost_origin = parseFloat(((updated.product_cost_origin || 0) + (updated.shipping_cost_origin || 0)).toFixed(2));
+      updated.total_cost_aud = parseFloat(((updated.product_cost_aud || 0) + (updated.shipping_cost_aud || 0) + (updated.product_cost_adjustments_aud || 0)).toFixed(2));
 
       return updated;
     });
