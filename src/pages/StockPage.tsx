@@ -10,6 +10,7 @@ import { useStockShortages } from "../hooks/useStockShortages";
 import { useStockLedger } from "../hooks/useStockLedger";
 import StockLedgerChartModal from "../components/StockLedgerChartModal";
 import BulkUpdateModal from "../components/BulkUpdateModal";
+import AddToPOModal from "../components/AddToPOModal";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 
 function StockPage() {
@@ -38,12 +39,21 @@ function StockPage() {
 
   const [selectedStockRecords, setSelectedStockRecords] = useState<any[]>([]);
   const [bulkUpdateModalOpen, setBulkUpdateModalOpen] = useState(false);
+  const [addToPoModalOpen, setAddToPoModalOpen] = useState(false);
 
   const handleBulkUpdateSuccess = () => {
     setSelectedStockRecords([]);
     refetch();
     stockForecast.refetch();
     stockShortages.refetch();
+  };
+
+  const handleAddToPoSuccess = (saved: boolean) => {
+    setAddToPoModalOpen(false);
+    if (saved) {
+      setSelectedStockRecords([]);
+      // Optionally refetch or show success message
+    }
   };
 
   return (
@@ -71,7 +81,14 @@ function StockPage() {
               <>
                 <KpiGrid cards={stockKpi ? [stockKpi] : []} />
                 <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
-                <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
+                <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                  <Button 
+                    variant="outlined" 
+                    disabled={selectedStockRecords.length === 0}
+                    onClick={() => setAddToPoModalOpen(true)}
+                  >
+                    Add to PO ({selectedStockRecords.length})
+                  </Button>
                   <Button 
                     variant="contained" 
                     disabled={selectedStockRecords.length === 0}
@@ -358,6 +375,13 @@ function StockPage() {
         selectedProducts={selectedStockRecords}
         onSuccess={handleBulkUpdateSuccess}
       />
+      {addToPoModalOpen && (
+        <AddToPOModal
+          open={addToPoModalOpen}
+          onClose={handleAddToPoSuccess}
+          selectedItems={selectedStockRecords}
+        />
+      )}
     </Stack>
   );
 }
