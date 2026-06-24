@@ -1,12 +1,85 @@
 import { useState } from "react";
-import { Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton } from "@mui/material";
+import { Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
 import { purchaseOrdersApi, PurchaseOrder } from "../api/purchaseOrdersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
+
+function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: (po: PurchaseOrder) => void, handleDelete: (id: number) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
+        <TableCell>
+          <IconButton
+            aria-label="expand row"
+            size="small"
+            onClick={() => setOpen(!open)}
+          >
+            {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+          </IconButton>
+        </TableCell>
+        <TableCell>{po.po_number}</TableCell>
+        <TableCell>
+          <Chip size="small" label={po.status} color={po.status === 'ordered' ? 'primary' : po.status === 'shipped' ? 'info' : 'default'} />
+        </TableCell>
+        <TableCell>{new Date(po.created_date).toLocaleDateString()}</TableCell>
+        <TableCell>{po.eta_date ? new Date(po.eta_date).toLocaleDateString() : '-'}</TableCell>
+        <TableCell>{po.shipping_type || '-'}</TableCell>
+        <TableCell>\</TableCell>
+        <TableCell align="right">
+          <IconButton onClick={() => handleEdit(po)} size="small">
+            <EditIcon />
+          </IconButton>
+          <IconButton onClick={() => handleDelete(po.id!)} size="small" color="error">
+            <DeleteIcon />
+          </IconButton>
+        </TableCell>
+      </TableRow>
+      <TableRow>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
+          <Collapse in={open} timeout="auto" unmountOnExit>
+            <Box sx={{ margin: 1 }}>
+              <Typography variant="h6" gutterBottom component="div">
+                Line Items
+              </Typography>
+              <Table size="small" aria-label="purchases">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>SKU</TableCell>
+                    <TableCell>Product Name</TableCell>
+                    <TableCell align="right">Qty</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {po.lines && po.lines.length > 0 ? po.lines.map((line, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell component="th" scope="row">
+                        {line.sku || "N/A"}
+                      </TableCell>
+                      <TableCell>{line.product_name}</TableCell>
+                      <TableCell align="right">{line.qty}</TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={3}>No line items found.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          </Collapse>
+        </TableCell>
+      </TableRow>
+    </>
+  );
+}
 
 function PurchaseOrdersPage() {
   const { data, loading, error, refetch } = usePurchaseOrders();
@@ -18,9 +91,15 @@ function PurchaseOrdersPage() {
     setModalOpen(true);
   };
 
-  const handleEdit = (po: PurchaseOrder) => {
-    setSelectedPo(po);
-    setModalOpen(true);
+  const handleEdit = async (po: PurchaseOrder) => {
+    try {
+      const fullPo = await purchaseOrdersApi.get(po.id!);
+      setSelectedPo(fullPo);
+      setModalOpen(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load purchase order details");
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -58,6 +137,7 @@ function PurchaseOrdersPage() {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell />
               <TableCell>PO Number</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Created Date</TableCell>
@@ -69,28 +149,11 @@ function PurchaseOrdersPage() {
           </TableHead>
           <TableBody>
             {data.map((po) => (
-              <TableRow key={po.id}>
-                <TableCell>{po.po_number}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={po.status} color={po.status === 'ordered' ? 'primary' : po.status === 'shipped' ? 'info' : 'default'} />
-                </TableCell>
-                <TableCell>{new Date(po.created_date).toLocaleDateString()}</TableCell>
-                <TableCell>{po.eta_date ? new Date(po.eta_date).toLocaleDateString() : '-'}</TableCell>
-                <TableCell>{po.shipping_type || '-'}</TableCell>
-                <TableCell>${Number(po.total_cost_aud || 0).toFixed(2)}</TableCell>
-                <TableCell align="right">
-                  <IconButton onClick={() => handleEdit(po)} size="small">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDelete(po.id!)} size="small" color="error">
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
+              <Row key={po.id} po={po} handleEdit={handleEdit} handleDelete={handleDelete} />
             ))}
             {data.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center">No purchase orders found.</TableCell>
+                <TableCell colSpan={8} align="center">No purchase orders found.</TableCell>
               </TableRow>
             )}
           </TableBody>
