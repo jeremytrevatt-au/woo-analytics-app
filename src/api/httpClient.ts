@@ -13,7 +13,13 @@ export function requireApiBaseUrl(): string {
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = requireApiBaseUrl();
   const url = `${baseUrl}${path}`;
-  const finalInit = { ...init, cache: "no-store" as RequestCache };
+  
+  const headers = new Headers(init?.headers);
+  if (init?.body && typeof init.body === 'string' && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const finalInit = { ...init, headers, cache: "no-store" as RequestCache };
   const method = finalInit.method ?? "GET";
   const startedAt = performance.now();
   const timestamp = new Date().toISOString();

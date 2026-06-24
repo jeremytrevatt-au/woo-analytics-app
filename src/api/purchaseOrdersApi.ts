@@ -53,6 +53,7 @@ export const purchaseOrdersApi = {
   async create(po: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
     return fetchJson<PurchaseOrder>("/api/v1/purchase-orders", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(po)
     });
   },
@@ -60,6 +61,7 @@ export const purchaseOrdersApi = {
   async update(id: number, po: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
     return fetchJson<PurchaseOrder>(`/api/v1/purchase-orders/${id}`, {
       method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(po)
     });
   },

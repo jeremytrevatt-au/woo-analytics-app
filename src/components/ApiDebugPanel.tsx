@@ -73,7 +73,7 @@ function ApiDebugPanel() {
                   Clear
                 </Button>
               </Stack>
-              <Box sx={{ maxHeight: 300, overflowY: "auto", border: "1px solid #e0e0e0", borderRadius: 1, p: 1 }}>
+              <Box sx={{ maxHeight: 300, overflowY: "auto", border: "1px solid #e0e0e0", borderRadius: 1, p: 1, userSelect: 'text' }}>
                 {state.events.map((event) => (
                   <Box key={event.id} sx={{ borderBottom: "1px solid #f0f0f0", py: 1 }}>
                     <Stack direction="row" spacing={1} alignItems="center">
@@ -91,7 +91,7 @@ function ApiDebugPanel() {
                       {event.timestamp} | {event.durationMs ?? 0} ms
                     </Typography>
                     {event.error ? (
-                      <Typography variant="caption" color="error.main" display="block">
+                      <Typography variant="caption" color="error.main" display="block" sx={{ userSelect: 'text', wordBreak: 'break-all', mt: 0.5 }}>
                         {event.error}
                       </Typography>
                     ) : null}
