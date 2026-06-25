@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Autocomplete, CircularProgress } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
 import ProductSearchAutocomplete from "./ProductSearchAutocomplete";
@@ -166,6 +168,25 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   const handleRemoveLine = (index: number) => {
     const newLines = [...(formData.lines || [])];
     newLines.splice(index, 1);
+    setFormData(prev => ({ ...prev, lines: newLines }));
+  };
+
+  const handleMoveLineUp = (index: number) => {
+    if (index === 0) return;
+    const newLines = [...(formData.lines || [])];
+    const temp = newLines[index - 1];
+    newLines[index - 1] = newLines[index];
+    newLines[index] = temp;
+    setFormData(prev => ({ ...prev, lines: newLines }));
+  };
+
+  const handleMoveLineDown = (index: number) => {
+    const lines = formData.lines || [];
+    if (index === lines.length - 1) return;
+    const newLines = [...lines];
+    const temp = newLines[index + 1];
+    newLines[index + 1] = newLines[index];
+    newLines[index] = temp;
     setFormData(prev => ({ ...prev, lines: newLines }));
   };
 
@@ -446,20 +467,20 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Table size="small" sx={{ width: '100%', minWidth: 1000 }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell width="30%">Product Name</TableCell>
-                      <TableCell width="20%">SKU</TableCell>
+                      <TableCell width="28%">Product Name</TableCell>
+                      <TableCell width="18%">SKU</TableCell>
                       <TableCell width="8%">Qty</TableCell>
                       <TableCell width="10%">Unit Price (Origin)</TableCell>
                       <TableCell width="10%">Unit Price (AUD)</TableCell>
                       <TableCell width="10%">Total (Origin)</TableCell>
                       <TableCell width="10%">Total (AUD)</TableCell>
-                      <TableCell width="2%" align="right">
-                      <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
-                        <AddIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
+                      <TableCell width="6%" align="right">
+                        <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
+                          <AddIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
                 <TableBody>
                   {(formData.lines || []).map((line, index) => (
                     <TableRow key={index}>
@@ -528,11 +549,17 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                           sx={{ width: 100 }}
                         />
                       </TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" onClick={() => handleRemoveLine(index)} color="error">
-                          <DeleteIcon />
-                        </IconButton>
-                      </TableCell>
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          <IconButton size="small" onClick={() => handleMoveLineUp(index)} disabled={index === 0}>
+                            <ArrowUpwardIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleMoveLineDown(index)} disabled={index === (formData.lines || []).length - 1}>
+                            <ArrowDownwardIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleRemoveLine(index)} color="error">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
                     </TableRow>
                   ))}
                   {(!formData.lines || formData.lines.length === 0) && (
