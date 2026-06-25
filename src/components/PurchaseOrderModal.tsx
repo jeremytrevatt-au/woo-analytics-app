@@ -489,17 +489,17 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   
                 <Box sx={{ width: '100%', overflowX: 'auto' }}>
                   <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
-                    <Table size="small" sx={{ width: '100%', minWidth: 1400 }}>
+                    <Table size="small" sx={{ width: '100%', minWidth: 1600 }}>
                       <TableHead>
                       <TableRow>
-                        <TableCell width="35%">Product Name</TableCell>
-                        <TableCell width="20%">SKU</TableCell>
+                        <TableCell width="40%">Product Name</TableCell>
+                        <TableCell width="25%">SKU</TableCell>
                         <TableCell width="5%">Qty</TableCell>
-                        <TableCell width="8%">Unit Price (Origin)</TableCell>
-                        <TableCell width="8%">Unit Price (AUD)</TableCell>
-                        <TableCell width="8%">Total (Origin)</TableCell>
-                        <TableCell width="8%">Total (AUD)</TableCell>
-                        <TableCell width="8%" align="right">
+                        <TableCell width="6%">Unit Price (Origin)</TableCell>
+                        <TableCell width="6%">Unit Price (AUD)</TableCell>
+                        <TableCell width="6%">Total (Origin)</TableCell>
+                        <TableCell width="6%">Total (AUD)</TableCell>
+                        <TableCell width="6%" align="right">
                           <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
                             <AddIcon />
                           </IconButton>
@@ -515,9 +515,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                             fullWidth
                             multiline
                             minRows={1}
-                            maxRows={4}
+                            maxRows={6}
                             value={line.product_name || ""}
                             onChange={(e) => handleLineChange(index, "product_name", e.target.value)}
+                            sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
                           />
                         </TableCell>
                         <TableCell>
@@ -526,9 +527,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                             fullWidth
                             multiline
                             minRows={1}
-                            maxRows={4}
+                            maxRows={6}
                             value={line.sku || ""}
                             onChange={(e) => handleLineChange(index, "sku", e.target.value)}
+                            sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
                           />
                         </TableCell>
                       <TableCell>
