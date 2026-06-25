@@ -299,7 +299,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} sx={{ width: '100%' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <TextField
                   fullWidth
@@ -373,7 +373,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             />
           </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} sx={{ width: '100%' }}>
               <Box sx={{ mt: 2, mb: 1 }}>
                 <Typography variant="h6" color="primary">Origin Costs (Supplier Currency)</Typography>
                 <Divider />
@@ -414,7 +414,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} sx={{ width: '100%' }}>
               <Box sx={{ mt: 2, mb: 1 }}>
                 <Typography variant="h6" color="primary">Landed Costs (AUD)</Typography>
                 <Divider />
@@ -472,7 +472,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} sx={{ width: '100%' }}>
               <Box sx={{ mt: 3, mb: 1 }}>
                 <Typography variant="h6" color="primary">Line Items</Typography>
                 <Divider sx={{ mb: 2 }} />
