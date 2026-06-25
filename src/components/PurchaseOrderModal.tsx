@@ -334,7 +334,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Divider />
               </Box>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -346,28 +346,28 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 disabled // Auto-calculated from lines
               />
             </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Shipping Cost"
-              type="number"
-              value={formData.shipping_cost_origin || 0}
-              onChange={(e) => handleChange("shipping_cost_origin", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Total Cost"
-              type="number"
-              value={formData.total_cost_origin || 0}
-              onChange={(e) => handleChange("total_cost_origin", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
+            <Grid item xs={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Shipping Cost"
+                type="number"
+                value={formData.shipping_cost_origin || 0}
+                onChange={(e) => handleChange("shipping_cost_origin", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Total Cost"
+                type="number"
+                value={formData.total_cost_origin || 0}
+                onChange={(e) => handleChange("total_cost_origin", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
 
             <Grid item xs={12}>
               <Box sx={{ mt: 2, mb: 1 }}>
@@ -375,40 +375,40 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Divider />
               </Box>
             </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Product Cost"
-              type="number"
-              value={formData.product_cost_aud || 0}
-              onChange={(e) => handleChange("product_cost_aud", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Adjustments"
-              type="number"
-              value={formData.product_cost_adjustments_aud || 0}
-              onChange={(e) => handleChange("product_cost_adjustments_aud", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Shipping Cost"
-              type="number"
-              value={formData.shipping_cost_aud || 0}
-              onChange={(e) => handleChange("shipping_cost_aud", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid item xs={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Product Cost"
+                type="number"
+                value={formData.product_cost_aud || 0}
+                onChange={(e) => handleChange("product_cost_aud", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Adjustments"
+                type="number"
+                value={formData.product_cost_adjustments_aud || 0}
+                onChange={(e) => handleChange("product_cost_adjustments_aud", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Shipping Cost"
+                type="number"
+                value={formData.shipping_cost_aud || 0}
+                onChange={(e) => handleChange("shipping_cost_aud", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={3}>
               <TextField
                 fullWidth
                 size="small"
@@ -442,18 +442,18 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Box>
 
-            <TableContainer component={Paper} variant="outlined" sx={{ width: '100%', overflowX: 'auto' }}>
-              <Table size="small" sx={{ minWidth: 1000 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell width="35%">Product Name</TableCell>
-                    <TableCell width="25%">SKU</TableCell>
-                    <TableCell width="8%">Qty</TableCell>
-                    <TableCell width="10%">Unit Price (Origin)</TableCell>
-                    <TableCell width="10%">Unit Price (AUD)</TableCell>
-                    <TableCell width="10%">Total (Origin)</TableCell>
-                    <TableCell width="10%">Total (AUD)</TableCell>
-                    <TableCell width="2%" align="right">
+              <TableContainer component={Paper} variant="outlined" sx={{ width: '100%', overflowX: 'auto' }}>
+                <Table size="small" sx={{ width: '100%', minWidth: 1000 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width="30%">Product Name</TableCell>
+                      <TableCell width="20%">SKU</TableCell>
+                      <TableCell width="8%">Qty</TableCell>
+                      <TableCell width="10%">Unit Price (Origin)</TableCell>
+                      <TableCell width="10%">Unit Price (AUD)</TableCell>
+                      <TableCell width="10%">Total (Origin)</TableCell>
+                      <TableCell width="10%">Total (AUD)</TableCell>
+                      <TableCell width="2%" align="right">
                       <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
                         <AddIcon />
                       </IconButton>
