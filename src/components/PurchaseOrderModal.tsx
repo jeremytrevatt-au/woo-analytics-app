@@ -103,10 +103,35 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
         line.supplier_total = parseFloat((qty * unitPrice).toFixed(2));
         line.unit_price_aud = parseFloat((unitPrice * rate).toFixed(2));
         line.total_aud = parseFloat((line.supplier_total * rate).toFixed(2));
+      } else if (field === 'supplier_total') {
+        const total = parseFloat(value) || 0;
+        const qty = parseInt(line.qty as any) || 1; // avoid div by 0
+        line.supplier_unit_price = parseFloat((total / qty).toFixed(2));
+        line.unit_price_aud = parseFloat((line.supplier_unit_price * rate).toFixed(2));
+        line.total_aud = parseFloat((total * rate).toFixed(2));
       }
 
       newLines[index] = line;
-      return { ...prev, lines: newLines };
+
+      // Auto-calculate header product_cost_origin from lines
+      const newProductCostOrigin = newLines.reduce((sum, l) => sum + (parseFloat(l.supplier_total as any) || 0), 0);
+      const newProductCostAud = parseFloat((newProductCostOrigin * rate).toFixed(2));
+      
+      const shippingCostOrigin = parseFloat(prev.shipping_cost_origin as any) || 0;
+      const newTotalCostOrigin = parseFloat((newProductCostOrigin + shippingCostOrigin).toFixed(2));
+
+      const shippingCostAud = parseFloat(prev.shipping_cost_aud as any) || 0;
+      const productCostAdjustmentsAud = parseFloat(prev.product_cost_adjustments_aud as any) || 0;
+      const newTotalCostAud = parseFloat((newProductCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
+
+      return { 
+        ...prev, 
+        lines: newLines,
+        product_cost_origin: newProductCostOrigin,
+        product_cost_aud: newProductCostAud,
+        total_cost_origin: newTotalCostOrigin,
+        total_cost_aud: newTotalCostAud
+      };
     });
   };
 
@@ -309,17 +334,18 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Divider />
               </Box>
             </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Product Cost"
-              type="number"
-              value={formData.product_cost_origin || 0}
-              onChange={(e) => handleChange("product_cost_origin", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Product Cost"
+                type="number"
+                value={formData.product_cost_origin || 0}
+                onChange={(e) => handleChange("product_cost_origin", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+                disabled // Auto-calculated from lines
+              />
+            </Grid>
           <Grid item xs={12} sm={4}>
             <TextField
               fullWidth
@@ -382,17 +408,24 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               inputProps={{ step: "0.01" }}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Total Cost"
-              type="number"
-              value={formData.total_cost_aud || 0}
-              onChange={(e) => handleChange("total_cost_aud", parseFloat(e.target.value) || 0)}
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
+            <Grid item xs={12} sm={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Grand Total Cost (AUD)"
+                type="number"
+                value={formData.total_cost_aud || 0}
+                onChange={(e) => handleChange("total_cost_aud", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+                disabled // Auto-calculated
+                sx={{
+                  "& .MuiInputBase-input.Mui-disabled": {
+                    WebkitTextFillColor: "#000000",
+                    fontWeight: "bold"
+                  }
+                }}
+              />
+            </Grid>
 
           <Grid item xs={12}>
             <Box sx={{ mt: 3, mb: 1 }}>
