@@ -208,9 +208,9 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={() => onClose(false)} maxWidth="xl" fullWidth>
-      <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
-      <DialogContent dividers>
+      <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '90%', maxWidth: 'none' } }}>
+        <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
+        <DialogContent dividers>
         <Grid container spacing={2}>
             <Grid item xs={12} sm={4}>
               <TextField
@@ -472,24 +472,25 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               />
             </Grid>
 
-          <Grid item xs={12}>
-            <Box sx={{ mt: 3, mb: 1 }}>
-              <Typography variant="h6" color="primary">Line Items</Typography>
-              <Divider sx={{ mb: 2 }} />
-            </Box>
-            
-            <Box sx={{ mb: 2 }}>
-              <ProductSearchAutocomplete
-                value={null}
-                onChange={handleAddProductFromSearch}
-                label="Search to Add Product..."
-                size="medium"
-              />
-            </Box>
-
-              <TableContainer component={Paper} variant="outlined" sx={{ width: '100%', overflowX: 'auto' }}>
-                <Table size="small" sx={{ width: '100%', minWidth: 1000 }}>
-                  <TableHead>
+            <Grid item xs={12}>
+              <Box sx={{ mt: 3, mb: 1 }}>
+                <Typography variant="h6" color="primary">Line Items</Typography>
+                <Divider sx={{ mb: 2 }} />
+              </Box>
+              
+              <Box sx={{ mb: 2 }}>
+                <ProductSearchAutocomplete
+                  value={null}
+                  onChange={handleAddProductFromSearch}
+                  label="Search to Add Product..."
+                  size="medium"
+                />
+              </Box>
+  
+              <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
+                  <Table size="small" sx={{ width: '100%', minWidth: 1000 }}>
+                    <TableHead>
                     <TableRow>
                       <TableCell width="28%">Product Name</TableCell>
                       <TableCell width="18%">SKU</TableCell>
@@ -590,13 +591,14 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                     <TableRow>
                       <TableCell colSpan={5} align="center">No lines added.</TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              </Box>
+            </Grid>
           </Grid>
-        </Grid>
-      </DialogContent>
+        </DialogContent>
       <DialogActions>
         <Button onClick={() => onClose(false)}>Cancel</Button>
         <Button onClick={handleSave} variant="contained" disabled={loading}>
