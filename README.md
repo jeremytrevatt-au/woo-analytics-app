@@ -135,9 +135,10 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Moved Pre Orders section to the bottom of the layout.
 - Git build reference: 17bfb124c449d46ec290266b37d8bc5f68f169ed
 
-### 2026-06-24 04:00 UTC
+### 2026-06-25 07:45 UTC
 **TODOs Completed**:
-1. Build Frontend PO Management UI (List view and Create/Edit form).
-2. Update Frontend Stock pages to reflect aggregated PO data instead of flat reorders.
-3. Add ability to select line items from Stock and Orders pages to add to new/existing POs.
-**Git Build Reference**: f38e798de975d7f894afcb42365656bedb82e82c
+1. Added ability to reorder line items in PO modal.
+2. Added Google Drive Link to Purchase Orders (DB schema, API payload, UI).
+3. Fixed PO modal width, table overflow, and multiline controls for Product Name and SKU.
+4. Enhanced PO line items with variation attributes dynamically and in search.
+**Git Build Reference**: ba1cad5
