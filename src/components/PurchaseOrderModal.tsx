@@ -117,10 +117,22 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
   const handleAddProductFromSearch = (product: ProductSearchResult | null) => {
     if (!product) return;
+    
+    let lineSku = product.sku || "";
+    let lineName = product.name;
+    let wsviGroupId = undefined;
+
+    if (product.wsvi_group_id) {
+      wsviGroupId = product.wsvi_group_id;
+      lineSku = `WSVI Group: ${product.wsvi_group_id}`;
+      lineName = product.wsvi_group_name || `Shared Inventory Pool: ${product.wsvi_group_id}`;
+    }
+
     const newLines = [...(formData.lines || []), { 
       product_id: product.id, 
-      sku: product.sku || "", 
-      product_name: product.name,
+      wsvi_group_id: wsviGroupId,
+      sku: lineSku, 
+      product_name: lineName,
       qty: 1,
       supplier_unit_price: 0,
       unit_price_aud: 0,
