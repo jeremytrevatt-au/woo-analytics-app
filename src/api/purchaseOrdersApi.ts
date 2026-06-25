@@ -35,6 +35,7 @@ export type PurchaseOrder = {
   product_cost_aud: number;
   product_cost_adjustments_aud: number;
   total_cost_aud: number;
+  drive_link?: string;
   lines: PurchaseOrderLine[];
 };
 

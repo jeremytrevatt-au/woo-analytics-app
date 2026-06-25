@@ -288,18 +288,42 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               <MenuItem value="land">Land</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Lead Time (Days)"
-              type="number"
-              value={formData.lead_time_days || 0}
-              onChange={(e) => handleChange("lead_time_days", parseInt(e.target.value) || 0)}
-              margin="normal"
-            />
-          </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Lead Time (Days)"
+                type="number"
+                value={formData.lead_time_days || 0}
+                onChange={(e) => handleChange("lead_time_days", parseInt(e.target.value) || 0)}
+                margin="normal"
+              />
+            </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Google Drive Link"
+                  value={formData.drive_link || ""}
+                  onChange={(e) => handleChange("drive_link", e.target.value)}
+                  margin="normal"
+                  placeholder="https://docs.google.com/..."
+                />
+                {formData.drive_link && (
+                  <Button 
+                    variant="outlined" 
+                    color="primary" 
+                    href={formData.drive_link} 
+                    target="_blank"
+                    sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                  >
+                    Open Document
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               select
