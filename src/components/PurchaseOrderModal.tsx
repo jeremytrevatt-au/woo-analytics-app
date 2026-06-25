@@ -208,7 +208,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   };
 
   return (
-      <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '90%', maxWidth: 'none' } }}>
+      <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '98%', maxWidth: 'none' } }}>
         <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
         <DialogContent dividers>
         <Grid container spacing={2}>
@@ -487,44 +487,50 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 />
               </Box>
   
-              <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
-                  <Table size="small" sx={{ width: '100%', minWidth: 1000 }}>
-                    <TableHead>
-                    <TableRow>
-                      <TableCell width="28%">Product Name</TableCell>
-                      <TableCell width="18%">SKU</TableCell>
-                      <TableCell width="8%">Qty</TableCell>
-                      <TableCell width="10%">Unit Price (Origin)</TableCell>
-                      <TableCell width="10%">Unit Price (AUD)</TableCell>
-                      <TableCell width="10%">Total (Origin)</TableCell>
-                      <TableCell width="10%">Total (AUD)</TableCell>
-                      <TableCell width="6%" align="right">
-                        <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
-                          <AddIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
+                <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
+                    <Table size="small" sx={{ width: '100%', minWidth: 1400 }}>
+                      <TableHead>
+                      <TableRow>
+                        <TableCell width="35%">Product Name</TableCell>
+                        <TableCell width="20%">SKU</TableCell>
+                        <TableCell width="5%">Qty</TableCell>
+                        <TableCell width="8%">Unit Price (Origin)</TableCell>
+                        <TableCell width="8%">Unit Price (AUD)</TableCell>
+                        <TableCell width="8%">Total (Origin)</TableCell>
+                        <TableCell width="8%">Total (AUD)</TableCell>
+                        <TableCell width="8%" align="right">
+                          <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
+                            <AddIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                      </TableHead>
                 <TableBody>
                   {(formData.lines || []).map((line, index) => (
-                    <TableRow key={index}>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          value={line.product_name || ""}
-                          onChange={(e) => handleLineChange(index, "product_name", e.target.value)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          value={line.sku || ""}
-                          onChange={(e) => handleLineChange(index, "sku", e.target.value)}
-                        />
-                      </TableCell>
+                      <TableRow key={index}>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            fullWidth
+                            multiline
+                            minRows={1}
+                            maxRows={4}
+                            value={line.product_name || ""}
+                            onChange={(e) => handleLineChange(index, "product_name", e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            fullWidth
+                            multiline
+                            minRows={1}
+                            maxRows={4}
+                            value={line.sku || ""}
+                            onChange={(e) => handleLineChange(index, "sku", e.target.value)}
+                          />
+                        </TableCell>
                       <TableCell>
                         <TextField
                           size="small"
