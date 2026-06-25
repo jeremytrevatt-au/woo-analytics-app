@@ -6,7 +6,6 @@ export type ProductSearchResult = {
   sku: string;
   type: string;
   wsvi_group_id?: string;
-  wsvi_group_name?: string;
 };
 
 export const productsApi = {
