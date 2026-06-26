@@ -1,6 +1,5 @@
 import { Box } from "@mui/material";
 import { Route, Routes } from "react-router-dom";
-import ApiDebugPanel from "./components/ApiDebugPanel";
 import DashboardLayout from "./components/DashboardLayout";
 import FiltersProvider from "./components/FiltersProvider";
 import CustomersPage from "./pages/CustomersPage";
@@ -33,7 +32,6 @@ function App() {
               <Route path="/admin" element={<AdminPage />} />
             </Routes>
         </DashboardLayout>
-        <ApiDebugPanel />
       </Box>
     </FiltersProvider>
   );

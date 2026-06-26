@@ -4,6 +4,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import FilterBar from "./FilterBar";
+import ApiDebugPanel from "./ApiDebugPanel";
 
 type Props = {
   children: React.ReactNode;
@@ -82,6 +83,7 @@ function DashboardLayout({ children }: Props) {
               Natural Yield Analytics
             </Typography>
           </Stack>
+          <ApiDebugPanel />
         </Toolbar>
       </AppBar>
 
