@@ -275,7 +275,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   select
                   label="Supplier"
                   value={formData.supplier_id || ""}
-                  onChange={(e) => handleChange("supplier_id", parseInt(e.target.value) || undefined)}
+                onChange={(e) => handleChange("supplier_id", e.target.value ? parseInt(e.target.value) : undefined)}
                   margin="normal"
                 >
                   <MenuItem value=""><em>None</em></MenuItem>
@@ -342,7 +342,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 label="Lead Time (Days)"
                 type="number"
                 value={formData.lead_time_days || 0}
-                onChange={(e) => handleChange("lead_time_days", parseInt(e.target.value) || 0)}
+                onChange={(e) => handleChange("lead_time_days", e.target.value)}
                 margin="normal"
               />
             </Grid>
@@ -387,57 +387,57 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               <MenuItem value="CNY">CNY</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              label="Conversion Rate"
-              type="number"
-              value={formData.currency_conversion_rate || 1.0}
-              onChange={(e) => handleChange("currency_conversion_rate", parseFloat(e.target.value) || 1.0)}
-              margin="normal"
-              inputProps={{ step: "0.0001" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              label="M3"
-              type="number"
-              value={formData.m3 || 0}
-              onChange={(e) => handleChange("m3", parseFloat(e.target.value) || 0)}
-              margin="normal"
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
-                label="M3 Rate"
+                label="Conversion Rate"
                 type="number"
-                value={formData.m3_rate || 0}
-                onChange={(e) => handleChange("m3_rate", parseFloat(e.target.value) || 0)}
+                value={formData.currency_conversion_rate ?? ""}
+                onChange={(e) => handleChange("currency_conversion_rate", e.target.value)}
                 margin="normal"
-                inputProps={{ step: "0.01" }}
+                inputProps={{ step: "0.0001" }}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
-                label="Pallet Weight"
+                label="M3"
                 type="number"
-                value={formData.pallet_weight || 0}
-                onChange={(e) => handleChange("pallet_weight", parseFloat(e.target.value) || 0)}
+                value={formData.m3 ?? ""}
+                onChange={(e) => handleChange("m3", e.target.value)}
                 margin="normal"
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  label="M3 Rate"
+                  type="number"
+                  value={formData.m3_rate ?? ""}
+                  onChange={(e) => handleChange("m3_rate", e.target.value)}
+                  margin="normal"
+                  inputProps={{ step: "0.01" }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  label="Pallet Weight"
+                  type="number"
+                  value={formData.pallet_weight ?? ""}
+                  onChange={(e) => handleChange("pallet_weight", e.target.value)}
+                  margin="normal"
+                  inputProps={{ step: "0.01" }}
+                />
+              </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
                 label="Number of Pallets"
                 type="number"
                 value={formData.number_of_pallets || 0}
-                onChange={(e) => handleChange("number_of_pallets", parseInt(e.target.value) || 0)}
+                onChange={(e) => handleChange("number_of_pallets", e.target.value)}
                 margin="normal"
               />
             </Grid>
@@ -454,8 +454,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 size="small"
                 label="Product Adjustments"
                 type="number"
-                value={formData.product_cost_adjustments_origin || 0}
-                onChange={(e) => handleChange("product_cost_adjustments_origin", parseFloat(e.target.value) || 0)}
+                value={formData.product_cost_adjustments_origin ?? ""}
+                onChange={(e) => handleChange("product_cost_adjustments_origin", e.target.value)}
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
@@ -465,8 +465,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 size="small"
                 label="Total Product Cost"
                 type="number"
-                value={formData.product_cost_origin || 0}
-                onChange={(e) => handleChange("product_cost_origin", parseFloat(e.target.value) || 0)}
+                value={formData.product_cost_origin ?? ""}
+                onChange={(e) => handleChange("product_cost_origin", e.target.value)}
                 inputProps={{ step: "0.01" }}
                 disabled // Auto-calculated from lines + adjustments
               />
@@ -484,8 +484,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 size="small"
                 label="Product Cost"
                 type="number"
-                value={formData.product_cost_aud || 0}
-                onChange={(e) => handleChange("product_cost_aud", parseFloat(e.target.value) || 0)}
+                value={formData.product_cost_aud ?? ""}
+                onChange={(e) => handleChange("product_cost_aud", e.target.value)}
                 inputProps={{ step: "0.01" }}
                 disabled
               />
@@ -496,8 +496,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 size="small"
                 label="Shipping Cost"
                 type="number"
-                value={formData.shipping_cost_aud || 0}
-                onChange={(e) => handleChange("shipping_cost_aud", parseFloat(e.target.value) || 0)}
+                value={formData.shipping_cost_aud ?? ""}
+                onChange={(e) => handleChange("shipping_cost_aud", e.target.value)}
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
@@ -507,8 +507,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 size="small"
                 label="Adjustments"
                 type="number"
-                value={formData.product_cost_adjustments_aud || 0}
-                onChange={(e) => handleChange("product_cost_adjustments_aud", parseFloat(e.target.value) || 0)}
+                value={formData.product_cost_adjustments_aud ?? ""}
+                onChange={(e) => handleChange("product_cost_adjustments_aud", e.target.value)}
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
@@ -518,8 +518,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 size="small"
                 label="Grand Total Cost (AUD)"
                 type="number"
-                value={formData.total_cost_aud || 0}
-                onChange={(e) => handleChange("total_cost_aud", parseFloat(e.target.value) || 0)}
+                value={formData.total_cost_aud ?? ""}
+                onChange={(e) => handleChange("total_cost_aud", e.target.value)}
                 inputProps={{ step: "0.01" }}
                 disabled // Auto-calculated
                 sx={{
@@ -605,55 +605,55 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                             sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
                           />
                         </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.qty || 0}
-                          onChange={(e) => handleLineChange(index, "qty", parseInt(e.target.value) || 0)}
-                          sx={{ width: 80 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.supplier_unit_price || 0}
-                          onChange={(e) => handleLineChange(index, "supplier_unit_price", parseFloat(e.target.value) || 0)}
-                          inputProps={{ step: "0.01" }}
-                          sx={{ width: 100 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.unit_price_aud || 0}
-                          onChange={(e) => handleLineChange(index, "unit_price_aud", parseFloat(e.target.value) || 0)}
-                          inputProps={{ step: "0.01" }}
-                          sx={{ width: 100 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.supplier_total || 0}
-                          onChange={(e) => handleLineChange(index, "supplier_total", parseFloat(e.target.value) || 0)}
-                          inputProps={{ step: "0.01" }}
-                          sx={{ width: 100 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={line.total_aud || 0}
-                          onChange={(e) => handleLineChange(index, "total_aud", parseFloat(e.target.value) || 0)}
-                          inputProps={{ step: "0.01" }}
-                          sx={{ width: 100 }}
-                        />
-                      </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.qty ?? ""}
+                            onChange={(e) => handleLineChange(index, "qty", e.target.value)}
+                            sx={{ width: 80 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.supplier_unit_price ?? ""}
+                            onChange={(e) => handleLineChange(index, "supplier_unit_price", e.target.value)}
+                            inputProps={{ step: "0.01" }}
+                            sx={{ width: 100 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.unit_price_aud ?? ""}
+                            onChange={(e) => handleLineChange(index, "unit_price_aud", e.target.value)}
+                            inputProps={{ step: "0.01" }}
+                            sx={{ width: 100 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.supplier_total ?? ""}
+                            onChange={(e) => handleLineChange(index, "supplier_total", e.target.value)}
+                            inputProps={{ step: "0.01" }}
+                            sx={{ width: 100 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.total_aud ?? ""}
+                            onChange={(e) => handleLineChange(index, "total_aud", e.target.value)}
+                            inputProps={{ step: "0.01" }}
+                            sx={{ width: 100 }}
+                          />
+                        </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                           <IconButton size="small" onClick={() => handleMoveLineUp(index)} disabled={index === 0}>
                             <ArrowUpwardIcon fontSize="small" />
