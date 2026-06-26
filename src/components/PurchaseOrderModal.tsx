@@ -28,6 +28,9 @@ const defaultPo: Partial<PurchaseOrder> = {
   currency_conversion_rate: 1.0,
   m3: 0,
   m3_rate: 0,
+  pallet_weight: 0,
+  number_of_pallets: 0,
+  supplier_order_number: "",
   shipping_cost_origin: 0,
   product_cost_origin: 0,
   total_cost_origin: 0,
@@ -211,32 +214,41 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '98%', maxWidth: 'none' } }}>
         <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
         <DialogContent dividers>
-        <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="PO Number"
-                value={formData.po_number || ""}
-                onChange={(e) => handleChange("po_number", e.target.value)}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                select
-                label="Supplier"
-                value={formData.supplier_id || ""}
-                onChange={(e) => handleChange("supplier_id", parseInt(e.target.value) || undefined)}
-                margin="normal"
-              >
-                <MenuItem value=""><em>None</em></MenuItem>
-                {suppliers.map(s => (
-                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={4}>
+          <Grid container spacing={2}>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  fullWidth
+                  label="PO Number"
+                  value={formData.po_number || ""}
+                  onChange={(e) => handleChange("po_number", e.target.value)}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  fullWidth
+                  label="Supplier Order Number"
+                  value={formData.supplier_order_number || ""}
+                  onChange={(e) => handleChange("supplier_order_number", e.target.value)}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Supplier"
+                  value={formData.supplier_id || ""}
+                  onChange={(e) => handleChange("supplier_id", parseInt(e.target.value) || undefined)}
+                  margin="normal"
+                >
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {suppliers.map(s => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={3}>
               <TextField
                 fullWidth
                 select
@@ -324,10 +336,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              select
-              label="Supplier Currency"
+              <TextField
+                fullWidth
+                select
+                label="Supplier Currency"
               value={formData.supplier_currency || "AUD"}
               onChange={(e) => handleChange("supplier_currency", e.target.value)}
               margin="normal"
@@ -362,16 +374,37 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              label="M3 Rate"
-              type="number"
-              value={formData.m3_rate || 0}
-              onChange={(e) => handleChange("m3_rate", parseFloat(e.target.value) || 0)}
-              margin="normal"
-              inputProps={{ step: "0.01" }}
-            />
-          </Grid>
+              <TextField
+                fullWidth
+                label="M3 Rate"
+                type="number"
+                value={formData.m3_rate || 0}
+                onChange={(e) => handleChange("m3_rate", parseFloat(e.target.value) || 0)}
+                margin="normal"
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                label="Pallet Weight"
+                type="number"
+                value={formData.pallet_weight || 0}
+                onChange={(e) => handleChange("pallet_weight", parseFloat(e.target.value) || 0)}
+                margin="normal"
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                label="Number of Pallets"
+                type="number"
+                value={formData.number_of_pallets || 0}
+                onChange={(e) => handleChange("number_of_pallets", parseInt(e.target.value) || 0)}
+                margin="normal"
+              />
+            </Grid>
 
             <Grid item xs={12} sx={{ width: '100%' }}>
               <Box sx={{ mt: 2, mb: 1 }}>

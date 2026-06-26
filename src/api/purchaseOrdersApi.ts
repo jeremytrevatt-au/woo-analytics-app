@@ -28,6 +28,9 @@ export type PurchaseOrder = {
   currency_conversion_rate: number;
   m3: number;
   m3_rate: number;
+  pallet_weight: number;
+  number_of_pallets: number;
+  supplier_order_number: string;
   shipping_cost_origin: number;
   product_cost_origin: number;
   total_cost_origin: number;
