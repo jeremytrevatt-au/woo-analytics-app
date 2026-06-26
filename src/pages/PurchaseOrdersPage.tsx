@@ -32,8 +32,8 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
         </TableCell>
         <TableCell>{new Date(po.created_date).toLocaleDateString()}</TableCell>
         <TableCell>{po.eta_date ? new Date(po.eta_date).toLocaleDateString() : '-'}</TableCell>
-        <TableCell>{po.shipping_type || '-'}</TableCell>
-        <TableCell>\</TableCell>
+        <TableCell>{po.shipping_type ? po.shipping_type.charAt(0).toUpperCase() + po.shipping_type.slice(1) : '-'}</TableCell>
+        <TableCell>${parseFloat(po.total_cost_aud as any || 0).toFixed(2)}</TableCell>
         <TableCell align="right">
           <IconButton onClick={() => handleEdit(po)} size="small">
             <EditIcon />
