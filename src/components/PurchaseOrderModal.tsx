@@ -31,7 +31,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   pallet_weight: 0,
   number_of_pallets: 0,
   supplier_order_number: "",
-  shipping_cost_origin: 0,
+  product_cost_adjustments_origin: 0,
   product_cost_origin: 0,
   total_cost_origin: 0,
   shipping_cost_aud: 0,
@@ -45,6 +45,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   const [formData, setFormData] = useState<Partial<PurchaseOrder>>(defaultPo);
   const [loading, setLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
+  const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
 
   useEffect(() => {
     suppliersApi.getAll().then(setSuppliers).catch(console.error);
@@ -52,46 +54,50 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
   useEffect(() => {
     if (po) {
-      setFormData(po);
+      setFormData({
+        ...po,
+        shipping_type: po.shipping_type || "sea"
+      });
     } else {
       setFormData(defaultPo);
     }
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
-    setFormData(prev => {
-      const updated = { ...prev, [field]: value };
-      
-      // Auto-calculate AUD fields based on conversion rate
-      const rate = field === 'currency_conversion_rate' ? (parseFloat(value) || 1.0) : (parseFloat(prev.currency_conversion_rate as any) || 1.0);
-      
-      // Only product cost is affected by conversion rate
-      if (field === 'product_cost_origin' || field === 'currency_conversion_rate') {
-        const productCostOrigin = parseFloat(updated.product_cost_origin as any) || 0;
+      setFormData(prev => {
+        const updated = { ...prev, [field]: value };
+        
+        // Auto-calculate AUD fields based on conversion rate
+        const rate = field === 'currency_conversion_rate' ? (parseFloat(value) || 1.0) : (parseFloat(prev.currency_conversion_rate as any) || 1.0);
+        
+        // Auto-calculate line items if conversion rate changes
+        if (field === 'currency_conversion_rate' && updated.lines) {
+          updated.lines = updated.lines.map(line => ({
+            ...line,
+            unit_price_aud: parseFloat(((parseFloat(line.supplier_unit_price as any) || 0) * rate).toFixed(2)),
+            total_aud: parseFloat(((parseFloat(line.supplier_total as any) || 0) * rate).toFixed(2))
+          }));
+        }
+
+        // Recalculate origin totals
+        const linesTotalOrigin = (updated.lines || []).reduce((sum, line) => sum + (parseFloat(line.supplier_total as any) || 0), 0);
+        const adjustmentsOrigin = parseFloat(updated.product_cost_adjustments_origin as any) || 0;
+        
+        const productCostOrigin = linesTotalOrigin + adjustmentsOrigin;
+        updated.product_cost_origin = parseFloat(productCostOrigin.toFixed(2));
+        updated.total_cost_origin = updated.product_cost_origin; // Same as product cost since shipping is removed
+
+        // Only product cost is affected by conversion rate
         updated.product_cost_aud = parseFloat((productCostOrigin * rate).toFixed(2));
-      }
 
-      // Auto-calculate line items if conversion rate changes
-      if (field === 'currency_conversion_rate' && updated.lines) {
-        updated.lines = updated.lines.map(line => ({
-          ...line,
-          unit_price_aud: parseFloat(((parseFloat(line.supplier_unit_price as any) || 0) * rate).toFixed(2)),
-          total_aud: parseFloat(((parseFloat(line.supplier_total as any) || 0) * rate).toFixed(2))
-        }));
-      }
+        // Recalculate AUD totals
+        const productCostAud = updated.product_cost_aud;
+        const shippingCostAud = parseFloat(updated.shipping_cost_aud as any) || 0;
+        const productCostAdjustmentsAud = parseFloat(updated.product_cost_adjustments_aud as any) || 0;
+        updated.total_cost_aud = parseFloat((productCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
 
-      // Recalculate totals
-      const productCostOrigin = parseFloat(updated.product_cost_origin as any) || 0;
-      const shippingCostOrigin = parseFloat(updated.shipping_cost_origin as any) || 0;
-      updated.total_cost_origin = parseFloat((productCostOrigin + shippingCostOrigin).toFixed(2));
-
-      const productCostAud = parseFloat(updated.product_cost_aud as any) || 0;
-      const shippingCostAud = parseFloat(updated.shipping_cost_aud as any) || 0;
-      const productCostAdjustmentsAud = parseFloat(updated.product_cost_adjustments_aud as any) || 0;
-      updated.total_cost_aud = parseFloat((productCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
-
-      return updated;
-    });
+        return updated;
+      });
   };
 
   const handleLineChange = (index: number, field: keyof PurchaseOrderLine, value: any) => {
@@ -118,26 +124,27 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
       newLines[index] = line;
 
-      // Auto-calculate header product_cost_origin from lines
-      const newProductCostOrigin = newLines.reduce((sum, l) => sum + (parseFloat(l.supplier_total as any) || 0), 0);
-      const newProductCostAud = parseFloat((newProductCostOrigin * rate).toFixed(2));
-      
-      const shippingCostOrigin = parseFloat(prev.shipping_cost_origin as any) || 0;
-      const newTotalCostOrigin = parseFloat((newProductCostOrigin + shippingCostOrigin).toFixed(2));
-
-      const shippingCostAud = parseFloat(prev.shipping_cost_aud as any) || 0;
-      const productCostAdjustmentsAud = parseFloat(prev.product_cost_adjustments_aud as any) || 0;
-      const newTotalCostAud = parseFloat((newProductCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
-
-      return { 
-        ...prev, 
-        lines: newLines,
-        product_cost_origin: newProductCostOrigin,
-        product_cost_aud: newProductCostAud,
-        total_cost_origin: newTotalCostOrigin,
-        total_cost_aud: newTotalCostAud
-      };
-    });
+        // Auto-calculate header product_cost_origin from lines + adjustments
+        const linesTotalOrigin = newLines.reduce((sum, l) => sum + (parseFloat(l.supplier_total as any) || 0), 0);
+        const adjustmentsOrigin = parseFloat(prev.product_cost_adjustments_origin as any) || 0;
+        const newProductCostOrigin = linesTotalOrigin + adjustmentsOrigin;
+        const newProductCostAud = parseFloat((newProductCostOrigin * rate).toFixed(2));
+        
+        const newTotalCostOrigin = newProductCostOrigin;
+  
+        const shippingCostAud = parseFloat(prev.shipping_cost_aud as any) || 0;
+        const productCostAdjustmentsAud = parseFloat(prev.product_cost_adjustments_aud as any) || 0;
+        const newTotalCostAud = parseFloat((newProductCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
+  
+        return { 
+          ...prev, 
+          lines: newLines,
+          product_cost_origin: newProductCostOrigin,
+          product_cost_aud: newProductCostAud,
+          total_cost_origin: newTotalCostOrigin,
+          total_cost_aud: newTotalCostAud
+        };
+      });
   };
 
   const handleAddBlankLine = () => {
@@ -208,6 +215,35 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    setDraggedRowIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // Required for Firefox
+    e.dataTransfer.setData("text/html", e.currentTarget.outerHTML);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    e.preventDefault(); // Necessary to allow dropping
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    e.preventDefault();
+    if (draggedRowIndex === null || draggedRowIndex === index) return;
+
+    const newLines = Array.from(formData.lines || []);
+    const [reorderedItem] = newLines.splice(draggedRowIndex, 1);
+    newLines.splice(index, 0, reorderedItem);
+
+    setFormData(prev => ({ ...prev, lines: newLines }));
+    setDraggedRowIndex(null);
+    setActiveRowIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedRowIndex(null);
   };
 
   return (
@@ -412,38 +448,27 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Divider />
               </Box>
             </Grid>
-            <Grid item xs={4}>
+            <Grid item xs={6}>
               <TextField
                 fullWidth
                 size="small"
-                label="Product Cost"
+                label="Product Adjustments"
+                type="number"
+                value={formData.product_cost_adjustments_origin || 0}
+                onChange={(e) => handleChange("product_cost_adjustments_origin", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Total Product Cost"
                 type="number"
                 value={formData.product_cost_origin || 0}
                 onChange={(e) => handleChange("product_cost_origin", parseFloat(e.target.value) || 0)}
                 inputProps={{ step: "0.01" }}
-                disabled // Auto-calculated from lines
-              />
-            </Grid>
-            <Grid item xs={4}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Shipping Cost"
-                type="number"
-                value={formData.shipping_cost_origin || 0}
-                onChange={(e) => handleChange("shipping_cost_origin", parseFloat(e.target.value) || 0)}
-                inputProps={{ step: "0.01" }}
-              />
-            </Grid>
-            <Grid item xs={4}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Total Cost"
-                type="number"
-                value={formData.total_cost_origin || 0}
-                onChange={(e) => handleChange("total_cost_origin", parseFloat(e.target.value) || 0)}
-                inputProps={{ step: "0.01" }}
+                disabled // Auto-calculated from lines + adjustments
               />
             </Grid>
 
@@ -462,17 +487,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 value={formData.product_cost_aud || 0}
                 onChange={(e) => handleChange("product_cost_aud", parseFloat(e.target.value) || 0)}
                 inputProps={{ step: "0.01" }}
-              />
-            </Grid>
-            <Grid item xs={3}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Adjustments"
-                type="number"
-                value={formData.product_cost_adjustments_aud || 0}
-                onChange={(e) => handleChange("product_cost_adjustments_aud", parseFloat(e.target.value) || 0)}
-                inputProps={{ step: "0.01" }}
+                disabled
               />
             </Grid>
             <Grid item xs={3}>
@@ -483,6 +498,17 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 type="number"
                 value={formData.shipping_cost_aud || 0}
                 onChange={(e) => handleChange("shipping_cost_aud", parseFloat(e.target.value) || 0)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Adjustments"
+                type="number"
+                value={formData.product_cost_adjustments_aud || 0}
+                onChange={(e) => handleChange("product_cost_adjustments_aud", parseFloat(e.target.value) || 0)}
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
@@ -539,9 +565,22 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                         </TableCell>
                       </TableRow>
                       </TableHead>
-                <TableBody>
-                  {(formData.lines || []).map((line, index) => (
-                      <TableRow key={index}>
+                  <TableBody>
+                    {(formData.lines || []).map((line, index) => (
+                        <TableRow 
+                          key={index}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDrop={(e) => handleDrop(e, index)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => setActiveRowIndex(index)}
+                          sx={{ 
+                            bgcolor: activeRowIndex === index ? 'rgba(76, 175, 80, 0.1)' : (draggedRowIndex === index ? 'action.hover' : 'inherit'),
+                            cursor: 'grab',
+                            '&:active': { cursor: 'grabbing' }
+                          }}
+                        >
                         <TableCell>
                           <TextField
                             size="small"
