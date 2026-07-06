@@ -546,6 +546,13 @@ export async function getStockShortages(
     page_size: String(pageSize),
     q: filter.searchText,
   });
+  if (filter.startDate) params.append("start_date", filter.startDate);
+  if (filter.endDate) params.append("end_date", filter.endDate);
+  if (filter.orderStatus.length > 0) params.append("order_status", filter.orderStatus.join(","));
+  const shortageStatuses = filter.stockStatus.filter((status) => status === "outofstock" || status === "onbackorder");
+  if (shortageStatuses.length > 0) {
+    params.append("stock_status", shortageStatuses.join(","));
+  }
   if (filter.category) params.append("category", filter.category);
   if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
   if (filter.skuContains) params.append("sku_contains", filter.skuContains);

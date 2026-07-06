@@ -33,7 +33,9 @@ export type PurchaseOrder = {
   supplier_order_number: string;
   product_cost_adjustments_origin: number;
   product_cost_origin: number;
+  shipping_cost_origin: number;
   total_cost_origin: number;
+  shipping_cost_origin_aud: number;
   shipping_cost_aud: number;
   product_cost_aud: number;
   product_cost_adjustments_aud: number;

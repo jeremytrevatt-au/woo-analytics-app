@@ -33,12 +33,77 @@ const defaultPo: Partial<PurchaseOrder> = {
   supplier_order_number: "",
   product_cost_adjustments_origin: 0,
   product_cost_origin: 0,
+  shipping_cost_origin: 0,
   total_cost_origin: 0,
+  shipping_cost_origin_aud: 0,
   shipping_cost_aud: 0,
   product_cost_aud: 0,
   product_cost_adjustments_aud: 0,
   total_cost_aud: 0,
   lines: []
+};
+
+const toNumber = (value: unknown, fallback = 0) => {
+  if (value === "" || value === null || value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const roundMoney = (value: number) => parseFloat(value.toFixed(2));
+
+const normaliseLines = (lines: PurchaseOrderLine[] = [], rate: number): PurchaseOrderLine[] =>
+  lines.map((line) => {
+    const qty = Math.trunc(toNumber(line.qty));
+    const supplierUnitPrice = toNumber(line.supplier_unit_price);
+    const supplierTotal = toNumber(line.supplier_total);
+    return {
+      ...line,
+      qty,
+      supplier_unit_price: supplierUnitPrice,
+      supplier_total: supplierTotal,
+      unit_price_aud: roundMoney(supplierUnitPrice * rate),
+      total_aud: roundMoney(supplierTotal * rate),
+    };
+  });
+
+const recalculatePurchaseOrder = (po: Partial<PurchaseOrder>): Partial<PurchaseOrder> => {
+  const rate = toNumber(po.currency_conversion_rate, 1);
+  const lines = normaliseLines(po.lines || [], rate);
+  const linesTotalOrigin = lines.reduce((sum, line) => sum + toNumber(line.supplier_total), 0);
+  const adjustmentsOrigin = toNumber(po.product_cost_adjustments_origin);
+  const productCostOrigin = roundMoney(linesTotalOrigin + adjustmentsOrigin);
+  const shippingCostOrigin = toNumber(po.shipping_cost_origin);
+  const shippingCostOriginAud = roundMoney(shippingCostOrigin * rate);
+  const productCostAud = roundMoney(productCostOrigin * rate);
+  const destinationShippingAud = toNumber(po.shipping_cost_aud);
+  const adjustmentsAud = toNumber(po.product_cost_adjustments_aud);
+
+  return {
+    ...po,
+    lines,
+    currency_conversion_rate: rate,
+    product_cost_adjustments_origin: adjustmentsOrigin,
+    product_cost_origin: productCostOrigin,
+    shipping_cost_origin: shippingCostOrigin,
+    total_cost_origin: roundMoney(productCostOrigin + shippingCostOrigin),
+    shipping_cost_origin_aud: shippingCostOriginAud,
+    shipping_cost_aud: destinationShippingAud,
+    product_cost_aud: productCostAud,
+    product_cost_adjustments_aud: adjustmentsAud,
+    total_cost_aud: roundMoney(productCostAud + shippingCostOriginAud + destinationShippingAud + adjustmentsAud),
+  };
+};
+
+const normalisePurchaseOrderPayload = (po: Partial<PurchaseOrder>): Partial<PurchaseOrder> => {
+  const recalculated = recalculatePurchaseOrder(po);
+  return {
+    ...recalculated,
+    lead_time_days: Math.trunc(toNumber(recalculated.lead_time_days)),
+    m3: toNumber(recalculated.m3),
+    m3_rate: toNumber(recalculated.m3_rate),
+    pallet_weight: toNumber(recalculated.pallet_weight),
+    number_of_pallets: Math.trunc(toNumber(recalculated.number_of_pallets)),
+  };
 };
 
 export default function PurchaseOrderModal({ open, onClose, po }: Props) {
@@ -54,102 +119,71 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
   useEffect(() => {
     if (po) {
-      setFormData({
+      setFormData(recalculatePurchaseOrder({
         ...po,
         shipping_type: po.shipping_type || "sea"
-      });
+      }));
     } else {
       setFormData(defaultPo);
     }
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
-      setFormData(prev => {
-        const updated = { ...prev, [field]: value };
-        
-        // Auto-calculate AUD fields based on conversion rate
-        const rate = field === 'currency_conversion_rate' ? (parseFloat(value) || 1.0) : (parseFloat(prev.currency_conversion_rate as any) || 1.0);
-        
-        // Auto-calculate line items if conversion rate changes
-        if (field === 'currency_conversion_rate' && updated.lines) {
-          updated.lines = updated.lines.map(line => ({
-            ...line,
-            unit_price_aud: parseFloat(((parseFloat(line.supplier_unit_price as any) || 0) * rate).toFixed(2)),
-            total_aud: parseFloat(((parseFloat(line.supplier_total as any) || 0) * rate).toFixed(2))
-          }));
-        }
-
-        // Recalculate origin totals
-        const linesTotalOrigin = (updated.lines || []).reduce((sum, line) => sum + (parseFloat(line.supplier_total as any) || 0), 0);
-        const adjustmentsOrigin = parseFloat(updated.product_cost_adjustments_origin as any) || 0;
-        
-        const productCostOrigin = linesTotalOrigin + adjustmentsOrigin;
-        updated.product_cost_origin = parseFloat(productCostOrigin.toFixed(2));
-        updated.total_cost_origin = updated.product_cost_origin; // Same as product cost since shipping is removed
-
-        // Only product cost is affected by conversion rate
-        updated.product_cost_aud = parseFloat((productCostOrigin * rate).toFixed(2));
-
-        // Recalculate AUD totals
-        const productCostAud = updated.product_cost_aud;
-        const shippingCostAud = parseFloat(updated.shipping_cost_aud as any) || 0;
-        const productCostAdjustmentsAud = parseFloat(updated.product_cost_adjustments_aud as any) || 0;
-        updated.total_cost_aud = parseFloat((productCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
-
-        return updated;
-      });
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      const recalculated = recalculatePurchaseOrder(updated);
+      return { ...recalculated, [field]: value };
+    });
   };
 
   const handleLineChange = (index: number, field: keyof PurchaseOrderLine, value: any) => {
     setFormData(prev => {
       const newLines = [...(prev.lines || [])];
       const line = { ...newLines[index], [field]: value };
-      const rate = parseFloat(prev.currency_conversion_rate as any) || 1.0;
+      const rate = toNumber(prev.currency_conversion_rate, 1);
 
-      // Auto-calculate line totals and AUD prices
       if (field === 'qty' || field === 'supplier_unit_price') {
-        const qty = field === 'qty' ? (parseInt(value) || 0) : (parseInt(line.qty as any) || 0);
-        const unitPrice = field === 'supplier_unit_price' ? (parseFloat(value) || 0) : (parseFloat(line.supplier_unit_price as any) || 0);
+        const qty = field === 'qty' ? Math.trunc(toNumber(value)) : Math.trunc(toNumber(line.qty));
+        const unitPrice = field === 'supplier_unit_price' ? toNumber(value) : toNumber(line.supplier_unit_price);
         
-        line.supplier_total = parseFloat((qty * unitPrice).toFixed(2));
-        line.unit_price_aud = parseFloat((unitPrice * rate).toFixed(2));
-        line.total_aud = parseFloat((line.supplier_total * rate).toFixed(2));
+        line.supplier_total = roundMoney(qty * unitPrice);
+        line.unit_price_aud = roundMoney(unitPrice * rate);
+        line.total_aud = roundMoney(toNumber(line.supplier_total) * rate);
       } else if (field === 'supplier_total') {
-        const total = parseFloat(value) || 0;
-        const qty = parseInt(line.qty as any) || 1; // avoid div by 0
-        line.supplier_unit_price = parseFloat((total / qty).toFixed(2));
-        line.unit_price_aud = parseFloat((line.supplier_unit_price * rate).toFixed(2));
-        line.total_aud = parseFloat((total * rate).toFixed(2));
+        const total = toNumber(value);
+        const qty = Math.trunc(toNumber(line.qty)) || 1;
+        line.supplier_unit_price = roundMoney(total / qty);
+        line.unit_price_aud = roundMoney(toNumber(line.supplier_unit_price) * rate);
+        line.total_aud = roundMoney(total * rate);
+      } else if (field === 'unit_price_aud') {
+        const unitPriceAud = toNumber(value);
+        const qty = Math.trunc(toNumber(line.qty));
+        const supplierUnitPrice = rate ? roundMoney(unitPriceAud / rate) : 0;
+        line.supplier_unit_price = supplierUnitPrice;
+        line.supplier_total = roundMoney(qty * supplierUnitPrice);
+        line.total_aud = roundMoney(qty * unitPriceAud);
+      } else if (field === 'total_aud') {
+        const totalAud = toNumber(value);
+        const qty = Math.trunc(toNumber(line.qty)) || 1;
+        const supplierTotal = rate ? roundMoney(totalAud / rate) : 0;
+        line.supplier_total = supplierTotal;
+        line.supplier_unit_price = roundMoney(supplierTotal / qty);
+        line.unit_price_aud = roundMoney(toNumber(line.supplier_unit_price) * rate);
       }
 
       newLines[index] = line;
-
-        // Auto-calculate header product_cost_origin from lines + adjustments
-        const linesTotalOrigin = newLines.reduce((sum, l) => sum + (parseFloat(l.supplier_total as any) || 0), 0);
-        const adjustmentsOrigin = parseFloat(prev.product_cost_adjustments_origin as any) || 0;
-        const newProductCostOrigin = linesTotalOrigin + adjustmentsOrigin;
-        const newProductCostAud = parseFloat((newProductCostOrigin * rate).toFixed(2));
-        
-        const newTotalCostOrigin = newProductCostOrigin;
-  
-        const shippingCostAud = parseFloat(prev.shipping_cost_aud as any) || 0;
-        const productCostAdjustmentsAud = parseFloat(prev.product_cost_adjustments_aud as any) || 0;
-        const newTotalCostAud = parseFloat((newProductCostAud + shippingCostAud + productCostAdjustmentsAud).toFixed(2));
-  
-        return { 
-          ...prev, 
-          lines: newLines,
-          product_cost_origin: newProductCostOrigin,
-          product_cost_aud: newProductCostAud,
-          total_cost_origin: newTotalCostOrigin,
-          total_cost_aud: newTotalCostAud
-        };
-      });
+      const recalculated = recalculatePurchaseOrder({ ...prev, lines: newLines });
+      const recalculatedLines = [...(recalculated.lines || [])];
+      recalculatedLines[index] = { ...recalculatedLines[index], [field]: value };
+      return { ...recalculated, lines: recalculatedLines };
+    });
   };
 
   const handleAddBlankLine = () => {
-    const newLines = [...(formData.lines || []), { product_id: 0, sku: "", product_name: "", qty: 1 }];
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    setFormData(prev => recalculatePurchaseOrder({
+      ...prev,
+      lines: [...(prev.lines || []), { product_id: 0, supplier_sku: "", sku: "", product_name: "", qty: 1, supplier_unit_price: 0, unit_price_aud: 0, supplier_total: 0, total_aud: 0 }]
+    }));
   };
 
   const handleAddProductFromSearch = (product: ProductSearchResult | null) => {
@@ -164,6 +198,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     const newLines = [...(formData.lines || []), { 
       product_id: product.id, 
       wsvi_group_id: wsviGroupId,
+      supplier_sku: "",
       sku: product.sku || "", 
       product_name: product.name,
       qty: 1,
@@ -172,13 +207,13 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       supplier_total: 0,
       total_aud: 0
     }];
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
   };
 
   const handleRemoveLine = (index: number) => {
     const newLines = [...(formData.lines || [])];
     newLines.splice(index, 1);
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
   };
 
   const handleMoveLineUp = (index: number) => {
@@ -187,7 +222,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     const temp = newLines[index - 1];
     newLines[index - 1] = newLines[index];
     newLines[index] = temp;
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
   };
 
   const handleMoveLineDown = (index: number) => {
@@ -197,16 +232,16 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     const temp = newLines[index + 1];
     newLines[index + 1] = newLines[index];
     newLines[index] = temp;
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
       if (po?.id) {
-        await purchaseOrdersApi.update(po.id, formData);
+        await purchaseOrdersApi.update(po.id, normalisePurchaseOrderPayload(formData));
       } else {
-        await purchaseOrdersApi.create(formData);
+        await purchaseOrdersApi.create(normalisePurchaseOrderPayload(formData));
       }
       onClose(true);
     } catch (err) {
@@ -258,6 +293,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   value={formData.po_number || ""}
                   onChange={(e) => handleChange("po_number", e.target.value)}
                   margin="normal"
+                  InputProps={{ readOnly: true }}
+                  helperText={po ? "" : "Generated when saved"}
                 />
               </Grid>
               <Grid item xs={12} sm={3}>
@@ -434,9 +471,9 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
             <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
-                label="Number of Pallets"
+                label="Number of Pallets / Parcels"
                 type="number"
-                value={formData.number_of_pallets || 0}
+                value={formData.number_of_pallets ?? ""}
                 onChange={(e) => handleChange("number_of_pallets", e.target.value)}
                 margin="normal"
               />
@@ -448,7 +485,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Divider />
               </Box>
             </Grid>
-            <Grid item xs={6}>
+            <Grid item xs={3}>
               <TextField
                 fullWidth
                 size="small"
@@ -459,7 +496,18 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
-            <Grid item xs={6}>
+            <Grid item xs={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Origin Shipping Cost"
+                type="number"
+                value={formData.shipping_cost_origin ?? ""}
+                onChange={(e) => handleChange("shipping_cost_origin", e.target.value)}
+                inputProps={{ step: "0.01" }}
+              />
+            </Grid>
+            <Grid item xs={3}>
               <TextField
                 fullWidth
                 size="small"
@@ -471,6 +519,17 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 disabled // Auto-calculated from lines + adjustments
               />
             </Grid>
+            <Grid item xs={3}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Total Origin Cost"
+                type="number"
+                value={formData.total_cost_origin ?? ""}
+                inputProps={{ step: "0.01" }}
+                disabled
+              />
+            </Grid>
 
             <Grid item xs={12} sx={{ width: '100%' }}>
               <Box sx={{ mt: 2, mb: 1 }}>
@@ -478,7 +537,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 <Divider />
               </Box>
             </Grid>
-            <Grid item xs={3}>
+            <Grid item xs={2.4}>
               <TextField
                 fullWidth
                 size="small"
@@ -490,18 +549,29 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 disabled
               />
             </Grid>
-            <Grid item xs={3}>
+            <Grid item xs={2.4}>
               <TextField
                 fullWidth
                 size="small"
-                label="Shipping Cost"
+                label="Origin Shipping (AUD)"
+                type="number"
+                value={formData.shipping_cost_origin_aud ?? ""}
+                inputProps={{ step: "0.01" }}
+                disabled
+              />
+            </Grid>
+            <Grid item xs={2.4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Destination Shipping Cost"
                 type="number"
                 value={formData.shipping_cost_aud ?? ""}
                 onChange={(e) => handleChange("shipping_cost_aud", e.target.value)}
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
-            <Grid item xs={3}>
+            <Grid item xs={2.4}>
               <TextField
                 fullWidth
                 size="small"
@@ -512,7 +582,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 inputProps={{ step: "0.01" }}
               />
             </Grid>
-            <Grid item xs={3}>
+            <Grid item xs={2.4}>
               <TextField
                 fullWidth
                 size="small"
@@ -548,17 +618,18 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   
                 <Box sx={{ width: '100%', overflowX: 'auto' }}>
                   <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
-                    <Table size="small" sx={{ width: '100%', minWidth: 1600 }}>
+                    <Table size="small" sx={{ width: '100%', minWidth: 1800 }}>
                       <TableHead>
                       <TableRow>
-                        <TableCell width="40%">Product Name</TableCell>
-                        <TableCell width="25%">SKU</TableCell>
+                        <TableCell width="30%">Product Name</TableCell>
+                        <TableCell width="15%">SKU</TableCell>
+                        <TableCell width="15%">ORIGIN SKU</TableCell>
                         <TableCell width="5%">Qty</TableCell>
-                        <TableCell width="6%">Unit Price (Origin)</TableCell>
-                        <TableCell width="6%">Unit Price (AUD)</TableCell>
-                        <TableCell width="6%">Total (Origin)</TableCell>
-                        <TableCell width="6%">Total (AUD)</TableCell>
-                        <TableCell width="6%" align="right">
+                        <TableCell width="7%">Unit Price (Origin)</TableCell>
+                        <TableCell width="7%">Unit Price (AUD)</TableCell>
+                        <TableCell width="7%">Total (Origin)</TableCell>
+                        <TableCell width="7%">Total (AUD)</TableCell>
+                        <TableCell width="7%" align="right">
                           <IconButton size="small" onClick={handleAddBlankLine} color="primary" title="Add Blank Line">
                             <AddIcon />
                           </IconButton>
@@ -602,6 +673,15 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                             maxRows={6}
                             value={line.sku || ""}
                             onChange={(e) => handleLineChange(index, "sku", e.target.value)}
+                            sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            fullWidth
+                            value={line.supplier_sku || ""}
+                            onChange={(e) => handleLineChange(index, "supplier_sku", e.target.value)}
                             sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
                           />
                         </TableCell>
@@ -669,7 +749,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   ))}
                   {(!formData.lines || formData.lines.length === 0) && (
                     <TableRow>
-                      <TableCell colSpan={5} align="center">No lines added.</TableCell>
+                      <TableCell colSpan={9} align="center">No lines added.</TableCell>
                     </TableRow>
                     )}
                   </TableBody>

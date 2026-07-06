@@ -1,4 +1,5 @@
 import { useState, SyntheticEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import KpiGrid from "../components/KpiGrid";
@@ -14,10 +15,14 @@ import AddToPOModal from "../components/AddToPOModal";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 
 function StockPage() {
-  const [activeTab, setActiveTab] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "shortages" ? 1 : searchParams.get("tab") === "forecast" ? 2 : searchParams.get("tab") === "ledger" ? 3 : 0;
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const handleTabChange = (event: SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    const tabValues = ["records", "shortages", "forecast", "ledger"];
+    setSearchParams({ tab: tabValues[newValue] });
   };
 
   const [page, setPage] = useState(1);

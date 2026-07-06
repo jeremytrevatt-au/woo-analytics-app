@@ -20,7 +20,9 @@ export interface StockLedgerResponse {
   page_size: number;
   total_pages: number;
 }
-  dateRange: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year";
+
+export type AppFilterState = {
+  dateRange: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year" | "last_3_months" | "last_6_months" | "all_time";
   compareEnabled: boolean;
   granularity: "day" | "week" | "month" | "quarter" | "year";
   startDate: string;

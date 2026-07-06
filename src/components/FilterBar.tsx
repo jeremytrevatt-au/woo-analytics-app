@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useFilters } from "../hooks/useFilters";
 import { getCategories } from "../api/analyticsApi";
+import type { AppFilterState } from "../types/analytics";
 
 const ORDER_STATUS_OPTIONS = [
   { value: "wc-processing", label: "Processing" },
@@ -21,34 +22,72 @@ const STOCK_STATUS_OPTIONS = [
   { value: "onbackorder", label: "On Backorder" },
 ];
 
+const OPEN_ORDER_STATUS_VALUES = ["wc-processing", "wc-pre-ordered", "wc-on-hold", "wc-pending"];
+
+type DateRangeValue = AppFilterState["dateRange"];
+
 function FilterBar() {
   const { filters, updateFilter } = useFilters();
   const location = useLocation();
   const path = location.pathname;
+  const stockTab = new URLSearchParams(location.search).get("tab");
+  const isStockShortagesTab = path === "/stock" && stockTab === "shortages";
+  const orderStatusOptions = isStockShortagesTab
+    ? ORDER_STATUS_OPTIONS.filter((option) => OPEN_ORDER_STATUS_VALUES.includes(option.value))
+    : ORDER_STATUS_OPTIONS;
+  const stockStatusOptions = isStockShortagesTab
+    ? STOCK_STATUS_OPTIONS.filter((option) => option.value !== "instock")
+    : STOCK_STATUS_OPTIONS;
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     getCategories().then(setCategories).catch(console.error);
   }, []);
 
-  const showOrderStatus = path === "/orders" || path === "/backorders" || path === "/packing";
+  useEffect(() => {
+    if (!isStockShortagesTab) return;
+
+    const shortageStatuses = filters.stockStatus.filter((status) => status === "outofstock" || status === "onbackorder");
+    const nextStatuses = shortageStatuses.length > 0 ? shortageStatuses : ["outofstock", "onbackorder"];
+    if (nextStatuses.length !== filters.stockStatus.length || nextStatuses.some((status, index) => status !== filters.stockStatus[index])) {
+      updateFilter("stockStatus", nextStatuses);
+    }
+
+    const nextOrderStatuses = filters.orderStatus.filter((status) => OPEN_ORDER_STATUS_VALUES.includes(status));
+    if (nextOrderStatuses.length !== filters.orderStatus.length) {
+      updateFilter("orderStatus", nextOrderStatuses);
+    }
+  }, [filters.orderStatus, filters.stockStatus, isStockShortagesTab, updateFilter]);
+
+  const showOrderStatus = path === "/orders" || path === "/backorders" || path === "/packing" || isStockShortagesTab;
   const showStockStatus = path === "/stock" || path === "/backorders";
   const hideDateRange = path === "/packing";
 
-  const handleDateRangeChange = (range: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year") => {
+  const handleDateRangeChange = (range: DateRangeValue) => {
     updateFilter("dateRange", range);
     
     const today = new Date();
     let endDate = today.toISOString().slice(0, 10);
     let startDate = filters.startDate;
 
-    if (range === "today") {
+    if (range === "all_time") {
+      startDate = "";
+      endDate = "";
+    } else if (range === "today") {
       startDate = today.toISOString().slice(0, 10);
     } else if (range === "this_week") {
       const day = today.getDay();
       const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
       startDate = new Date(today.setDate(diff)).toISOString().slice(0, 10);
       endDate = new Date().toISOString().slice(0, 10); // reset to today
+    } else if (range === "last_3_months") {
+      const start = new Date();
+      start.setMonth(start.getMonth() - 3);
+      startDate = start.toISOString().slice(0, 10);
+    } else if (range === "last_6_months") {
+      const start = new Date();
+      start.setMonth(start.getMonth() - 6);
+      startDate = start.toISOString().slice(0, 10);
     } else if (range === "last_week") {
       const lastWeekEnd = new Date(today);
       lastWeekEnd.setDate(today.getDate() - today.getDay());
@@ -74,12 +113,13 @@ function FilterBar() {
     updateFilter("startDate", startDate);
     updateFilter("endDate", endDate);
     
-    if (filters.compareEnabled) {
+    if (filters.compareEnabled && startDate && endDate) {
       updateCompareDates(startDate, endDate, range);
     }
   };
 
   const updateCompareDates = (start: string, end: string, range: string = filters.dateRange) => {
+    if (!start || !end) return;
     const sDate = new Date(start);
     const eDate = new Date(end);
     
@@ -144,11 +184,14 @@ function FilterBar() {
                   <MenuItem value="today">Today</MenuItem>
                   <MenuItem value="this_week">This Week</MenuItem>
                   <MenuItem value="last_week">Last Week</MenuItem>
+                  <MenuItem value="last_3_months">Last 3 Months</MenuItem>
+                  <MenuItem value="last_6_months">Last 6 Months</MenuItem>
                   <MenuItem value="mtd">Month to Date</MenuItem>
                   <MenuItem value="last_month">Last Month</MenuItem>
                   <MenuItem value="qtd">Quarter to Date</MenuItem>
                   <MenuItem value="ytd">Year to Date</MenuItem>
                   <MenuItem value="last_year">Last Year</MenuItem>
+                  <MenuItem value="all_time">All Time</MenuItem>
                   <MenuItem value="custom">Custom</MenuItem>
                 </TextField>
               </Grid>
@@ -228,11 +271,11 @@ function FilterBar() {
                       return <em>All statuses</em>;
                     }
                     return selected
-                      .map((val) => ORDER_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
+                      .map((val) => orderStatusOptions.find((opt) => opt.value === val)?.label || val)
                       .join(", ");
                   }}
                 >
-                  {ORDER_STATUS_OPTIONS.map((option) => (
+                  {orderStatusOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       <Checkbox checked={filters.orderStatus.indexOf(option.value) > -1} />
                       <ListItemText primary={option.label} />
@@ -265,11 +308,11 @@ function FilterBar() {
                       return <em>All statuses</em>;
                     }
                     return selected
-                      .map((val) => STOCK_STATUS_OPTIONS.find((opt) => opt.value === val)?.label || val)
+                      .map((val) => stockStatusOptions.find((opt) => opt.value === val)?.label || val)
                       .join(", ");
                   }}
                 >
-                  {STOCK_STATUS_OPTIONS.map((option) => (
+                  {stockStatusOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       <Checkbox checked={filters.stockStatus.indexOf(option.value) > -1} />
                       <ListItemText primary={option.label} />
