@@ -1,6 +1,6 @@
-import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField } from "@mui/material";
+import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton } from "@mui/material";
 import { useState } from "react";
-import { CheckCircleOutline } from "@mui/icons-material";
+import { Check, CheckCircleOutline } from "@mui/icons-material";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatCurrency } from "../lib/format";
@@ -56,7 +56,7 @@ function PackingPage() {
   const getStockTargetLabel = (targetType: string | undefined) => {
     if (targetType === "wsvi") return "Shared WSVI stock";
     if (targetType === "variation") return "Variation stock";
-    if (targetType === "simple") return "Product stock";
+    if (targetType === "simple") return "Stock";
     return "Stock";
   };
 
@@ -198,7 +198,7 @@ function PackingPage() {
                   p: isParentBundle ? 1 : 0
                 }}>
                   <Grid container spacing={1} alignItems="center">
-                    <Grid item xs={12} sm={canUpdateStock ? 7 : 9}>
+                    <Grid item xs={12}>
                       <Typography variant="body2" fontWeight="bold">
                         {line.qty}x {line.sku}
                         {isParentBundle && (
@@ -218,30 +218,34 @@ function PackingPage() {
                       <Typography variant="caption" color="text.secondary" display="block">
                         {line.product_name || line.category}
                       </Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={canUpdateStock ? 5 : 3} textAlign={{ xs: "left", sm: "right" }}>
                       {isParentBundle ? (
-                        <Chip size="small" label="Bundle parent - stock on child SKUs" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                        <Chip size="small" label="Bundle parent - stock on child SKUs" variant="outlined" sx={{ mt: 0.75, height: 20, fontSize: '0.7rem' }} />
                       ) : (
-                        <Stack spacing={0.75} alignItems={{ xs: "flex-start", sm: "flex-end" }}>
-                          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "flex-start", sm: "flex-end" }} flexWrap="wrap">
-                            <Chip 
-                              size="small" 
-                              label={stockStatus || "unknown"} 
-                              color={
-                                stockStatus === 'instock' ? 'success' : 
-                                stockStatus === 'onbackorder' ? 'warning' : 
-                                stockStatus === 'outofstock' ? 'error' : 'default'
-                              }
-                              sx={{ height: 20, fontSize: '0.7rem' }}
-                            />
-                            <Chip size="small" label={`${getStockTargetLabel(stockTargetType)}: ${reportedStockQty ?? "-"}`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                          </Stack>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          flexWrap="wrap"
+                          useFlexGap
+                          onClick={(e) => e.stopPropagation()}
+                          sx={{ mt: 0.75 }}
+                        >
+                          <Chip 
+                            size="small" 
+                            label={stockStatus || "unknown"} 
+                            color={
+                              stockStatus === 'instock' ? 'success' : 
+                              stockStatus === 'onbackorder' ? 'warning' : 
+                              stockStatus === 'outofstock' ? 'error' : 'default'
+                            }
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                          <Chip size="small" label={`${getStockTargetLabel(stockTargetType)}: ${reportedStockQty ?? "-"}`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
                           {canUpdateStock && (
-                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }} onClick={(e) => e.stopPropagation()}>
+                            <>
                               <TextField
                                 size="small"
-                                label="Actual remaining stock"
+                                label="Actual Stock"
                                 type="number"
                                 value={stockInputValue}
                                 inputProps={{ min: 0, step: "any" }}
@@ -249,17 +253,24 @@ function PackingPage() {
                                   const nextValue = event.target.value;
                                   setStockInputs(prev => ({ ...prev, [key]: nextValue }));
                                 }}
-                                sx={{ width: { xs: "100%", sm: 190 } }}
+                                sx={{ width: { xs: "100%", sm: 150 } }}
                               />
-                              <Button
+                              <IconButton
                                 size="small"
-                                variant="contained"
+                                color="primary"
+                                aria-label="Save stock"
                                 onClick={(event) => handleStockSave(order, line, event)}
                                 disabled={!!stockSaving[key]}
+                                sx={{
+                                  border: 1,
+                                  borderColor: 'primary.main',
+                                  height: 34,
+                                  width: 34
+                                }}
                               >
-                                Save Stock
-                              </Button>
-                            </Stack>
+                                <Check fontSize="small" />
+                              </IconButton>
+                            </>
                           )}
                           {stockMessage && (
                             <Typography variant="caption" color={stockMessage.type === "error" ? "error.main" : "success.main"}>
