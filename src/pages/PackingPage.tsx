@@ -1,6 +1,6 @@
-import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton } from "@mui/material";
+import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover } from "@mui/material";
 import { useState } from "react";
-import { Check, CheckCircleOutline } from "@mui/icons-material";
+import { Check, CheckCircleOutline, Close } from "@mui/icons-material";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatCurrency } from "../lib/format";
@@ -16,6 +16,7 @@ function PackingPage() {
   const [stockSaving, setStockSaving] = useState<Record<string, boolean>>({});
   const [stockMessages, setStockMessages] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
   const [stockOverrides, setStockOverrides] = useState<Record<string, PackingStockQuantityResponse>>({});
+  const [stockPopover, setStockPopover] = useState<{ key: string; anchorEl: HTMLElement } | null>(null);
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
@@ -54,10 +55,38 @@ function PackingPage() {
   const lineKey = (orderId: number, orderItemId: number) => `${orderId}:${orderItemId}`;
 
   const getStockTargetLabel = (targetType: string | undefined) => {
-    if (targetType === "wsvi") return "Shared WSVI stock";
-    if (targetType === "variation") return "Variation stock";
-    if (targetType === "simple") return "Stock";
+    if (targetType === "wsvi") return "Shared WSVI";
+    if (targetType === "variation") return "Variation";
+    if (targetType === "simple") return "Product";
     return "Stock";
+  };
+
+  const getStockFieldColor = (stockStatus: string | undefined) => {
+    if (stockStatus === "instock") return { bgcolor: "success.light", color: "success.contrastText" };
+    if (stockStatus === "outofstock") return { bgcolor: "error.light", color: "error.contrastText" };
+    if (stockStatus === "onbackorder") return { bgcolor: "warning.light", color: "warning.contrastText" };
+    return { bgcolor: "action.hover", color: "text.primary" };
+  };
+
+  const getStockFieldWidth = (stockQty: any) => {
+    const charCount = String(stockQty ?? "").length;
+    return `${Math.max(charCount, 2) + 5}ch`;
+  };
+
+  const handleStockOpen = (
+    key: string,
+    anchorEl: HTMLElement,
+    stockQty: any,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    setStockInputs(prev => ({ ...prev, [key]: String(stockQty ?? "") }));
+    setStockPopover({ key, anchorEl });
+  };
+
+  const handleStockClose = (key: string, stockQty: any) => {
+    setStockInputs(prev => ({ ...prev, [key]: String(stockQty ?? "") }));
+    setStockPopover(null);
   };
 
   const handleStockSave = async (order: any, line: any, e: React.MouseEvent) => {
@@ -85,6 +114,7 @@ function PackingPage() {
       setStockOverrides(prev => ({ ...prev, [key]: response }));
       setStockInputs(prev => ({ ...prev, [key]: String(response.stock_qty) }));
       setStockMessages(prev => ({ ...prev, [key]: { type: "success", text: `Saved ${response.stock_qty}` } }));
+      setStockPopover(null);
     } catch (err: any) {
       setStockMessages(prev => ({ ...prev, [key]: { type: "error", text: err.message || "Failed to update stock." } }));
     } finally {
@@ -183,6 +213,7 @@ function PackingPage() {
               const stockInputValue = stockInputs[key] ?? (reportedStockQty ?? "");
               const stockMessage = stockMessages[key];
               const canUpdateStock = !isParentBundle && !!line.order_item_id;
+              const stockFieldColor = getStockFieldColor(stockStatus);
               return (
                 <Box key={idx} sx={{ 
                   mb: 1, 
@@ -215,37 +246,65 @@ function PackingPage() {
                           sx={{ cursor: 'pointer', ml: 1, height: '20px', fontSize: '0.7rem' }}
                         />
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {line.product_name || line.category}
-                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 0, flex: 1 }}>
+                          {line.product_name || line.category}
+                        </Typography>
+                        {canUpdateStock && (
+                          <TextField
+                            size="small"
+                            label="Stock"
+                            type="number"
+                            value={reportedStockQty ?? ""}
+                            inputProps={{ readOnly: true }}
+                            onClick={(event) => handleStockOpen(key, event.currentTarget, reportedStockQty, event)}
+                            sx={{
+                              width: getStockFieldWidth(reportedStockQty),
+                              flexShrink: 0,
+                              cursor: "pointer",
+                              "& .MuiInputBase-root": {
+                                height: 34,
+                                bgcolor: stockFieldColor.bgcolor,
+                                color: stockFieldColor.color,
+                                cursor: "pointer"
+                              },
+                              "& input": {
+                                cursor: "pointer",
+                                textAlign: "center",
+                                p: "6px 8px"
+                              }
+                            }}
+                          />
+                        )}
+                      </Stack>
                       {isParentBundle ? (
                         <Chip size="small" label="Bundle parent - stock on child SKUs" variant="outlined" sx={{ mt: 0.75, height: 20, fontSize: '0.7rem' }} />
                       ) : (
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          alignItems="center"
-                          flexWrap="wrap"
-                          useFlexGap
-                          onClick={(e) => e.stopPropagation()}
-                          sx={{ mt: 0.75 }}
+                        <Popover
+                          open={stockPopover?.key === key}
+                          anchorEl={stockPopover?.key === key ? stockPopover.anchorEl : null}
+                          onClose={() => handleStockClose(key, reportedStockQty)}
+                          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                          transformOrigin={{ vertical: "top", horizontal: "right" }}
                         >
-                          <Chip 
-                            size="small" 
-                            label={stockStatus || "unknown"} 
-                            color={
-                              stockStatus === 'instock' ? 'success' : 
-                              stockStatus === 'onbackorder' ? 'warning' : 
-                              stockStatus === 'outofstock' ? 'error' : 'default'
-                            }
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
-                          <Chip size="small" label={`${getStockTargetLabel(stockTargetType)}: ${reportedStockQty ?? "-"}`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                          {canUpdateStock && (
-                            <>
+                          <Box sx={{ p: 2, width: 280 }} onClick={(e) => e.stopPropagation()}>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle2">Update Stock</Typography>
+                              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                <Chip 
+                                  size="small" 
+                                  label={stockStatus || "unknown"} 
+                                  color={
+                                    stockStatus === 'instock' ? 'success' : 
+                                    stockStatus === 'onbackorder' ? 'warning' : 
+                                    stockStatus === 'outofstock' ? 'error' : 'default'
+                                  }
+                                />
+                                <Chip size="small" label={getStockTargetLabel(stockTargetType)} variant="outlined" />
+                              </Stack>
                               <TextField
                                 size="small"
-                                label="Actual Stock"
+                                label="Stock"
                                 type="number"
                                 value={stockInputValue}
                                 inputProps={{ min: 0, step: "any" }}
@@ -253,31 +312,41 @@ function PackingPage() {
                                   const nextValue = event.target.value;
                                   setStockInputs(prev => ({ ...prev, [key]: nextValue }));
                                 }}
-                                sx={{ width: { xs: "100%", sm: 150 } }}
+                                fullWidth
                               />
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                aria-label="Save stock"
-                                onClick={(event) => handleStockSave(order, line, event)}
-                                disabled={!!stockSaving[key]}
-                                sx={{
-                                  border: 1,
-                                  borderColor: 'primary.main',
-                                  height: 34,
-                                  width: 34
-                                }}
-                              >
-                                <Check fontSize="small" />
-                              </IconButton>
-                            </>
-                          )}
-                          {stockMessage && (
-                            <Typography variant="caption" color={stockMessage.type === "error" ? "error.main" : "success.main"}>
-                              {stockMessage.text}
-                            </Typography>
-                          )}
-                        </Stack>
+                              {stockMessage && (
+                                <Typography variant="caption" color={stockMessage.type === "error" ? "error.main" : "success.main"}>
+                                  {stockMessage.text}
+                                </Typography>
+                              )}
+                              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                <IconButton
+                                  size="small"
+                                  aria-label="Close stock editor"
+                                  onClick={() => handleStockClose(key, reportedStockQty)}
+                                  disabled={!!stockSaving[key]}
+                                >
+                                  <Close fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  aria-label="Save stock"
+                                  onClick={(event) => handleStockSave(order, line, event)}
+                                  disabled={!!stockSaving[key]}
+                                  sx={{
+                                    border: 1,
+                                    borderColor: 'primary.main',
+                                    height: 34,
+                                    width: 34
+                                  }}
+                                >
+                                  <Check fontSize="small" />
+                                </IconButton>
+                              </Stack>
+                            </Stack>
+                          </Box>
+                        </Popover>
                       )}
                     </Grid>
                   </Grid>
