@@ -608,3 +608,44 @@ export async function markOrderPacked(orderId: number, status: string = "packed"
     body: JSON.stringify({ order_id: orderId, status })
   });
 }
+
+export type PackingStockQuantityResponse = {
+  success: boolean;
+  message: string;
+  order_id: number;
+  order_item_id: number;
+  sku: string;
+  stock_qty: number;
+  previous_stock_qty: number;
+  stock_status: string;
+  stock_target_type: "simple" | "variation" | "wsvi";
+  stock_target_product_id: number;
+  product_id: number;
+  variation_id: number;
+  wsvi_group_id: string;
+  wsvi_group_name: string;
+  wsvi_multiplier: number;
+  updated_by?: string;
+};
+
+export async function updatePackingLineStock(
+  orderId: number,
+  orderItemId: number,
+  productId: number | null,
+  sku: string | null,
+  stockQuantity: number
+): Promise<PackingStockQuantityResponse> {
+  return fetchJson<PackingStockQuantityResponse>("/api/v1/packing/stock-quantity", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      order_id: orderId,
+      order_item_id: orderItemId,
+      product_id: productId,
+      sku,
+      stock_quantity: stockQuantity
+    })
+  });
+}

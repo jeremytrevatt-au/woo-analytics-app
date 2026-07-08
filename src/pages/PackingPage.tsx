@@ -1,16 +1,21 @@
-import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider } from "@mui/material";
+import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField } from "@mui/material";
 import { useState } from "react";
 import { CheckCircleOutline } from "@mui/icons-material";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatCurrency } from "../lib/format";
-import { markOrderPacked } from "../api/analyticsApi";
+import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
+import type { PackingStockQuantityResponse } from "../api/analyticsApi";
 
 function PackingPage() {
   const [page, setPage] = useState(1);
   const { rows, isLoading, error, refetch } = useDashboardData("packing", page, 100);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [packingState, setPackingState] = useState<Record<string, { status: string, user: string }>>({}); // optimistic UI updates
+  const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
+  const [stockSaving, setStockSaving] = useState<Record<string, boolean>>({});
+  const [stockMessages, setStockMessages] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
+  const [stockOverrides, setStockOverrides] = useState<Record<string, PackingStockQuantityResponse>>({});
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
@@ -43,6 +48,47 @@ function PackingPage() {
         return newState;
       });
       alert(`Failed to mark as ${status}: ` + err.message);
+    }
+  };
+
+  const lineKey = (orderId: number, orderItemId: number) => `${orderId}:${orderItemId}`;
+
+  const getStockTargetLabel = (targetType: string | undefined) => {
+    if (targetType === "wsvi") return "Shared WSVI stock";
+    if (targetType === "variation") return "Variation stock";
+    if (targetType === "simple") return "Product stock";
+    return "Stock";
+  };
+
+  const handleStockSave = async (order: any, line: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const key = lineKey(order.order_id, line.order_item_id);
+    const currentValue = stockInputs[key] ?? String(stockOverrides[key]?.stock_qty ?? line.reported_stock_qty ?? line.stock_qty ?? "");
+    const nextStockQty = Number(currentValue);
+
+    if (!Number.isFinite(nextStockQty) || nextStockQty < 0) {
+      setStockMessages(prev => ({ ...prev, [key]: { type: "error", text: "Enter a stock quantity of 0 or higher." } }));
+      return;
+    }
+
+    setStockSaving(prev => ({ ...prev, [key]: true }));
+    setStockMessages(prev => ({ ...prev, [key]: { type: "success", text: "Saving..." } }));
+
+    try {
+      const response = await updatePackingLineStock(
+        order.order_id,
+        line.order_item_id,
+        line.stock_target_product_id ?? line.product_id ?? null,
+        line.sku ?? null,
+        nextStockQty
+      );
+      setStockOverrides(prev => ({ ...prev, [key]: response }));
+      setStockInputs(prev => ({ ...prev, [key]: String(response.stock_qty) }));
+      setStockMessages(prev => ({ ...prev, [key]: { type: "success", text: `Saved ${response.stock_qty}` } }));
+    } catch (err: any) {
+      setStockMessages(prev => ({ ...prev, [key]: { type: "error", text: err.message || "Failed to update stock." } }));
+    } finally {
+      setStockSaving(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -127,8 +173,16 @@ function PackingPage() {
           <CardContent sx={{ bgcolor: 'background.default', pt: 1, pb: 1 }}>
             <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 1 }}>Items to Pack:</Typography>
             {order.lines && order.lines.map((line: any, idx: number) => {
-              const isParentBundle = !!line.bundle_cart_key;
+              const isParentBundle = !!line.is_bundle_parent || (!!line.bundle_cart_key && !line.bundled_by);
               const isChildItem = !!line.bundled_by;
+              const key = lineKey(order.order_id, line.order_item_id);
+              const stockOverride = stockOverrides[key];
+              const reportedStockQty = stockOverride?.stock_qty ?? line.reported_stock_qty ?? line.stock_qty;
+              const stockStatus = stockOverride?.stock_status ?? line.stock_status;
+              const stockTargetType = stockOverride?.stock_target_type ?? line.stock_target_type;
+              const stockInputValue = stockInputs[key] ?? (reportedStockQty ?? "");
+              const stockMessage = stockMessages[key];
+              const canUpdateStock = !isParentBundle && !!line.order_item_id;
               return (
                 <Box key={idx} sx={{ 
                   mb: 1, 
@@ -144,7 +198,7 @@ function PackingPage() {
                   p: isParentBundle ? 1 : 0
                 }}>
                   <Grid container spacing={1} alignItems="center">
-                    <Grid item xs={8} sm={9}>
+                    <Grid item xs={12} sm={canUpdateStock ? 7 : 9}>
                       <Typography variant="body2" fontWeight="bold">
                         {line.qty}x {line.sku}
                         {isParentBundle && (
@@ -154,7 +208,7 @@ function PackingPage() {
                           size="small" 
                           label="Woo" 
                           component="a" 
-                          href={`https://naturalyield.com.au/wp-admin/post.php?post=${line.product_id}&action=edit`} 
+                          href={`https://naturalyield.com.au/wp-admin/post.php?post=${stockOverride?.stock_target_product_id ?? line.stock_target_product_id ?? line.product_id}&action=edit`} 
                           target="_blank" 
                           clickable 
                           onClick={(e) => e.stopPropagation()} 
@@ -165,17 +219,55 @@ function PackingPage() {
                         {line.product_name || line.category}
                       </Typography>
                     </Grid>
-                    <Grid item xs={4} sm={3} textAlign="right">
-                      <Chip 
-                        size="small" 
-                        label={line.stock_status} 
-                        color={
-                          line.stock_status === 'instock' ? 'success' : 
-                          line.stock_status === 'onbackorder' ? 'warning' : 
-                          line.stock_status === 'outofstock' ? 'error' : 'default'
-                        }
-                        sx={{ height: 20, fontSize: '0.7rem' }}
-                      />
+                    <Grid item xs={12} sm={canUpdateStock ? 5 : 3} textAlign={{ xs: "left", sm: "right" }}>
+                      {isParentBundle ? (
+                        <Chip size="small" label="Bundle parent - stock on child SKUs" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                      ) : (
+                        <Stack spacing={0.75} alignItems={{ xs: "flex-start", sm: "flex-end" }}>
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "flex-start", sm: "flex-end" }} flexWrap="wrap">
+                            <Chip 
+                              size="small" 
+                              label={stockStatus || "unknown"} 
+                              color={
+                                stockStatus === 'instock' ? 'success' : 
+                                stockStatus === 'onbackorder' ? 'warning' : 
+                                stockStatus === 'outofstock' ? 'error' : 'default'
+                              }
+                              sx={{ height: 20, fontSize: '0.7rem' }}
+                            />
+                            <Chip size="small" label={`${getStockTargetLabel(stockTargetType)}: ${reportedStockQty ?? "-"}`} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          </Stack>
+                          {canUpdateStock && (
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }} onClick={(e) => e.stopPropagation()}>
+                              <TextField
+                                size="small"
+                                label="Actual remaining stock"
+                                type="number"
+                                value={stockInputValue}
+                                inputProps={{ min: 0, step: "any" }}
+                                onChange={(event) => {
+                                  const nextValue = event.target.value;
+                                  setStockInputs(prev => ({ ...prev, [key]: nextValue }));
+                                }}
+                                sx={{ width: { xs: "100%", sm: 190 } }}
+                              />
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={(event) => handleStockSave(order, line, event)}
+                                disabled={!!stockSaving[key]}
+                              >
+                                Save Stock
+                              </Button>
+                            </Stack>
+                          )}
+                          {stockMessage && (
+                            <Typography variant="caption" color={stockMessage.type === "error" ? "error.main" : "success.main"}>
+                              {stockMessage.text}
+                            </Typography>
+                          )}
+                        </Stack>
+                      )}
                     </Grid>
                   </Grid>
                 </Box>
