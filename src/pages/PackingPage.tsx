@@ -217,7 +217,8 @@ function PackingPage() {
               const stockTargetType = stockOverride?.stock_target_type ?? line.stock_target_type;
               const stockInputValue = stockInputs[key] ?? (reportedStockQty ?? "");
               const stockMessage = stockMessages[key];
-              const canUpdateStock = !isParentBundle && !!line.order_item_id;
+              const managesStock = stockTargetType === "wsvi" || line.stock_manage_stock !== false;
+              const canUpdateStock = !isParentBundle && !!line.order_item_id && managesStock;
               const stockFieldColor = getStockFieldColor(stockStatus, reportedStockQty);
               return (
                 <Box key={idx} sx={{ 
@@ -326,9 +327,22 @@ function PackingPage() {
                             }}
                           />
                         )}
+                        {!isParentBundle && !managesStock && (
+                          <Chip
+                            size="small"
+                            label="Stock not managed"
+                            variant="outlined"
+                            color="default"
+                            sx={{ flexShrink: 0, height: 24, fontSize: '0.7rem', fontWeight: 700 }}
+                          />
+                        )}
                       </Stack>
                       {isParentBundle ? (
                         <Chip size="small" label="Bundle parent - stock on child SKUs" variant="outlined" sx={{ mt: 0.75, height: 20, fontSize: '0.7rem' }} />
+                      ) : !managesStock ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                          Woo stock management is not enabled for this product.
+                        </Typography>
                       ) : (
                         <Popover
                           open={stockPopover?.key === key}
