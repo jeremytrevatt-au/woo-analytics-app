@@ -70,7 +70,7 @@ function PackingPage() {
 
   const getStockFieldWidth = (stockQty: any) => {
     const charCount = String(stockQty ?? "").length;
-    return `${Math.max(charCount, 2) + 5}ch`;
+    return `${Math.max(charCount + 5, 9)}ch`;
   };
 
   const handleStockOpen = (
@@ -268,7 +268,7 @@ function PackingPage() {
                                 color: stockFieldColor.color,
                                 cursor: "pointer"
                               },
-                              "& input": {
+                              "& input, & .MuiOutlinedInput-input": {
                                 cursor: "pointer",
                                 textAlign: "center",
                                 p: "6px 8px"
@@ -280,6 +280,9 @@ function PackingPage() {
                                 borderRadius: 0.75,
                                 color: "text.primary",
                                 fontWeight: 700,
+                                maxWidth: "none",
+                                minWidth: "max-content",
+                                overflow: "visible",
                                 px: 0.5
                               }
                             }}
