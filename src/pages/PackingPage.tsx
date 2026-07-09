@@ -61,7 +61,8 @@ function PackingPage() {
     return "Stock";
   };
 
-  const getStockFieldColor = (stockStatus: string | undefined) => {
+  const getStockFieldColor = (stockStatus: string | undefined, stockQty: any) => {
+    if (Number(stockQty) === 0) return { bgcolor: "error.light", color: "error.contrastText" };
     if (stockStatus === "instock") return { bgcolor: "success.light", color: "success.contrastText" };
     if (stockStatus === "outofstock") return { bgcolor: "error.light", color: "error.contrastText" };
     if (stockStatus === "onbackorder") return { bgcolor: "warning.light", color: "warning.contrastText" };
@@ -213,7 +214,7 @@ function PackingPage() {
               const stockInputValue = stockInputs[key] ?? (reportedStockQty ?? "");
               const stockMessage = stockMessages[key];
               const canUpdateStock = !isParentBundle && !!line.order_item_id;
-              const stockFieldColor = getStockFieldColor(stockStatus);
+              const stockFieldColor = getStockFieldColor(stockStatus, reportedStockQty);
               return (
                 <Box key={idx} sx={{ 
                   mb: 1, 
