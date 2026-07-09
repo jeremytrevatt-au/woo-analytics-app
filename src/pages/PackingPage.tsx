@@ -69,9 +69,9 @@ function PackingPage() {
     return { bgcolor: "action.hover", color: "text.primary" };
   };
 
-  const getStockFieldWidth = (stockQty: any) => {
-    const charCount = String(stockQty ?? "").length;
-    return `${Math.max(charCount + 5, 9)}ch`;
+  const getCompactFieldWidth = (label: string, value: any) => {
+    const valueLength = String(value ?? "").length;
+    return `${Math.max(valueLength + 5, label.length + 4)}ch`;
   };
 
   const handleStockOpen = (
@@ -209,6 +209,10 @@ function PackingPage() {
               const key = lineKey(order.order_id, line.order_item_id);
               const stockOverride = stockOverrides[key];
               const reportedStockQty = stockOverride?.stock_qty ?? line.reported_stock_qty ?? line.stock_qty;
+              const reservedUnpackedQty = Number(line.reserved_unpacked_qty ?? 0);
+              const adjustedStockQty = stockOverride
+                ? Number(stockOverride.stock_qty ?? 0) + reservedUnpackedQty
+                : line.adjusted_stock_qty ?? (Number(reportedStockQty ?? 0) + reservedUnpackedQty);
               const stockStatus = stockOverride?.stock_status ?? line.stock_status;
               const stockTargetType = stockOverride?.stock_target_type ?? line.stock_target_type;
               const stockInputValue = stockInputs[key] ?? (reportedStockQty ?? "");
@@ -260,7 +264,7 @@ function PackingPage() {
                             inputProps={{ readOnly: true }}
                             onClick={(event) => handleStockOpen(key, event.currentTarget, reportedStockQty, event)}
                             sx={{
-                              width: getStockFieldWidth(reportedStockQty),
+                              width: getCompactFieldWidth("Stock", reportedStockQty),
                               flexShrink: 0,
                               cursor: "pointer",
                               "& .MuiInputBase-root": {
@@ -271,6 +275,39 @@ function PackingPage() {
                               },
                               "& input, & .MuiOutlinedInput-input": {
                                 cursor: "pointer",
+                                textAlign: "center",
+                                p: "6px 8px"
+                              },
+                              "& .MuiInputLabel-root": {
+                                bgcolor: "background.paper",
+                                border: 1,
+                                borderColor: "divider",
+                                borderRadius: 0.75,
+                                color: "text.primary",
+                                fontWeight: 700,
+                                maxWidth: "none",
+                                minWidth: "max-content",
+                                overflow: "visible",
+                                px: 0.5
+                              }
+                            }}
+                          />
+                        )}
+                        {canUpdateStock && (
+                          <TextField
+                            size="small"
+                            label="Adjusted"
+                            type="number"
+                            value={adjustedStockQty ?? ""}
+                            inputProps={{ readOnly: true }}
+                            sx={{
+                              width: getCompactFieldWidth("Adjusted", adjustedStockQty),
+                              flexShrink: 0,
+                              "& .MuiInputBase-root": {
+                                height: 34,
+                                bgcolor: "background.paper"
+                              },
+                              "& input, & .MuiOutlinedInput-input": {
                                 textAlign: "center",
                                 p: "6px 8px"
                               },
@@ -315,9 +352,27 @@ function PackingPage() {
                                 />
                                 <Chip size="small" label={getStockTargetLabel(stockTargetType)} variant="outlined" />
                               </Stack>
+                              <Stack direction="row" spacing={1}>
+                                <TextField
+                                  size="small"
+                                  label="Stock"
+                                  type="number"
+                                  value={reportedStockQty ?? ""}
+                                  inputProps={{ readOnly: true }}
+                                  sx={{ flex: 1 }}
+                                />
+                                <TextField
+                                  size="small"
+                                  label="Adjusted"
+                                  type="number"
+                                  value={adjustedStockQty ?? ""}
+                                  inputProps={{ readOnly: true }}
+                                  sx={{ flex: 1 }}
+                                />
+                              </Stack>
                               <TextField
                                 size="small"
-                                label="Stock"
+                                label="Update Stock"
                                 type="number"
                                 value={stockInputValue}
                                 inputProps={{ min: 0, step: "any" }}
