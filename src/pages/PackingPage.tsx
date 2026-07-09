@@ -272,6 +272,15 @@ function PackingPage() {
                                 cursor: "pointer",
                                 textAlign: "center",
                                 p: "6px 8px"
+                              },
+                              "& .MuiInputLabel-root": {
+                                bgcolor: "background.paper",
+                                border: 1,
+                                borderColor: "divider",
+                                borderRadius: 0.75,
+                                color: "text.primary",
+                                fontWeight: 700,
+                                px: 0.5
                               }
                             }}
                           />
