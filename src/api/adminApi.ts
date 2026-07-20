@@ -37,6 +37,35 @@ export type StockBackfillRunResponse = {
   diagnostics?: StockBackfillDiagnostics;
 };
 
+export type StockIdentityReviewRow = {
+  canonical_product_key: string;
+  product_id: number;
+  parent_id: number | null;
+  sku: string | null;
+  normalized_sku: string;
+  product_name: string | null;
+  category: string | null;
+  wsvi_group_id: string | null;
+  first_seen_date: string | null;
+  last_seen_date: string | null;
+  latest_snapshot_date: string | null;
+  source_count: number;
+  confidence: number;
+  confidence_reason: string;
+  review_status: string;
+  approved_for_forecast: boolean;
+  generated_at: string;
+};
+
+export type StockIdentityReviewResponse = {
+  records: StockIdentityReviewRow[];
+  page: number;
+  page_size: number;
+  total_count: number;
+};
+
+export type StockIdentityReviewAction = "approve" | "exclude" | "remap";
+
 export async function getStockBackfillDiagnostics(): Promise<StockBackfillDiagnostics> {
   return fetchJson<StockBackfillDiagnostics>("/api/v1/admin/stock-backfill/diagnostics");
 }
@@ -44,5 +73,35 @@ export async function getStockBackfillDiagnostics(): Promise<StockBackfillDiagno
 export async function runStockBackfill(dryRun: boolean): Promise<StockBackfillRunResponse> {
   return fetchJson<StockBackfillRunResponse>(`/api/v1/admin/stock-backfill/run?dry_run=${dryRun ? "true" : "false"}`, {
     method: "POST",
+  });
+}
+
+export async function getStockIdentityReviewRows(
+  reviewStatus: string = "review_required",
+  page: number = 1,
+  pageSize: number = 50
+): Promise<StockIdentityReviewResponse> {
+  const params = new URLSearchParams({
+    review_status: reviewStatus,
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  return fetchJson<StockIdentityReviewResponse>(`/api/v1/admin/stock-backfill/identity-review?${params.toString()}`);
+}
+
+export async function updateStockIdentityReviewRow(
+  productId: number,
+  normalizedSku: string,
+  action: StockIdentityReviewAction,
+  canonicalProductKey?: string
+): Promise<{ status: string; movement_metrics: Record<string, number> }> {
+  return fetchJson<{ status: string; movement_metrics: Record<string, number> }>("/api/v1/admin/stock-backfill/identity-review", {
+    method: "POST",
+    body: JSON.stringify({
+      product_id: productId,
+      normalized_sku: normalizedSku,
+      action,
+      canonical_product_key: canonicalProductKey,
+    }),
   });
 }

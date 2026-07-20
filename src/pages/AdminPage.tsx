@@ -16,15 +16,20 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography
 } from "@mui/material";
 import {
   getStockBackfillDiagnostics,
+  getStockIdentityReviewRows,
   purgeStockLedger,
   runStockBackfill,
   StockBackfillDiagnostics,
   StockBackfillRunResponse,
-  triggerDataSync
+  StockIdentityReviewAction,
+  StockIdentityReviewResponse,
+  triggerDataSync,
+  updateStockIdentityReviewRow
 } from "../api/adminApi";
 
 function AdminPage() {
@@ -35,6 +40,9 @@ function AdminPage() {
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<StockBackfillDiagnostics | null>(null);
   const [backfillResult, setBackfillResult] = useState<StockBackfillRunResponse | null>(null);
+  const [identityReview, setIdentityReview] = useState<StockIdentityReviewResponse | null>(null);
+  const [identityReviewPage, setIdentityReviewPage] = useState(1);
+  const [remapValues, setRemapValues] = useState<Record<string, string>>({});
 
   const handleSync = async () => {
     setLoading(true);
@@ -96,6 +104,44 @@ function AdminPage() {
       });
     } catch (err: any) {
       setResult({ type: "error", message: err.message || "Failed to run stock backfill" });
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
+  const loadIdentityReviewRows = async (page = identityReviewPage) => {
+    setBackfillLoading(true);
+    setResult(null);
+    try {
+      const response = await getStockIdentityReviewRows("review_required", page, 50);
+      setIdentityReview(response);
+      setIdentityReviewPage(page);
+      setResult({ type: "success", message: `Loaded ${response.records.length} SKU identity review rows.` });
+    } catch (err: any) {
+      setResult({ type: "error", message: err.message || "Failed to load SKU identity review rows" });
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
+  const handleIdentityReviewAction = async (
+    productId: number,
+    normalizedSku: string,
+    action: StockIdentityReviewAction,
+    canonicalProductKey?: string
+  ) => {
+    setBackfillLoading(true);
+    setResult(null);
+    try {
+      const response = await updateStockIdentityReviewRow(productId, normalizedSku, action, canonicalProductKey);
+      setResult({
+        type: "success",
+        message: `Review ${action} saved. Included movement rows: ${response.movement_metrics?.included_rows ?? 0}.`
+      });
+      await loadIdentityReviewRows(identityReviewPage);
+      setDiagnostics(await getStockBackfillDiagnostics());
+    } catch (err: any) {
+      setResult({ type: "error", message: err.message || "Failed to update SKU identity review row" });
     } finally {
       setBackfillLoading(false);
     }
@@ -202,6 +248,119 @@ function AdminPage() {
             {renderSummaryTable("Latest Backfill Runs", diagnostics.latest_runs)}
           </Box>
         ) : null}
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            SKU Identity Review
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Review low-confidence SKU/post-ID mappings before they influence forecasting. Each action rebuilds the derived movement table.
+          </Typography>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }}>
+            <Button variant="outlined" onClick={() => loadIdentityReviewRows(1)} disabled={backfillLoading}>
+              Load Review Rows
+            </Button>
+            {identityReview ? (
+              <Typography variant="body2" color="text.secondary" sx={{ alignSelf: "center" }}>
+                Showing {identityReview.records.length} of {identityReview.total_count} rows requiring review.
+              </Typography>
+            ) : null}
+          </Stack>
+          {identityReview && identityReview.records.length > 0 ? (
+            <Box sx={{ overflowX: "auto" }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Product ID</TableCell>
+                    <TableCell>SKU</TableCell>
+                    <TableCell>Product</TableCell>
+                    <TableCell>Reason</TableCell>
+                    <TableCell align="right">Orders</TableCell>
+                    <TableCell>Date Range</TableCell>
+                    <TableCell>Remap Canonical Key</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {identityReview.records.map((row) => {
+                    const rowKey = `${row.product_id}:${row.normalized_sku}`;
+                    return (
+                      <TableRow key={rowKey}>
+                        <TableCell>{row.product_id}</TableCell>
+                        <TableCell>{row.sku || row.normalized_sku || "(missing)"}</TableCell>
+                        <TableCell>{row.product_name || "-"}</TableCell>
+                        <TableCell>{row.confidence_reason}</TableCell>
+                        <TableCell align="right">{row.source_count}</TableCell>
+                        <TableCell>
+                          {row.first_seen_date || "-"} to {row.last_seen_date || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            value={remapValues[rowKey] || ""}
+                            onChange={(event) =>
+                              setRemapValues((previous) => ({
+                                ...previous,
+                                [rowKey]: event.target.value
+                              }))
+                            }
+                            placeholder={row.canonical_product_key}
+                            sx={{ minWidth: 260 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleIdentityReviewAction(row.product_id, row.normalized_sku, "approve")}
+                              disabled={backfillLoading}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="warning"
+                              onClick={() => handleIdentityReviewAction(row.product_id, row.normalized_sku, "exclude")}
+                              disabled={backfillLoading}
+                            >
+                              Exclude
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={() => handleIdentityReviewAction(row.product_id, row.normalized_sku, "remap", remapValues[rowKey])}
+                              disabled={backfillLoading || !remapValues[rowKey]}
+                            >
+                              Remap
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  disabled={backfillLoading || identityReviewPage <= 1}
+                  onClick={() => loadIdentityReviewRows(identityReviewPage - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outlined"
+                  disabled={backfillLoading || identityReviewPage * identityReview.page_size >= identityReview.total_count}
+                  onClick={() => loadIdentityReviewRows(identityReviewPage + 1)}
+                >
+                  Next
+                </Button>
+              </Stack>
+            </Box>
+          ) : null}
+        </Box>
       </Paper>
 
       <Paper sx={{ p: 3, mt: 3, maxWidth: 600, borderColor: 'error.main', borderWidth: 1, borderStyle: 'solid' }}>
