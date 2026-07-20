@@ -4,6 +4,7 @@ import {
   KpiCardData,
   PaginatedRecords,
   StockForecastRecord,
+  StockForecastHistoryResponse,
   TableRecord,
   TrendPoint
 } from "../types/analytics";
@@ -426,6 +427,19 @@ export async function getStockForecast(
       pageSize: response.page_size
     };
   }
+
+export async function getStockForecastHistory(
+  lookbackDays: number,
+  canonicalProductKey?: string | null,
+  sku?: string | null
+): Promise<StockForecastHistoryResponse> {
+  const params = new URLSearchParams({
+    lookback_days: String(lookbackDays)
+  });
+  if (canonicalProductKey) params.append("canonical_product_key", canonicalProductKey);
+  if (sku) params.append("sku", sku);
+  return fetchJson<StockForecastHistoryResponse>(`/api/v1/stock/forecast/history?${params.toString()}`);
+}
 
 export function buildForecastFromTrends(trends: TrendPoint[], granularity: string = "day"): ForecastPoint[] {
   if (trends.length === 0) return [];

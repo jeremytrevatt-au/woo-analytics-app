@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getStockForecast } from "../api/analyticsApi";
 import { StockForecastRecord } from "../types/analytics";
 import { useFilters } from "./useFilters";
@@ -24,6 +24,11 @@ const initialState: StockForecastState = {
 export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90, method = "sma", lookbackDays = 365) {
   const { filters } = useFilters();
   const [state, setState] = useState<StockForecastState>(initialState);
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  const refetch = useCallback(() => {
+    setRefreshToken((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -57,7 +62,7 @@ export function useStockForecast(page = 1, pageSize = 50, leadTimeDays = 90, met
     return () => {
       mounted = false;
     };
-  }, [filters.searchText, leadTimeDays, page, pageSize, method, lookbackDays, filters.category, filters.skuStartsWith, filters.skuContains, filters.skuEndsWith]);
+  }, [filters.searchText, leadTimeDays, page, pageSize, method, lookbackDays, filters.category, filters.skuStartsWith, filters.skuContains, filters.skuEndsWith, refreshToken]);
 
-  return state;
+  return { ...state, refetch };
 }

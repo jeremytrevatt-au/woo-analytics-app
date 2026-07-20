@@ -12,7 +12,9 @@ import { useStockLedger } from "../hooks/useStockLedger";
 import StockLedgerChartModal from "../components/StockLedgerChartModal";
 import BulkUpdateModal from "../components/BulkUpdateModal";
 import AddToPOModal from "../components/AddToPOModal";
-import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { Alert, Dialog, DialogContent, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { getStockForecastHistory } from "../api/analyticsApi";
+import { StockForecastHistoryResponse } from "../types/analytics";
 
 function StockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,6 +37,9 @@ function StockPage() {
   const [ledgerReason, setLedgerReason] = useState<string>("all");
   const [ledgerSearch, setLedgerSearch] = useState<string>("");
   const [selectedSku, setSelectedSku] = useState<{sku: string, name: string} | null>(null);
+  const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
+  const [forecastHistoryLoading, setForecastHistoryLoading] = useState(false);
+  const [forecastHistoryError, setForecastHistoryError] = useState<string | null>(null);
 
   const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
   const stockForecast = useStockForecast(forecastPage, 20, 90, method, lookbackDays);
@@ -58,6 +63,23 @@ function StockPage() {
     if (saved) {
       setSelectedStockRecords([]);
       // Optionally refetch or show success message
+    }
+  };
+
+  const handleViewForecastHistory = async (variant: any) => {
+    setForecastHistoryLoading(true);
+    setForecastHistoryError(null);
+    try {
+      const response = await getStockForecastHistory(
+        lookbackDays,
+        variant.canonical_product_key,
+        variant.sku
+      );
+      setForecastHistory(response);
+    } catch (error: any) {
+      setForecastHistoryError(error.message || "Failed to load forecast history.");
+    } finally {
+      setForecastHistoryLoading(false);
     }
   };
 
@@ -220,6 +242,8 @@ function StockPage() {
                 { key: "product_name", label: "Product Name", type: "string" },
                 { key: "category", label: "Category", type: "string" },
                 { key: "min_days_of_cover", label: "Min Days of Cover", type: "number" },
+                { key: "forecast_sources", label: "Forecast Sources", type: "string" },
+                { key: "historical_order_line_count", label: "Historical Lines", type: "number" },
                 { key: "any_reorder", label: "Needs Reorder (Any)", type: "boolean" },
               ]}
             page={stockForecast.page}
@@ -240,9 +264,12 @@ function StockPage() {
                           <TableCell align="right">Days of Cover</TableCell>
                           <TableCell>Projected Stockout</TableCell>
                           <TableCell>Lead Time</TableCell>
+                          <TableCell>Forecast Source</TableCell>
+                          <TableCell align="right">Order Lines</TableCell>
                           <TableCell>Incoming Qty</TableCell>
                           <TableCell>ETA</TableCell>
                           <TableCell>Needs Reorder</TableCell>
+                          <TableCell>History</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -268,9 +295,16 @@ function StockPage() {
                             <TableCell align="right">{v.days_of_cover?.toFixed(1)}</TableCell>
                             <TableCell>{v.projected_stockout_date ? new Date(v.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
                             <TableCell>{v.lead_time_days ? `${v.lead_time_days} days` : "-"}</TableCell>
+                            <TableCell>{v.forecast_source || "unknown"}</TableCell>
+                            <TableCell align="right">{v.historical_order_line_count ?? 0}</TableCell>
                             <TableCell>{v.nya_stock_reorder_qty || "-"}</TableCell>
                             <TableCell>{v.nya_stock_eta ? new Date(v.nya_stock_eta).toLocaleDateString("en-AU") : "-"}</TableCell>
                             <TableCell>{needsReorder}</TableCell>
+                            <TableCell>
+                              <Button size="small" variant="outlined" onClick={() => handleViewForecastHistory(v)}>
+                                View
+                              </Button>
+                            </TableCell>
                           </TableRow>
                           );
                         })}
@@ -373,6 +407,55 @@ function StockPage() {
         />
         </>
       )}
+
+      <Dialog
+        open={Boolean(forecastHistory) || forecastHistoryLoading || Boolean(forecastHistoryError)}
+        onClose={() => {
+          setForecastHistory(null);
+          setForecastHistoryError(null);
+        }}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>Forecast Movement History</DialogTitle>
+        <DialogContent>
+          {forecastHistoryLoading ? <Typography>Loading forecast history...</Typography> : null}
+          {forecastHistoryError ? <Alert severity="error">{forecastHistoryError}</Alert> : null}
+          {forecastHistory ? (
+            <Box sx={{ overflowX: "auto" }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Showing reviewed historical order-line movements for {forecastHistory.sku || forecastHistory.canonical_product_key}.
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>SKU</TableCell>
+                    <TableCell>Product</TableCell>
+                    <TableCell align="right">Included Usage</TableCell>
+                    <TableCell align="right">Excluded Qty</TableCell>
+                    <TableCell align="right">Included Lines</TableCell>
+                    <TableCell align="right">Excluded Lines</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {forecastHistory.points.map((point) => (
+                    <TableRow key={`${point.movement_date}-${point.canonical_product_key}`}>
+                      <TableCell>{new Date(point.movement_date).toLocaleDateString("en-AU")}</TableCell>
+                      <TableCell>{point.sku}</TableCell>
+                      <TableCell>{point.product_name}</TableCell>
+                      <TableCell align="right">{point.forecast_usage_qty}</TableCell>
+                      <TableCell align="right">{point.excluded_qty}</TableCell>
+                      <TableCell align="right">{point.included_lines}</TableCell>
+                      <TableCell align="right">{point.excluded_lines}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <BulkUpdateModal
         open={bulkUpdateModalOpen}

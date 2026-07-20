@@ -1,12 +1,40 @@
 import { useState } from "react";
-import { Box, Button, Typography, Paper, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
-import { triggerDataSync, purgeStockLedger } from "../api/adminApi";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography
+} from "@mui/material";
+import {
+  getStockBackfillDiagnostics,
+  purgeStockLedger,
+  runStockBackfill,
+  StockBackfillDiagnostics,
+  StockBackfillRunResponse,
+  triggerDataSync
+} from "../api/adminApi";
 
 function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<StockBackfillDiagnostics | null>(null);
+  const [backfillResult, setBackfillResult] = useState<StockBackfillRunResponse | null>(null);
 
   const handleSync = async () => {
     setLoading(true);
@@ -35,6 +63,76 @@ function AdminPage() {
     }
   };
 
+  const handleLoadDiagnostics = async () => {
+    setBackfillLoading(true);
+    setResult(null);
+    try {
+      const response = await getStockBackfillDiagnostics();
+      setDiagnostics(response);
+      setResult({ type: "success", message: "Loaded stock backfill diagnostics." });
+    } catch (err: any) {
+      setResult({ type: "error", message: err.message || "Failed to load stock backfill diagnostics" });
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
+  const handleBackfillRun = async (dryRun: boolean) => {
+    setBackfillLoading(true);
+    setResult(null);
+    try {
+      const response = await runStockBackfill(dryRun);
+      setBackfillResult(response);
+      if (response.diagnostics) {
+        setDiagnostics(response.diagnostics);
+      } else {
+        setDiagnostics(await getStockBackfillDiagnostics());
+      }
+      setResult({
+        type: "success",
+        message: dryRun
+          ? `Dry run ${response.run_id} completed.`
+          : `Historical stock backfill ${response.run_id} completed.`
+      });
+    } catch (err: any) {
+      setResult({ type: "error", message: err.message || "Failed to run stock backfill" });
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
+  const renderSummaryTable = (title: string, rows?: Array<Record<string, unknown>>) => {
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+    const keys = Object.keys(rows[0]);
+    return (
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle2" gutterBottom>
+          {title}
+        </Typography>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              {keys.map((key) => (
+                <TableCell key={key}>{key}</TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row, rowIndex) => (
+              <TableRow key={rowIndex}>
+                {keys.map((key) => (
+                  <TableCell key={key}>{String(row[key] ?? "")}</TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+    );
+  };
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -60,6 +158,50 @@ function AdminPage() {
             {loading ? <CircularProgress size={24} /> : "Trigger Global Re-Sync"}
           </Button>
         </Box>
+      </Paper>
+
+      <Paper sx={{ p: 3, mt: 3, maxWidth: 1100 }}>
+        <Typography variant="h6" gutterBottom>
+          Historical Stock Backfill
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Build reviewed SKU identity mappings and a separate order-line-derived stock movement dataset for forecasting.
+          Dry runs produce diagnostics only; applying the backfill replaces the derived reporting tables, not the live stock ledger.
+        </Typography>
+
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 2 }}>
+          <Button variant="outlined" onClick={handleLoadDiagnostics} disabled={backfillLoading}>
+            Load Diagnostics
+          </Button>
+          <Button variant="outlined" onClick={() => handleBackfillRun(true)} disabled={backfillLoading}>
+            Run Dry-Run
+          </Button>
+          <Button variant="contained" onClick={() => handleBackfillRun(false)} disabled={backfillLoading}>
+            Apply Historical Backfill
+          </Button>
+          {backfillLoading ? <CircularProgress size={24} /> : null}
+        </Stack>
+
+        {backfillResult ? (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Run {backfillResult.run_id}: {backfillResult.status}
+            {backfillResult.identity_rows !== undefined ? ` | identity rows: ${backfillResult.identity_rows}` : ""}
+            {backfillResult.derived_rows !== undefined ? ` | derived rows: ${backfillResult.derived_rows}` : ""}
+            {backfillResult.included_rows !== undefined ? ` | forecast rows: ${backfillResult.included_rows}` : ""}
+            {backfillResult.low_confidence_rows !== undefined ? ` | review rows: ${backfillResult.low_confidence_rows}` : ""}
+          </Alert>
+        ) : null}
+
+        {diagnostics ? (
+          <Box sx={{ mt: 2, overflowX: "auto" }}>
+            {renderSummaryTable("Order Line Coverage", diagnostics.order_line_summary)}
+            {renderSummaryTable("SKU Identity Health", diagnostics.sku_identity_summary)}
+            {renderSummaryTable("Live Ledger Overlap", diagnostics.ledger_overlap_summary)}
+            {renderSummaryTable("Identity Bridge", diagnostics.identity_bridge_summary)}
+            {renderSummaryTable("Derived Movements", diagnostics.derived_movement_summary)}
+            {renderSummaryTable("Latest Backfill Runs", diagnostics.latest_runs)}
+          </Box>
+        ) : null}
       </Paper>
 
       <Paper sx={{ p: 3, mt: 3, maxWidth: 600, borderColor: 'error.main', borderWidth: 1, borderStyle: 'solid' }}>

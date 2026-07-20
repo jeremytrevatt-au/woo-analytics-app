@@ -98,6 +98,12 @@ export type StockForecastVariant = {
   nya_stock_eta: string | null;
   nya_stock_reorder_qty: number | null;
   nya_default_lead_time: number | null;
+  canonical_product_key?: string | null;
+  forecast_source?: string;
+  movement_avg_daily_usage?: number;
+  snapshot_avg_daily_usage?: number;
+  historical_order_line_usage_qty?: number;
+  historical_order_line_count?: number;
 };
 
 export type StockForecastRecord = {
@@ -106,7 +112,29 @@ export type StockForecastRecord = {
   product_name: string;
   any_reorder: boolean;
   min_days_of_cover: number | null;
+  forecast_sources?: string[];
+  historical_order_line_usage_qty?: number;
+  historical_order_line_count?: number;
   variants: StockForecastVariant[];
+};
+
+export type StockForecastHistoryPoint = {
+  movement_date: string;
+  canonical_product_key: string;
+  sku: string;
+  product_name: string;
+  forecast_usage_qty: number;
+  excluded_qty: number;
+  included_lines: number;
+  excluded_lines: number;
+  sample_lines: Array<Record<string, unknown>>;
+};
+
+export type StockForecastHistoryResponse = {
+  canonical_product_key: string | null;
+  sku: string | null;
+  lookback_days: number;
+  points: StockForecastHistoryPoint[];
 };
 
 export type ApiDebugEvent = {
