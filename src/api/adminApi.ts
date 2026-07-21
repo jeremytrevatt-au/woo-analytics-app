@@ -64,7 +64,7 @@ export type StockIdentityReviewResponse = {
   total_count: number;
 };
 
-export type StockIdentityReviewAction = "approve" | "exclude" | "remap";
+export type StockIdentityReviewAction = "approve" | "exclude" | "remap_product";
 
 export async function getStockBackfillDiagnostics(): Promise<StockBackfillDiagnostics> {
   return fetchJson<StockBackfillDiagnostics>("/api/v1/admin/stock-backfill/diagnostics");
@@ -93,7 +93,9 @@ export async function updateStockIdentityReviewRow(
   productId: number,
   normalizedSku: string,
   action: StockIdentityReviewAction,
-  canonicalProductKey?: string
+  canonicalProductKey?: string,
+  targetProductId?: number,
+  targetWsviGroupId?: string
 ): Promise<{ status: string; movement_metrics: Record<string, number> }> {
   return fetchJson<{ status: string; movement_metrics: Record<string, number> }>("/api/v1/admin/stock-backfill/identity-review", {
     method: "POST",
@@ -102,6 +104,8 @@ export async function updateStockIdentityReviewRow(
       normalized_sku: normalizedSku,
       action,
       canonical_product_key: canonicalProductKey,
+      target_product_id: targetProductId,
+      target_wsvi_group_id: targetWsviGroupId,
     }),
   });
 }

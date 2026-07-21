@@ -1,4 +1,5 @@
-import { useState, SyntheticEvent } from "react";
+import { useState } from "react";
+import type { SyntheticEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
@@ -18,12 +19,12 @@ import { StockForecastHistoryResponse } from "../types/analytics";
 
 function StockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") === "shortages" ? 1 : searchParams.get("tab") === "forecast" ? 2 : searchParams.get("tab") === "ledger" ? 3 : 0;
+  const initialTab = searchParams.get("tab") === "shortages" ? 1 : 0;
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  const handleTabChange = (event: SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
-    const tabValues = ["records", "shortages", "forecast", "ledger"];
+    const tabValues = ["items", "shortages"];
     setSearchParams({ tab: tabValues[newValue] });
   };
 
@@ -42,9 +43,9 @@ function StockPage() {
   const [forecastHistoryError, setForecastHistoryError] = useState<string | null>(null);
 
   const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
-  const stockForecast = useStockForecast(forecastPage, 20, 90, method, lookbackDays);
+  const stockForecast = useStockForecast(1, 200, 90, method, lookbackDays);
   const stockShortages = useStockShortages(shortagesPage, 50);
-  const stockLedger = useStockLedger(ledgerPage, 50, ledgerReason === "all" ? null : ledgerReason, ledgerSearch);
+  const stockLedger = useStockLedger(1, 200, ledgerReason === "all" ? null : ledgerReason, ledgerSearch);
   const stockKpi = kpis.find((item) => item.id === "stockAlerts");
 
   const [selectedStockRecords, setSelectedStockRecords] = useState<any[]>([]);
@@ -83,6 +84,39 @@ function StockPage() {
     }
   };
 
+  const forecastVariants = stockForecast.records.flatMap((record: any) => record.variants || []);
+  const ledgerItems = stockLedger.data?.items || [];
+  const findForecastVariant = (row: any) => forecastVariants.find((variant: any) => variant.product_id === row.product_id || variant.sku === row.sku);
+  const findLedgerEntries = (row: any) => ledgerItems.filter((item: any) => item.product_id === row.product_id || item.variation_id === row.product_id || item.sku === row.sku).slice(0, 10);
+  const unifiedRows = (rows as any[]).map((row) => {
+    const forecast = findForecastVariant(row);
+    const movementEntries = findLedgerEntries(row);
+    return {
+      ...row,
+      avg_daily_usage: forecast?.avg_daily_usage ?? null,
+      days_of_cover: forecast?.days_of_cover ?? null,
+      forecast_source: forecast?.forecast_source ?? "insufficient_history",
+      reorder_within_lead_time: forecast?.reorder_within_lead_time ?? false,
+      projected_stockout_date: forecast?.projected_stockout_date ?? null,
+      latest_movement: movementEntries[0]?.timestamp || null,
+      recent_movement_count: movementEntries.length,
+      actions: (
+        <Button size="small" variant="outlined" onClick={() => setSelectedSku({ sku: row.sku, name: row.product_name })}>
+          Movement Chart
+        </Button>
+      ),
+    };
+  });
+  const unifiedColumns = [
+    ...columns,
+    { key: "avg_daily_usage", label: "Avg Daily Usage", type: "number" as const },
+    { key: "days_of_cover", label: "Days of Cover", type: "number" as const },
+    { key: "forecast_source", label: "Forecast Source", type: "string" as const },
+    { key: "reorder_within_lead_time", label: "Needs Reorder", type: "boolean" as const },
+    { key: "recent_movement_count", label: "Recent Movements", type: "number" as const },
+    { key: "actions", label: "Actions", type: "node" as const },
+  ];
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={700}>
@@ -94,10 +128,8 @@ function StockPage() {
       
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="stock tabs">
-          <Tab label="Stock Records" />
+          <Tab label="Stock Items" />
           <Tab label="Stock Shortages & Affected Orders" />
-          <Tab label="Stock Reorder Forecast" />
-          <Tab label="Stock Movement Ledger" />
         </Tabs>
       </Box>
 
@@ -108,6 +140,63 @@ function StockPage() {
               <>
                 <KpiGrid cards={stockKpi ? [stockKpi] : []} />
                 <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
+                <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Forecasting Method"
+                      value={method}
+                      onChange={(e) => setMethod(e.target.value)}
+                      size="small"
+                    >
+                      <MenuItem value="sma">Simple Moving Average</MenuItem>
+                      <MenuItem value="ema">Exponential Moving Average</MenuItem>
+                      <MenuItem value="linear">Linear Regression</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Lookback Period"
+                      value={lookbackDays}
+                      onChange={(e) => setLookbackDays(Number(e.target.value))}
+                      size="small"
+                    >
+                      <MenuItem value={30}>Last 30 Days</MenuItem>
+                      <MenuItem value={60}>Last 60 Days</MenuItem>
+                      <MenuItem value={90}>Last 90 Days</MenuItem>
+                      <MenuItem value={180}>Last 180 Days</MenuItem>
+                      <MenuItem value={365}>Last 365 Days</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Movement Search"
+                      value={ledgerSearch}
+                      onChange={(e) => setLedgerSearch(e.target.value)}
+                      size="small"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Movement Reason"
+                      value={ledgerReason}
+                      onChange={(e) => setLedgerReason(e.target.value)}
+                      size="small"
+                    >
+                      <MenuItem value="all">All Movements</MenuItem>
+                      <MenuItem value="manual_edit">Manual Edit</MenuItem>
+                      <MenuItem value="order_placed">Order Placed</MenuItem>
+                      <MenuItem value="order_restocked">Order Restocked</MenuItem>
+                      <MenuItem value="order_refunded">Order Refunded</MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
                 <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
                   <Button 
                     variant="outlined" 
@@ -125,14 +214,78 @@ function StockPage() {
                   </Button>
                 </Box>
                 <DataTablePanel
-                  title="Stock Records"
-                  rows={rows as any}
-                  columns={columns}
+                  title="Stock Items"
+                  rows={unifiedRows as any}
+                  columns={unifiedColumns}
                   page={page}
                   pageSize={pageSize}
                   totalCount={totalCount}
                   onPageChange={setPage}
                   getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
+                  renderExpandedRow={(row) => {
+                    const forecast = findForecastVariant(row);
+                    const movementEntries = findLedgerEntries(row);
+                    return (
+                      <Stack spacing={2}>
+                        <Typography variant="subtitle2">Forecast and Movement Context</Typography>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Forecast Source</TableCell>
+                              <TableCell align="right">Avg Daily Usage</TableCell>
+                              <TableCell align="right">Days of Cover</TableCell>
+                              <TableCell>Projected Stockout</TableCell>
+                              <TableCell align="right">Historical Lines</TableCell>
+                              <TableCell>History</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell>{forecast?.forecast_source || "insufficient_history"}</TableCell>
+                              <TableCell align="right">{forecast?.avg_daily_usage?.toFixed(2) || "-"}</TableCell>
+                              <TableCell align="right">{forecast?.days_of_cover?.toFixed(1) || "-"}</TableCell>
+                              <TableCell>{forecast?.projected_stockout_date ? new Date(forecast.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
+                              <TableCell align="right">{forecast?.historical_order_line_count ?? 0}</TableCell>
+                              <TableCell>
+                                {forecast ? (
+                                  <Button size="small" variant="outlined" onClick={() => handleViewForecastHistory(forecast)}>
+                                    View History
+                                  </Button>
+                                ) : "-"}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                        <Typography variant="subtitle2">Recent Stock Movements</Typography>
+                        {movementEntries.length > 0 ? (
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Date/Time</TableCell>
+                                <TableCell>Reason</TableCell>
+                                <TableCell align="right">Change</TableCell>
+                                <TableCell align="right">New Level</TableCell>
+                                <TableCell>Order Ref</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {movementEntries.map((entry: any) => (
+                                <TableRow key={entry.id}>
+                                  <TableCell>{entry.timestamp}</TableCell>
+                                  <TableCell>{entry.reason}</TableCell>
+                                  <TableCell align="right">{entry.change_amount}</TableCell>
+                                  <TableCell align="right">{entry.new_stock_level}</TableCell>
+                                  <TableCell>{entry.reference_id || "-"}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">No recent movement rows loaded for this item.</Typography>
+                        )}
+                      </Stack>
+                    );
+                  }}
                   selectable
                   selectedRows={selectedStockRecords}
                   onSelectionChange={setSelectedStockRecords}

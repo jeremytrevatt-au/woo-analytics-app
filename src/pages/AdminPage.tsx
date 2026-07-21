@@ -16,9 +16,10 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  TextField,
   Typography
 } from "@mui/material";
+import ProductSearchAutocomplete from "../components/ProductSearchAutocomplete";
+import { ProductSearchResult } from "../api/productsApi";
 import {
   getStockBackfillDiagnostics,
   getStockIdentityReviewRows,
@@ -42,7 +43,7 @@ function AdminPage() {
   const [backfillResult, setBackfillResult] = useState<StockBackfillRunResponse | null>(null);
   const [identityReview, setIdentityReview] = useState<StockIdentityReviewResponse | null>(null);
   const [identityReviewPage, setIdentityReviewPage] = useState(1);
-  const [remapValues, setRemapValues] = useState<Record<string, string>>({});
+  const [remapTargets, setRemapTargets] = useState<Record<string, ProductSearchResult | null>>({});
 
   const handleSync = async () => {
     setLoading(true);
@@ -128,12 +129,19 @@ function AdminPage() {
     productId: number,
     normalizedSku: string,
     action: StockIdentityReviewAction,
-    canonicalProductKey?: string
+    targetProduct?: ProductSearchResult | null
   ) => {
     setBackfillLoading(true);
     setResult(null);
     try {
-      const response = await updateStockIdentityReviewRow(productId, normalizedSku, action, canonicalProductKey);
+      const response = await updateStockIdentityReviewRow(
+        productId,
+        normalizedSku,
+        action,
+        undefined,
+        targetProduct?.id,
+        targetProduct?.wsvi_group_id
+      );
       setResult({
         type: "success",
         message: `Review ${action} saved. Included movement rows: ${response.movement_metrics?.included_rows ?? 0}.`
@@ -277,7 +285,8 @@ function AdminPage() {
                     <TableCell>Reason</TableCell>
                     <TableCell align="right">Orders</TableCell>
                     <TableCell>Date Range</TableCell>
-                    <TableCell>Remap Canonical Key</TableCell>
+                    <TableCell>Woo</TableCell>
+                    <TableCell>Remap To Woo Product</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -295,17 +304,27 @@ function AdminPage() {
                           {row.first_seen_date || "-"} to {row.last_seen_date || "-"}
                         </TableCell>
                         <TableCell>
-                          <TextField
+                          <Button
                             size="small"
-                            value={remapValues[rowKey] || ""}
-                            onChange={(event) =>
-                              setRemapValues((previous) => ({
+                            variant="outlined"
+                            href={`https://naturalyield.com.au/wp-admin/post.php?post=${row.product_id}&action=edit`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Woo
+                          </Button>
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 320 }}>
+                          <ProductSearchAutocomplete
+                            value={remapTargets[rowKey] || null}
+                            onChange={(value) =>
+                              setRemapTargets((previous) => ({
                                 ...previous,
-                                [rowKey]: event.target.value
+                                [rowKey]: value
                               }))
                             }
-                            placeholder={row.canonical_product_key}
-                            sx={{ minWidth: 260 }}
+                            label="Search target SKU/product"
+                            size="small"
                           />
                         </TableCell>
                         <TableCell>
@@ -330,8 +349,8 @@ function AdminPage() {
                             <Button
                               size="small"
                               variant="contained"
-                              onClick={() => handleIdentityReviewAction(row.product_id, row.normalized_sku, "remap", remapValues[rowKey])}
-                              disabled={backfillLoading || !remapValues[rowKey]}
+                              onClick={() => handleIdentityReviewAction(row.product_id, row.normalized_sku, "remap_product", remapTargets[rowKey])}
+                              disabled={backfillLoading || !remapTargets[rowKey]}
                             >
                               Remap
                             </Button>
