@@ -1,6 +1,7 @@
 import { fetchJson } from "./httpClient";
 
 export type PurchaseOrderLine = {
+  id?: number;
   product_id: number;
   wsvi_group_id?: string;
   sku: string;

@@ -1,17 +1,115 @@
-import { useState } from "react";
-import { Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse } from "@mui/material";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse, TextField, MenuItem } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { purchaseOrdersApi, PurchaseOrder } from "../api/purchaseOrdersApi";
+import { purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine } from "../api/purchaseOrdersApi";
+import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
 
+const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
+
+function qty(value: number | string | null | undefined): string {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "0";
+}
+
+function lineTotals(summary?: PurchaseOrderPreorderLineSummary) {
+  const allocations = summary?.allocations ?? [];
+  return {
+    allocated: allocations.reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0),
+    reserved: allocations.reduce((sum, allocation) => sum + Number(allocation.reserved_qty || 0), 0),
+    available: allocations.reduce((sum, allocation) => sum + Number(allocation.available_qty || 0), 0),
+  };
+}
+
 function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: (po: PurchaseOrder) => void, handleDelete: (id: number) => void }) {
   const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState<PurchaseOrderPreorderSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const loadSummary = useCallback(async () => {
+    if (!po.id) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      setSummary(await preordersApi.getPurchaseOrderSummary(po.id));
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to load preorder allocation summary");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [po.id]);
+
+  useEffect(() => {
+    if (open) {
+      loadSummary();
+    }
+  }, [loadSummary, open]);
+
+  const handleBulkAllocate = async () => {
+    if (!po.id) return;
+    setSummaryError(null);
+    try {
+      await preordersApi.bulkAllocatePurchaseOrder(po.id);
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to bulk allocate purchase order");
+    }
+  };
+
+  const handleAllocateLine = async (line: PurchaseOrderLine) => {
+    if (!line.id) {
+      setSummaryError("This PO line does not have a saved line ID yet.");
+      return;
+    }
+    setSummaryError(null);
+    try {
+      await preordersApi.createAllocation({
+        po_line_id: line.id,
+        allocated_qty: Number(line.qty || 0),
+        status: "active"
+      });
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to allocate PO line");
+    }
+  };
+
+  const handleSetLineFullQty = async (line: PurchaseOrderLine, lineSummary?: PurchaseOrderPreorderLineSummary) => {
+    const allocation = lineSummary?.allocations[0];
+    if (!allocation) {
+      await handleAllocateLine(line);
+      return;
+    }
+    setSummaryError(null);
+    try {
+      await preordersApi.updateAllocation(allocation.id, {
+        allocated_qty: Number(line.qty || 0),
+        status: "active"
+      });
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to update PO line allocation");
+    }
+  };
+
+  const handleAllocationStatus = async (lineSummary: PurchaseOrderPreorderLineSummary, status: AllocationStatus) => {
+    const allocation = lineSummary.allocations[0];
+    if (!allocation) return;
+    setSummaryError(null);
+    try {
+      await preordersApi.updateAllocation(allocation.id, { status });
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to update preorder allocation status");
+    }
+  };
 
   return (
     <>
@@ -47,29 +145,76 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
         <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={9}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 1 }}>
-              <Typography variant="h6" gutterBottom component="div">
-                Line Items
-              </Typography>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }} justifyContent="space-between" sx={{ mb: 1 }}>
+                <Box>
+                  <Typography variant="h6" component="div">Line Items</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Preorder allocation is managed directly from the purchase order lines.
+                  </Typography>
+                </Box>
+                <Button size="small" variant="contained" onClick={handleBulkAllocate} disabled={!po.id || summaryLoading}>
+                  Bulk Allocate Full PO
+                </Button>
+              </Stack>
+              {summaryError && <Alert severity="error" sx={{ mb: 1 }}>{summaryError}</Alert>}
+              {summaryLoading && <Typography variant="body2" sx={{ mb: 1 }}>Loading preorder allocations...</Typography>}
               <Table size="small" aria-label="purchases">
                 <TableHead>
                   <TableRow>
                     <TableCell>SKU</TableCell>
                     <TableCell>Product Name</TableCell>
                     <TableCell align="right">Qty</TableCell>
+                    <TableCell align="right">Preorder Allocated</TableCell>
+                    <TableCell align="right">Reserved</TableCell>
+                    <TableCell align="right">Available</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Preorder Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {po.lines && po.lines.length > 0 ? po.lines.map((line, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell component="th" scope="row">
-                        {line.sku || "N/A"}
-                      </TableCell>
-                      <TableCell>{line.product_name}</TableCell>
-                      <TableCell align="right">{line.qty}</TableCell>
-                    </TableRow>
-                  )) : (
+                  {po.lines && po.lines.length > 0 ? po.lines.map((line, idx) => {
+                    const lineSummary = summary?.line_summaries.find((item) => item.po_line_id === line.id);
+                    const totals = lineTotals(lineSummary);
+                    const allocation = lineSummary?.allocations[0];
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell component="th" scope="row">
+                          {line.sku || "N/A"}
+                        </TableCell>
+                        <TableCell>{line.product_name}</TableCell>
+                        <TableCell align="right">{qty(line.qty)}</TableCell>
+                        <TableCell align="right">{qty(totals.allocated)}</TableCell>
+                        <TableCell align="right">{qty(totals.reserved)}</TableCell>
+                        <TableCell align="right">
+                          <Chip size="small" label={qty(totals.available)} color={totals.available > 0 ? "success" : "default"} />
+                        </TableCell>
+                        <TableCell>
+                          {allocation ? (
+                            <TextField
+                              select
+                              size="small"
+                              value={allocation.status}
+                              onChange={(event) => lineSummary && handleAllocationStatus(lineSummary, event.target.value as AllocationStatus)}
+                              sx={{ minWidth: 130 }}
+                            >
+                              {allocationStatuses.map((status) => (
+                                <MenuItem key={status} value={status}>{status}</MenuItem>
+                              ))}
+                            </TextField>
+                          ) : (
+                            <Chip size="small" label="not allocated" />
+                          )}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!line.id || Number(line.qty || 0) <= 0}>
+                            {allocation ? "Set Full Qty" : "Allocate Line"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }) : (
                     <TableRow>
-                      <TableCell colSpan={3}>No line items found.</TableCell>
+                      <TableCell colSpan={8}>No line items found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -122,8 +267,8 @@ function PurchaseOrdersPage() {
     }
   };
 
-  if (loading) return <LoadStateBlock isLoading={true} />;
-  if (error) return <LoadStateBlock isLoading={false} error={error} />;
+  if (loading) return <LoadStateBlock isLoading={true} error={null} empty={false} />;
+  if (error) return <LoadStateBlock isLoading={false} error={error} empty={false} />;
 
   return (
     <Stack spacing={2}>

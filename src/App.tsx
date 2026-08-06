@@ -8,6 +8,7 @@ import OverviewPage from "./pages/OverviewPage";
 import OrdersPage from "./pages/OrdersPage";
 import StockPage from "./pages/StockPage";
 import BackordersPage from "./pages/BackordersPage";
+import PreordersPage from "./pages/PreordersPage";
 import PackingPage from "./pages/PackingPage";
 import AdminPage from "./pages/AdminPage";
 import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
@@ -26,6 +27,7 @@ function App() {
               <Route path="/stock" element={<StockPage />} />
               <Route path="/revenue" element={<RevenuePage />} />
               <Route path="/backorders" element={<BackordersPage />} />
+              <Route path="/preorders" element={<PreordersPage />} />
               <Route path="/packing" element={<PackingPage />} />
               <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
               <Route path="/suppliers" element={<SuppliersPage />} />

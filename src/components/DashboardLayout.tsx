@@ -17,6 +17,7 @@ const navItems = [
   { label: "Stock", to: "/stock" },
   { label: "Revenue", to: "/revenue" },
   { label: "Backorders", to: "/backorders" },
+  { label: "Preorders", to: "/preorders" },
   { label: "Packing Team", to: "/packing" },
   { label: "Purchase Orders", to: "/purchase-orders" },
   { label: "Suppliers", to: "/suppliers" },
