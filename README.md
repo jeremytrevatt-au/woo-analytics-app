@@ -142,3 +142,20 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Fixed PO modal width, table overflow, and multiline controls for Product Name and SKU.
 4. Enhanced PO line items with variation attributes dynamically and in search.
 **Git Build Reference**: ba1cad5
+
+## 2026-08-06 11:20 UTC
+
+1. TODOs completed:
+   1. Added a `/preorders` overview page for allocation/reservation diagnostics and maintenance.
+   2. Added preorder API client and hook coverage for diagnostics, allocations, reservations, PO allocation summaries, and bulk allocation.
+   3. Surfaced preorder allocation directly in Purchase Orders, including full-PO bulk allocation and individual line allocation/status controls.
+   4. Added Preorders navigation while keeping Purchase Orders as the primary allocation workflow.
+2. Git build reference:
+   1. App commit: `4a6edda0bd91fc0d1f27f9544ca48109588ecb99`
+   2. Deployed Cloud Run revision: `woo-analytics-app-00100-w4q`
+3. New understandings/learnings:
+   1. Preorder allocation should be initiated from Purchase Orders rather than managed as a separate data-entry workflow.
+   2. The Preorders page should act as an overview/maintenance surface for allocations and reservations.
+4. Understood next steps (remaining TODOs):
+   1. Validate a real PO bulk allocation and individual line allocation from the live app.
+   2. Add richer PO line allocation controls if partial line quantities are needed later.
