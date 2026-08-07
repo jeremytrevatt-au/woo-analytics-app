@@ -159,3 +159,19 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Validate a real PO bulk allocation and individual line allocation from the live app.
    2. Add richer PO line allocation controls if partial line quantities are needed later.
+
+## 2026-08-07 10:03 UTC
+
+1. TODOs completed:
+   1. Added Preorders page allocation editing and manual Hold Qty maintenance.
+   2. Changed Hold Qty from additive reservations to a manual hold total setter that can reduce to zero.
+   3. Added Purchase Order bulk allocation progress feedback and fixed PO line ID matching for allocation display.
+2. Git build reference:
+   1. App commits: `e21d7ca6b6e8938c6b9d0127883555322fb48195`, `8de4e8b7b86b5e4b05f155297c1c979607c84a12`, `f824645ec083f16400ff9654c1ced13d7b158a4c`
+   2. Latest deployed Cloud Run revision: `woo-analytics-app-00104-h26`
+3. New understandings/learnings:
+   1. Manual preorder holds need setter behaviour rather than additive reservation behaviour.
+   2. Reservation totals need to stay auditable while still being easy to maintain from the Preorders page.
+4. Understood next steps (remaining TODOs):
+   1. Add reconciliation diagnostics/repair UI if backend repair endpoints become operationally necessary.
+   2. Keep Purchase Orders as the primary allocation workflow and Preorders as the maintenance surface.
