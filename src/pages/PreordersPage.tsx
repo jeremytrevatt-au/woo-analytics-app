@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -64,10 +64,20 @@ type ReservationDialogProps = {
 };
 
 function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
-  const [qtyValue, setQtyValue] = useState(allocation ? String(Math.min(1, allocation.available_qty || 1)) : "1");
+  const [qtyValue, setQtyValue] = useState("0");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const parsedQty = Number(qtyValue);
+  const canSubmit = Boolean(allocation) && Number.isFinite(parsedQty) && parsedQty > 0;
+
+  useEffect(() => {
+    if (allocation) {
+      setQtyValue("0");
+      setNotes("");
+      setError(null);
+    }
+  }, [allocation]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -106,7 +116,7 @@ function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => onClose(false)} disabled={saving}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={saving || !allocation}>Hold Qty</Button>
+          <Button type="submit" variant="contained" disabled={saving || !canSubmit}>Hold Qty</Button>
         </DialogActions>
       </Box>
     </Dialog>
@@ -125,6 +135,16 @@ function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps
   const [notes, setNotes] = useState(allocation?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (allocation) {
+      setAllocatedQty(String(allocation.allocated_qty));
+      setStatus(allocation.status);
+      setEtaDate(allocation.eta_date ?? "");
+      setNotes(allocation.notes ?? "");
+      setError(null);
+    }
+  }, [allocation]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -176,10 +196,77 @@ function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps
   );
 }
 
+type ReservationEditDialogProps = {
+  reservation: PreorderReservation | null;
+  onClose: (saved: boolean) => void;
+};
+
+function ReservationEditDialog({ reservation, onClose }: ReservationEditDialogProps) {
+  const [status, setStatus] = useState<ReservationStatus>(reservation?.status ?? "reserved");
+  const [notes, setNotes] = useState(reservation?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (reservation) {
+      setStatus(reservation.status);
+      setNotes(reservation.notes ?? "");
+      setError(null);
+    }
+  }, [reservation]);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!reservation) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await preordersApi.updateReservation(reservation.id, {
+        status,
+        notes: notes.trim() || null
+      });
+      onClose(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update preorder reservation");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={Boolean(reservation)} onClose={() => onClose(false)} maxWidth="sm" fullWidth>
+      <Box component="form" onSubmit={handleSubmit}>
+        <DialogTitle>Edit Reservation / Hold</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <Alert severity="info">
+              Quantity is read-only. To change a held quantity, release or cancel this record and create a replacement hold.
+            </Alert>
+            <TextField label="SKU" value={reservation?.sku ?? ""} disabled fullWidth />
+            <TextField label="Qty" value={reservation ? qty(reservation.qty) : ""} disabled fullWidth />
+            <TextField select label="Status" value={status} onChange={(event) => setStatus(event.target.value as ReservationStatus)} fullWidth>
+              {reservationStatuses.map((item) => (
+                <MenuItem key={item} value={item}>{item}</MenuItem>
+              ))}
+            </TextField>
+            <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={3} fullWidth />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => onClose(false)} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={saving || !reservation}>Save</Button>
+        </DialogActions>
+      </Box>
+    </Dialog>
+  );
+}
+
 function PreordersPage() {
   const { diagnostics, allocations, reservations, loading, error, refetch } = usePreorders();
   const [reservationAllocation, setReservationAllocation] = useState<PreorderAllocation | null>(null);
   const [editAllocation, setEditAllocation] = useState<PreorderAllocation | null>(null);
+  const [editReservation, setEditReservation] = useState<PreorderReservation | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const updateAllocationStatus = async (allocation: PreorderAllocation, status: AllocationStatus) => {
@@ -216,6 +303,7 @@ function PreordersPage() {
   const handleDialogClose = (saved: boolean) => {
     setReservationAllocation(null);
     setEditAllocation(null);
+    setEditReservation(null);
     if (saved) refetch();
   };
 
@@ -352,7 +440,9 @@ function PreordersPage() {
               <TableCell>Order</TableCell>
               <TableCell align="right">Qty</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Notes</TableCell>
               <TableCell>Reserved At</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -378,12 +468,18 @@ function PreordersPage() {
                     ))}
                   </TextField>
                 </TableCell>
+                <TableCell>{reservation.notes || "-"}</TableCell>
                 <TableCell>{dateLabel(reservation.reserved_at)}</TableCell>
+                <TableCell align="right">
+                  <IconButton size="small" onClick={() => setEditReservation(reservation)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </TableCell>
               </TableRow>
             ))}
             {reservations.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center">No preorder reservations found.</TableCell>
+                <TableCell colSpan={9} align="center">No preorder reservations found.</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -392,6 +488,7 @@ function PreordersPage() {
 
       <HoldQuantityDialog allocation={reservationAllocation} onClose={handleDialogClose} />
       <AllocationEditDialog allocation={editAllocation} onClose={handleDialogClose} />
+      <ReservationEditDialog reservation={editReservation} onClose={handleDialogClose} />
     </Stack>
   );
 }
