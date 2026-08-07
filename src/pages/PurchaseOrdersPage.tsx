@@ -27,11 +27,18 @@ function lineTotals(summary?: PurchaseOrderPreorderLineSummary) {
   };
 }
 
+function getPoLineId(line: PurchaseOrderLine): number | null {
+  const poLineId = Number(line.id);
+  return Number.isFinite(poLineId) && poLineId > 0 ? poLineId : null;
+}
+
 function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: (po: PurchaseOrder) => void, handleDelete: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<PurchaseOrderPreorderSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
+  const [bulkAllocating, setBulkAllocating] = useState(false);
 
   const loadSummary = useCallback(async () => {
     if (!po.id) return;
@@ -55,23 +62,29 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const handleBulkAllocate = async () => {
     if (!po.id) return;
     setSummaryError(null);
+    setSummaryMessage(null);
+    setBulkAllocating(true);
     try {
-      await preordersApi.bulkAllocatePurchaseOrder(po.id);
+      const result = await preordersApi.bulkAllocatePurchaseOrder(po.id);
+      setSummaryMessage(`Bulk allocation complete: ${result.created_count} created, ${result.updated_count} updated, ${result.skipped_count} skipped.`);
       await loadSummary();
     } catch (err) {
       setSummaryError(err instanceof Error ? err.message : "Failed to bulk allocate purchase order");
+    } finally {
+      setBulkAllocating(false);
     }
   };
 
   const handleAllocateLine = async (line: PurchaseOrderLine) => {
-    if (!line.id) {
+    const poLineId = getPoLineId(line);
+    if (!poLineId) {
       setSummaryError("This PO line does not have a saved line ID yet.");
       return;
     }
     setSummaryError(null);
     try {
       await preordersApi.createAllocation({
-        po_line_id: line.id,
+        po_line_id: poLineId,
         allocated_qty: Number(line.qty || 0),
         status: "active"
       });
@@ -152,11 +165,12 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     Preorder allocation is managed directly from the purchase order lines.
                   </Typography>
                 </Box>
-                <Button size="small" variant="contained" onClick={handleBulkAllocate} disabled={!po.id || summaryLoading}>
-                  Bulk Allocate Full PO
+                <Button size="small" variant="contained" onClick={handleBulkAllocate} disabled={!po.id || summaryLoading || bulkAllocating}>
+                  {bulkAllocating ? "Allocating..." : "Bulk Allocate Full PO"}
                 </Button>
               </Stack>
               {summaryError && <Alert severity="error" sx={{ mb: 1 }}>{summaryError}</Alert>}
+              {summaryMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setSummaryMessage(null)}>{summaryMessage}</Alert>}
               {summaryLoading && <Typography variant="body2" sx={{ mb: 1 }}>Loading preorder allocations...</Typography>}
               <Table size="small" aria-label="purchases">
                 <TableHead>
@@ -173,7 +187,8 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                 </TableHead>
                 <TableBody>
                   {po.lines && po.lines.length > 0 ? po.lines.map((line, idx) => {
-                    const lineSummary = summary?.line_summaries.find((item) => item.po_line_id === line.id);
+                    const poLineId = getPoLineId(line);
+                    const lineSummary = summary?.line_summaries.find((item) => Number(item.po_line_id) === poLineId);
                     const totals = lineTotals(lineSummary);
                     const allocation = lineSummary?.allocations[0];
                     return (
@@ -206,7 +221,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                           )}
                         </TableCell>
                         <TableCell align="right">
-                          <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!line.id || Number(line.qty || 0) <= 0}>
+                          <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!poLineId || Number(line.qty || 0) <= 0}>
                             {allocation ? "Set Full Qty" : "Allocate Line"}
                           </Button>
                         </TableCell>

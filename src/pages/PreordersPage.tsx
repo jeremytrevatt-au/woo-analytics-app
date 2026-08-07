@@ -25,6 +25,7 @@ import {
 } from "@mui/material";
 import type { ChipProps } from "@mui/material/Chip";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
 import {
@@ -57,22 +58,13 @@ function statusColor(status: string): ChipProps["color"] {
   return "default";
 }
 
-function toOptionalNumber(value: string): number | undefined {
-  if (value.trim() === "") return undefined;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : undefined;
-}
-
 type ReservationDialogProps = {
   allocation: PreorderAllocation | null;
   onClose: (saved: boolean) => void;
 };
 
-function ReservationDialog({ allocation, onClose }: ReservationDialogProps) {
+function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
   const [qtyValue, setQtyValue] = useState(allocation ? String(Math.min(1, allocation.available_qty || 1)) : "1");
-  const [reservationKey, setReservationKey] = useState("");
-  const [orderId, setOrderId] = useState("");
-  const [orderItemId, setOrderItemId] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,14 +78,12 @@ function ReservationDialog({ allocation, onClose }: ReservationDialogProps) {
       await preordersApi.createReservation({
         allocation_id: allocation.id,
         qty: Number(qtyValue),
-        reservation_key: reservationKey.trim() || undefined,
-        order_id: toOptionalNumber(orderId),
-        order_item_id: toOptionalNumber(orderItemId),
-        notes: notes.trim() || undefined
+        reservation_key: `manual-hold-${allocation.id}-${Date.now()}`,
+        notes: notes.trim() || "Manual preorder hold"
       });
       onClose(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create preorder reservation");
+      setError(err instanceof Error ? err.message : "Failed to hold preorder quantity");
     } finally {
       setSaving(false);
     }
@@ -102,25 +92,84 @@ function ReservationDialog({ allocation, onClose }: ReservationDialogProps) {
   return (
     <Dialog open={Boolean(allocation)} onClose={() => onClose(false)} maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={handleSubmit}>
-        <DialogTitle>Reserve Preorder Quantity</DialogTitle>
+        <DialogTitle>Hold Preorder Quantity</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{error}</Alert>}
             <Alert severity="info">
-              {allocation?.sku || "Selected allocation"} has {qty(allocation?.available_qty)} available for preorder.
+              Hold quantity reduces available preorder stock without linking it to a WooCommerce order.
+              {allocation?.sku ? ` ${allocation.sku}` : " Selected allocation"} has {qty(allocation?.available_qty)} available.
             </Alert>
-            <TextField label="Qty" value={qtyValue} onChange={(event) => setQtyValue(event.target.value)} required fullWidth />
-            <TextField label="Reservation Key" value={reservationKey} onChange={(event) => setReservationKey(event.target.value)} fullWidth />
-            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-              <TextField label="Order ID" value={orderId} onChange={(event) => setOrderId(event.target.value)} fullWidth />
-              <TextField label="Order Item ID" value={orderItemId} onChange={(event) => setOrderItemId(event.target.value)} fullWidth />
-            </Stack>
+            <TextField label="Qty to Hold" value={qtyValue} onChange={(event) => setQtyValue(event.target.value)} required fullWidth />
+            <TextField label="Reason / Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={3} fullWidth />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => onClose(false)} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={saving || !allocation}>Hold Qty</Button>
+        </DialogActions>
+      </Box>
+    </Dialog>
+  );
+}
+
+type AllocationEditDialogProps = {
+  allocation: PreorderAllocation | null;
+  onClose: (saved: boolean) => void;
+};
+
+function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps) {
+  const [allocatedQty, setAllocatedQty] = useState(allocation ? String(allocation.allocated_qty) : "");
+  const [status, setStatus] = useState<AllocationStatus>(allocation?.status ?? "active");
+  const [etaDate, setEtaDate] = useState(allocation?.eta_date ?? "");
+  const [notes, setNotes] = useState(allocation?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!allocation) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await preordersApi.updateAllocation(allocation.id, {
+        allocated_qty: Number(allocatedQty),
+        status,
+        eta_date: etaDate || null,
+        notes: notes.trim() || null
+      });
+      onClose(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update preorder allocation");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={Boolean(allocation)} onClose={() => onClose(false)} maxWidth="sm" fullWidth>
+      <Box component="form" onSubmit={handleSubmit}>
+        <DialogTitle>Edit Preorder Allocation</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <Alert severity="info">
+              Edit allocation quantity and status. Reserved quantities are maintained through reservation/hold records.
+            </Alert>
+            <TextField label="SKU" value={allocation?.sku ?? ""} disabled fullWidth />
+            <TextField label="Allocated Qty" value={allocatedQty} onChange={(event) => setAllocatedQty(event.target.value)} required fullWidth />
+            <TextField select label="Status" value={status} onChange={(event) => setStatus(event.target.value as AllocationStatus)} fullWidth>
+              {allocationStatuses.map((item) => (
+                <MenuItem key={item} value={item}>{item}</MenuItem>
+              ))}
+            </TextField>
+            <TextField type="date" label="ETA Date" value={etaDate} onChange={(event) => setEtaDate(event.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
             <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={3} fullWidth />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => onClose(false)} disabled={saving}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={saving || !allocation}>Reserve</Button>
+          <Button type="submit" variant="contained" disabled={saving || !allocation}>Save</Button>
         </DialogActions>
       </Box>
     </Dialog>
@@ -130,6 +179,7 @@ function ReservationDialog({ allocation, onClose }: ReservationDialogProps) {
 function PreordersPage() {
   const { diagnostics, allocations, reservations, loading, error, refetch } = usePreorders();
   const [reservationAllocation, setReservationAllocation] = useState<PreorderAllocation | null>(null);
+  const [editAllocation, setEditAllocation] = useState<PreorderAllocation | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const updateAllocationStatus = async (allocation: PreorderAllocation, status: AllocationStatus) => {
@@ -165,6 +215,7 @@ function PreordersPage() {
 
   const handleDialogClose = (saved: boolean) => {
     setReservationAllocation(null);
+    setEditAllocation(null);
     if (saved) refetch();
   };
 
@@ -271,8 +322,11 @@ function PreordersPage() {
                     onClick={() => setReservationAllocation(allocation)}
                     disabled={allocation.status !== "active" || allocation.available_qty <= 0}
                   >
-                    Reserve
+                    Hold Qty
                   </Button>
+                  <IconButton size="small" onClick={() => setEditAllocation(allocation)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
                   <IconButton size="small" color="error" onClick={() => deleteAllocation(allocation)}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
@@ -336,7 +390,8 @@ function PreordersPage() {
         </Table>
       </TableContainer>
 
-      <ReservationDialog allocation={reservationAllocation} onClose={handleDialogClose} />
+      <HoldQuantityDialog allocation={reservationAllocation} onClose={handleDialogClose} />
+      <AllocationEditDialog allocation={editAllocation} onClose={handleDialogClose} />
     </Stack>
   );
 }
