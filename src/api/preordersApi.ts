@@ -95,6 +95,14 @@ export type BulkAllocatePurchaseOrderResult = {
   availability: PreorderAvailabilitySummary[];
 };
 
+export type ManualHoldResult = {
+  allocation: PreorderAllocation;
+  manual_hold_qty: number;
+  previous_qty: number;
+  delta: number;
+  reservations: PreorderReservation[];
+};
+
 export type PreorderAllocationCreatePayload = {
   po_line_id?: number;
   po_id?: number;
@@ -127,6 +135,11 @@ export type PreorderReservationCreatePayload = {
 
 export type PreorderReservationUpdatePayload = {
   status: ReservationStatus;
+  notes?: string | null;
+};
+
+export type ManualHoldPayload = {
+  qty: number;
   notes?: string | null;
 };
 
@@ -194,6 +207,13 @@ export const preordersApi = {
 
   async updateAllocation(id: number, payload: PreorderAllocationUpdatePayload): Promise<PreorderAllocation> {
     return fetchJson<PreorderAllocation>(`/api/v1/preorders/allocations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async setManualHold(id: number, payload: ManualHoldPayload): Promise<ManualHoldResult> {
+    return fetchJson<ManualHoldResult>(`/api/v1/preorders/allocations/${id}/manual-hold`, {
       method: "PUT",
       body: JSON.stringify(payload)
     });

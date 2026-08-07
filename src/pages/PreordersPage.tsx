@@ -60,24 +60,26 @@ function statusColor(status: string): ChipProps["color"] {
 
 type ReservationDialogProps = {
   allocation: PreorderAllocation | null;
+  currentHoldQty: number;
+  currentHoldNotes: string;
   onClose: (saved: boolean) => void;
 };
 
-function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
+function HoldQuantityDialog({ allocation, currentHoldQty, currentHoldNotes, onClose }: ReservationDialogProps) {
   const [qtyValue, setQtyValue] = useState("0");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const parsedQty = Number(qtyValue);
-  const canSubmit = Boolean(allocation) && Number.isFinite(parsedQty) && parsedQty > 0;
+  const canSubmit = Boolean(allocation) && Number.isFinite(parsedQty) && parsedQty >= 0;
 
   useEffect(() => {
     if (allocation) {
-      setQtyValue("0");
-      setNotes("");
+      setQtyValue(String(currentHoldQty));
+      setNotes(currentHoldNotes);
       setError(null);
     }
-  }, [allocation]);
+  }, [allocation, currentHoldQty, currentHoldNotes]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -85,10 +87,8 @@ function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
     setSaving(true);
     setError(null);
     try {
-      await preordersApi.createReservation({
-        allocation_id: allocation.id,
-        qty: Number(qtyValue),
-        reservation_key: `manual-hold-${allocation.id}-${Date.now()}`,
+      await preordersApi.setManualHold(allocation.id, {
+        qty: parsedQty,
         notes: notes.trim() || "Manual preorder hold"
       });
       onClose(true);
@@ -107,10 +107,10 @@ function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {error && <Alert severity="error">{error}</Alert>}
             <Alert severity="info">
-              Hold quantity reduces available preorder stock without linking it to a WooCommerce order.
-              {allocation?.sku ? ` ${allocation.sku}` : " Selected allocation"} has {qty(allocation?.available_qty)} available.
+              Set the total manual hold quantity for this allocation without linking it to a WooCommerce order.
+              {allocation?.sku ? ` ${allocation.sku}` : " Selected allocation"} has {qty(allocation?.available_qty)} available and {qty(currentHoldQty)} currently held.
             </Alert>
-            <TextField label="Qty to Hold" value={qtyValue} onChange={(event) => setQtyValue(event.target.value)} required fullWidth />
+            <TextField label="Hold Qty" value={qtyValue} onChange={(event) => setQtyValue(event.target.value)} required fullWidth />
             <TextField label="Reason / Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={3} fullWidth />
           </Stack>
         </DialogContent>
@@ -121,6 +121,25 @@ function HoldQuantityDialog({ allocation, onClose }: ReservationDialogProps) {
       </Box>
     </Dialog>
   );
+}
+
+function isManualHoldReservation(reservation: PreorderReservation): boolean {
+  const manualHoldKey = `manual-hold-${reservation.allocation_id}`;
+  return (
+    reservation.order_id === null &&
+    reservation.order_item_id === null &&
+    (reservation.reservation_key === manualHoldKey || reservation.reservation_key.startsWith(`${manualHoldKey}-`))
+  );
+}
+
+function manualHoldQtyForAllocation(reservations: PreorderReservation[], allocationId: number): number {
+  return reservations
+    .filter((reservation) => reservation.allocation_id === allocationId && reservation.status === "reserved" && isManualHoldReservation(reservation))
+    .reduce((total, reservation) => total + Number(reservation.qty || 0), 0);
+}
+
+function manualHoldNotesForAllocation(reservations: PreorderReservation[], allocationId: number): string {
+  return reservations.find((reservation) => reservation.allocation_id === allocationId && reservation.status === "reserved" && isManualHoldReservation(reservation))?.notes ?? "";
 }
 
 type AllocationEditDialogProps = {
@@ -375,52 +394,55 @@ function PreordersPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {allocations.map((allocation) => (
-              <TableRow key={allocation.id}>
-                <TableCell>{allocation.sku || "-"}</TableCell>
-                <TableCell>{allocation.product_name}</TableCell>
-                <TableCell>{allocation.po_line_id ?? "-"}</TableCell>
-                <TableCell>
-                  <TextField
-                    select
-                    size="small"
-                    value={allocation.status}
-                    onChange={(event) => updateAllocationStatus(allocation, event.target.value as AllocationStatus)}
-                    sx={{ minWidth: 130 }}
-                  >
-                    {allocationStatuses.map((item) => (
-                      <MenuItem key={item} value={item}>{item}</MenuItem>
-                    ))}
-                  </TextField>
-                </TableCell>
-                <TableCell align="right">{qty(allocation.allocated_qty)}</TableCell>
-                <TableCell align="right">{qty(allocation.reserved_qty)}</TableCell>
-                <TableCell align="right">{qty(allocation.consumed_qty)}</TableCell>
-                <TableCell align="right">
-                  <Chip
-                    size="small"
-                    label={qty(allocation.available_qty)}
-                    color={allocation.available_qty > 0 ? "success" : "default"}
-                  />
-                </TableCell>
-                <TableCell>{dateLabel(allocation.eta_date)}</TableCell>
-                <TableCell align="right">
-                  <Button
-                    size="small"
-                    onClick={() => setReservationAllocation(allocation)}
-                    disabled={allocation.status !== "active" || allocation.available_qty <= 0}
-                  >
-                    Hold Qty
-                  </Button>
-                  <IconButton size="small" onClick={() => setEditAllocation(allocation)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" color="error" onClick={() => deleteAllocation(allocation)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
+            {allocations.map((allocation) => {
+              const manualHoldQty = manualHoldQtyForAllocation(reservations, allocation.id);
+              return (
+                  <TableRow key={allocation.id}>
+                    <TableCell>{allocation.sku || "-"}</TableCell>
+                    <TableCell>{allocation.product_name}</TableCell>
+                    <TableCell>{allocation.po_line_id ?? "-"}</TableCell>
+                    <TableCell>
+                      <TextField
+                        select
+                        size="small"
+                        value={allocation.status}
+                        onChange={(event) => updateAllocationStatus(allocation, event.target.value as AllocationStatus)}
+                        sx={{ minWidth: 130 }}
+                      >
+                        {allocationStatuses.map((item) => (
+                          <MenuItem key={item} value={item}>{item}</MenuItem>
+                        ))}
+                      </TextField>
+                    </TableCell>
+                    <TableCell align="right">{qty(allocation.allocated_qty)}</TableCell>
+                    <TableCell align="right">{qty(allocation.reserved_qty)}</TableCell>
+                    <TableCell align="right">{qty(allocation.consumed_qty)}</TableCell>
+                    <TableCell align="right">
+                      <Chip
+                        size="small"
+                        label={qty(allocation.available_qty)}
+                        color={allocation.available_qty > 0 ? "success" : "default"}
+                      />
+                    </TableCell>
+                    <TableCell>{dateLabel(allocation.eta_date)}</TableCell>
+                    <TableCell align="right">
+                      <Button
+                        size="small"
+                        onClick={() => setReservationAllocation(allocation)}
+                        disabled={allocation.status !== "active" && manualHoldQty <= 0}
+                      >
+                        Hold Qty
+                      </Button>
+                      <IconButton size="small" onClick={() => setEditAllocation(allocation)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => deleteAllocation(allocation)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+              );
+            })}
             {allocations.length === 0 && (
               <TableRow>
                 <TableCell colSpan={10} align="center">No preorder allocations found.</TableCell>
@@ -486,7 +508,12 @@ function PreordersPage() {
         </Table>
       </TableContainer>
 
-      <HoldQuantityDialog allocation={reservationAllocation} onClose={handleDialogClose} />
+      <HoldQuantityDialog
+        allocation={reservationAllocation}
+        currentHoldQty={reservationAllocation ? manualHoldQtyForAllocation(reservations, reservationAllocation.id) : 0}
+        currentHoldNotes={reservationAllocation ? manualHoldNotesForAllocation(reservations, reservationAllocation.id) : ""}
+        onClose={handleDialogClose}
+      />
       <AllocationEditDialog allocation={editAllocation} onClose={handleDialogClose} />
       <ReservationEditDialog reservation={editReservation} onClose={handleDialogClose} />
     </Stack>
