@@ -45,6 +45,39 @@ export type PurchaseOrder = {
   lines: PurchaseOrderLine[];
 };
 
+export type PurchaseOrderReceiveLinePreview = {
+  po_line_id: number;
+  sku: string;
+  product_name: string;
+  ordered_qty: number;
+  already_received_qty: number;
+  received_qty: number;
+  manual_hold_qty: number;
+  order_reserved_qty: number;
+  stock_delta: number;
+  stock_before: number;
+  expected_stock_after: number;
+  stock_after?: number;
+  stock_target_type: string;
+  allocation_ids: number[];
+  manual_reservation_ids: number[];
+  order_reservation_ids: number[];
+};
+
+export type PurchaseOrderReceiveStockResult = {
+  po_id: number;
+  po_number: string;
+  current_status: string;
+  target_status: string;
+  dry_run: boolean;
+  receipt_id?: number;
+  lines: PurchaseOrderReceiveLinePreview[];
+  eligible_orders: Array<{ order_id: number; reservation_ids: number[] }>;
+  blocked_orders: Array<Record<string, unknown>>;
+  blocking_errors: Array<Record<string, unknown>>;
+  processed_order_ids?: number[];
+};
+
 export const purchaseOrdersApi = {
   async list(status?: string, productId?: number): Promise<PurchaseOrder[]> {
     const params = new URLSearchParams();
@@ -79,6 +112,14 @@ export const purchaseOrdersApi = {
   async delete(id: number): Promise<{ deleted: boolean }> {
     return fetchJson<{ deleted: boolean }>(`/api/v1/purchase-orders/${id}`, {
       method: "DELETE"
+    });
+  },
+
+  async receiveStock(id: number, payload: { dry_run: boolean; book_stock?: boolean; process_preorders?: boolean; notes?: string }): Promise<PurchaseOrderReceiveStockResult> {
+    return fetchJson<PurchaseOrderReceiveStockResult>(`/api/v1/purchase-orders/${id}/receive-stock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
   }
 };

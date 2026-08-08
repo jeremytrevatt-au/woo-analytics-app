@@ -6,7 +6,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine } from "../api/purchaseOrdersApi";
+import { purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
@@ -39,6 +39,10 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
   const [bulkAllocating, setBulkAllocating] = useState(false);
+  const [receivePreview, setReceivePreview] = useState<PurchaseOrderReceiveStockResult | null>(null);
+  const [receiveLoading, setReceiveLoading] = useState(false);
+  const [receiveError, setReceiveError] = useState<string | null>(null);
+  const [receiveMessage, setReceiveMessage] = useState<string | null>(null);
 
   const loadSummary = useCallback(async () => {
     if (!po.id) return;
@@ -124,6 +128,39 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
     }
   };
 
+  const handlePreviewReceiveStock = async () => {
+    if (!po.id) return;
+    setReceiveLoading(true);
+    setReceiveError(null);
+    setReceiveMessage(null);
+    try {
+      setReceivePreview(await purchaseOrdersApi.receiveStock(po.id, { dry_run: true }));
+    } catch (err) {
+      setReceiveError(err instanceof Error ? err.message : "Failed to preview received stock booking");
+    } finally {
+      setReceiveLoading(false);
+    }
+  };
+
+  const handleBookReceiveStock = async () => {
+    if (!po.id) return;
+    const confirmed = window.confirm("Book received stock for this purchase order now? This will update WooCommerce stock and process eligible PreOrder orders.");
+    if (!confirmed) return;
+    setReceiveLoading(true);
+    setReceiveError(null);
+    setReceiveMessage(null);
+    try {
+      const result = await purchaseOrdersApi.receiveStock(po.id, { dry_run: false, book_stock: true, process_preorders: true });
+      setReceivePreview(result);
+      setReceiveMessage(`Stock booked${result.receipt_id ? ` with receipt ${result.receipt_id}` : ""}. Processed ${result.processed_order_ids?.length ?? 0} preorder order(s).`);
+      await loadSummary();
+    } catch (err) {
+      setReceiveError(err instanceof Error ? err.message : "Failed to book received stock");
+    } finally {
+      setReceiveLoading(false);
+    }
+  };
+
   return (
     <>
       <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
@@ -168,9 +205,55 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                 <Button size="small" variant="contained" onClick={handleBulkAllocate} disabled={!po.id || summaryLoading || bulkAllocating}>
                   {bulkAllocating ? "Allocating..." : "Bulk Allocate Full PO"}
                 </Button>
+                {po.status === "received" && (
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" variant="outlined" onClick={handlePreviewReceiveStock} disabled={!po.id || receiveLoading}>
+                      Preview Stock Receipt
+                    </Button>
+                    <Button size="small" variant="contained" color="success" onClick={handleBookReceiveStock} disabled={!po.id || receiveLoading}>
+                      Book Received Stock
+                    </Button>
+                  </Stack>
+                )}
               </Stack>
               {summaryError && <Alert severity="error" sx={{ mb: 1 }}>{summaryError}</Alert>}
               {summaryMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setSummaryMessage(null)}>{summaryMessage}</Alert>}
+              {receiveError && <Alert severity="error" sx={{ mb: 1 }}>{receiveError}</Alert>}
+              {receiveMessage && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setReceiveMessage(null)}>{receiveMessage}</Alert>}
+              {receivePreview && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2">Received Stock Preview</Typography>
+                  {receivePreview.blocking_errors.length > 0 && <Alert severity="warning" sx={{ my: 1 }}>There are blocking line errors. Review the preview before booking.</Alert>}
+                  {receivePreview.blocked_orders.length > 0 && <Alert severity="info" sx={{ my: 1 }}>{receivePreview.blocked_orders.length} preorder order(s) are not ready to process yet.</Alert>}
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>SKU</TableCell>
+                        <TableCell align="right">Received</TableCell>
+                        <TableCell align="right">Manual Hold</TableCell>
+                        <TableCell align="right">Stock Before</TableCell>
+                        <TableCell align="right">Delta</TableCell>
+                        <TableCell align="right">Expected After</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {receivePreview.lines.map((line) => (
+                        <TableRow key={line.po_line_id}>
+                          <TableCell>{line.sku}</TableCell>
+                          <TableCell align="right">{qty(line.received_qty)}</TableCell>
+                          <TableCell align="right">{qty(line.manual_hold_qty)}</TableCell>
+                          <TableCell align="right">{qty(line.stock_before)}</TableCell>
+                          <TableCell align="right">{qty(line.stock_delta)}</TableCell>
+                          <TableCell align="right">{qty(line.stock_after ?? line.expected_stock_after)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Eligible PreOrder orders: {receivePreview.eligible_orders.length}. Blocked PreOrder orders: {receivePreview.blocked_orders.length}.
+                  </Typography>
+                </Box>
+              )}
               {summaryLoading && <Typography variant="body2" sx={{ mb: 1 }}>Loading preorder allocations...</Typography>}
               <Table size="small" aria-label="purchases">
                 <TableHead>
