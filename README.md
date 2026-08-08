@@ -175,3 +175,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Add reconciliation diagnostics/repair UI if backend repair endpoints become operationally necessary.
    2. Keep Purchase Orders as the primary allocation workflow and Preorders as the maintenance surface.
+
+## 2026-08-07 23:26 UTC
+
+1. TODOs completed:
+   1. Added Purchase Order `Received` stock receipt preview controls.
+   2. Added `Book Received Stock` action for received POs.
+   3. Added a receipt preview table showing received qty, Manual Hold Qty, stock before, stock delta, expected stock after, and eligible/blocked PreOrder counts.
+2. Git build reference:
+   1. App commit: `548c69f2e5043ec99964698d7669b86e923f80d8`
+3. New understandings/learnings:
+   1. PO stock receipt needs an operator-visible dry-run preview before writing WooCommerce stock.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service facade is deployed.
