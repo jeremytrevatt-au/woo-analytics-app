@@ -188,3 +188,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. PO stock receipt needs an operator-visible dry-run preview before writing WooCommerce stock.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service facade is deployed.
+
+## 2026-08-13 02:10 UTC
+
+1. TODOs completed:
+   1. Removed the aggregate Stock Trend panel from the Stock Items view.
+   2. Added Stock Items drill-down actions that show item-level stock history and forecast usage history.
+   3. Defaulted Stock Items loading to most-active stock movement sorting when no manual table sort is selected.
+2. Git build reference:
+   1. App commit: `e37d319`
+3. New understandings/learnings:
+   1. The existing Stock ledger chart modal was mounted inside an inactive tab block, preventing Stock Items actions from opening it.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision is deployed.
