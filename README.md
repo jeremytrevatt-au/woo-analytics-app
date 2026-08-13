@@ -201,3 +201,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. The existing Stock ledger chart modal was mounted inside an inactive tab block, preventing Stock Items actions from opening it.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision is deployed.
+
+## 2026-08-13 05:15 UTC
+
+1. TODOs completed:
+   1. Added row-click Stock Items expansion with inline stock history and forecast charts.
+   2. Removed the Stock Alerts widget from the Stock page.
+   3. Added sticky Stock Items headers and a Stocktake tab with editable New Qty controls.
+2. Git build reference:
+   1. App commit: `53ffecc`
+3. New understandings/learnings:
+   1. Stock history needs to be visible directly from a Stock Items row, not only via a small action button.
+   2. Stocktake should reuse the same stock update backend used by packing stock adjustments.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision is deployed.
