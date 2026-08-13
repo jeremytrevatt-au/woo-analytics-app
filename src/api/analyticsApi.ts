@@ -80,8 +80,11 @@ type StockRow = {
 
 import { StockLedgerResponse } from "../types/analytics";
 
-export async function fetchStockLedgerChart(sku: string): Promise<any[]> {
-  const params = new URLSearchParams({ sku });
+export async function fetchStockLedgerChart(target: { sku?: string | null; productId?: number | null; wsviGroupId?: string | null }): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (target.wsviGroupId) params.append("wsvi_group_id", target.wsviGroupId);
+  else if (target.productId) params.append("product_id", String(target.productId));
+  else if (target.sku) params.append("sku", target.sku);
   return fetchJson<any[]>(`/api/v1/stock/ledger/chart?${params.toString()}`);
 }
 
@@ -286,10 +289,8 @@ export async function getStockRecords(
   if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
   if (filter.skuContains) params.append("sku_contains", filter.skuContains);
   if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
-  if (filter.sortBy) {
-    params.append("sort_by", filter.sortBy);
-    params.append("sort_dir", filter.sortDir);
-  }
+  params.append("sort_by", filter.sortBy || "movement_count");
+  params.append("sort_dir", filter.sortBy ? filter.sortDir : "desc");
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock?${params.toString()}`);
   return {
     records: response.records,

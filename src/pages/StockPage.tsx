@@ -5,7 +5,6 @@ import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button } 
 import DataTablePanel from "../components/DataTablePanel";
 import KpiGrid from "../components/KpiGrid";
 import LoadStateBlock from "../components/LoadStateBlock";
-import TrendsChartPanel from "../components/TrendsChartPanel";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useStockForecast } from "../hooks/useStockForecast";
 import { useStockShortages } from "../hooks/useStockShortages";
@@ -37,12 +36,18 @@ function StockPage() {
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerReason, setLedgerReason] = useState<string>("all");
   const [ledgerSearch, setLedgerSearch] = useState<string>("");
-  const [selectedSku, setSelectedSku] = useState<{sku: string, name: string} | null>(null);
+  const [selectedSku, setSelectedSku] = useState<{
+    sku: string;
+    name: string;
+    productId?: number | null;
+    wsviGroupId?: string | null;
+    canonicalProductKey?: string | null;
+  } | null>(null);
   const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
   const [forecastHistoryLoading, setForecastHistoryLoading] = useState(false);
   const [forecastHistoryError, setForecastHistoryError] = useState<string | null>(null);
 
-  const { kpis, trends, rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
+  const { kpis, rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
   const stockForecast = useStockForecast(1, 200, 90, method, lookbackDays);
   const stockShortages = useStockShortages(shortagesPage, 50);
   const stockLedger = useStockLedger(1, 200, ledgerReason === "all" ? null : ledgerReason, ledgerSearch);
@@ -87,7 +92,12 @@ function StockPage() {
   const forecastVariants = stockForecast.records.flatMap((record: any) => record.variants || []);
   const ledgerItems = stockLedger.data?.items || [];
   const findForecastVariant = (row: any) => forecastVariants.find((variant: any) => variant.product_id === row.product_id || variant.sku === row.sku);
-  const findLedgerEntries = (row: any) => ledgerItems.filter((item: any) => item.product_id === row.product_id || item.variation_id === row.product_id || item.sku === row.sku).slice(0, 10);
+  const findLedgerEntries = (row: any) => ledgerItems.filter((item: any) => (
+    (row.wsvi_group_id && item.wsvi_group_id === row.wsvi_group_id)
+    || item.product_id === row.product_id
+    || item.variation_id === row.product_id
+    || item.sku === row.sku
+  )).slice(0, 10);
   const unifiedRows = (rows as any[]).map((row) => {
     const forecast = findForecastVariant(row);
     const movementEntries = findLedgerEntries(row);
@@ -101,8 +111,14 @@ function StockPage() {
       latest_movement: movementEntries[0]?.timestamp || null,
       recent_movement_count: movementEntries.length,
       actions: (
-        <Button size="small" variant="outlined" onClick={() => setSelectedSku({ sku: row.sku, name: row.product_name })}>
-          Movement Chart
+        <Button size="small" variant="outlined" onClick={() => setSelectedSku({
+          sku: row.sku,
+          name: row.product_name,
+          productId: row.product_id ? Number(row.product_id) : null,
+          wsviGroupId: row.wsvi_group_id || null,
+          canonicalProductKey: forecast?.canonical_product_key || null,
+        })}>
+          Drill Down
         </Button>
       ),
     };
@@ -139,7 +155,6 @@ function StockPage() {
           {!isLoading && !error ? (
               <>
                 <KpiGrid cards={stockKpi ? [stockKpi] : []} />
-                <TrendsChartPanel title="Stock Trend" data={trends} domain="stock" />
                 <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
                   <Grid item xs={12} md={3}>
                     <TextField
@@ -227,7 +242,18 @@ function StockPage() {
                     const movementEntries = findLedgerEntries(row);
                     return (
                       <Stack spacing={2}>
-                        <Typography variant="subtitle2">Forecast and Movement Context</Typography>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
+                          <Typography variant="subtitle2">Forecast and Movement Context</Typography>
+                          <Button size="small" variant="outlined" onClick={() => setSelectedSku({
+                            sku: row.sku,
+                            name: row.product_name,
+                            productId: row.product_id ? Number(row.product_id) : null,
+                            wsviGroupId: row.wsvi_group_id || null,
+                            canonicalProductKey: forecast?.canonical_product_key || null,
+                          })}>
+                            View Stock History & Forecast
+                          </Button>
+                        </Box>
                         <Table size="small">
                           <TableHead>
                             <TableRow>
@@ -609,6 +635,16 @@ function StockPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <StockLedgerChartModal
+        sku={selectedSku?.sku || null}
+        productName={selectedSku?.name || null}
+        productId={selectedSku?.productId || null}
+        wsviGroupId={selectedSku?.wsviGroupId || null}
+        canonicalProductKey={selectedSku?.canonicalProductKey || null}
+        lookbackDays={lookbackDays}
+        onClose={() => setSelectedSku(null)}
+      />
 
       <BulkUpdateModal
         open={bulkUpdateModalOpen}
