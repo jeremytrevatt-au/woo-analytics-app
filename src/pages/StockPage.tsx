@@ -1,38 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
-import KpiGrid from "../components/KpiGrid";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
-import { useStockForecast } from "../hooks/useStockForecast";
 import { useStockShortages } from "../hooks/useStockShortages";
 import { useStockLedger } from "../hooks/useStockLedger";
 import StockLedgerChartModal from "../components/StockLedgerChartModal";
+import StockHistoryForecastPanel from "../components/StockHistoryForecastPanel";
 import BulkUpdateModal from "../components/BulkUpdateModal";
 import AddToPOModal from "../components/AddToPOModal";
 import { Alert, Dialog, DialogContent, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
-import { getStockForecastHistory } from "../api/analyticsApi";
+import { getStockForecastHistory, getStocktakeRecords, updateStockQuantity } from "../api/analyticsApi";
 import { StockForecastHistoryResponse } from "../types/analytics";
+import { useFilters } from "../hooks/useFilters";
 
 function StockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") === "shortages" ? 1 : 0;
+  const initialTab = searchParams.get("tab") === "shortages" ? 1 : searchParams.get("tab") === "stocktake" ? 2 : 0;
   const [activeTab, setActiveTab] = useState(initialTab);
+  const { filters } = useFilters();
 
   const handleTabChange = (_event: SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
-    const tabValues = ["items", "shortages"];
+    const tabValues = ["items", "shortages", "stocktake"];
     setSearchParams({ tab: tabValues[newValue] });
   };
 
   const [page, setPage] = useState(1);
-  const [forecastPage, setForecastPage] = useState(1);
-  const [method, setMethod] = useState("sma");
   const [lookbackDays, setLookbackDays] = useState(365);
   
   const [shortagesPage, setShortagesPage] = useState(1);
+  const [stocktakePage, setStocktakePage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerReason, setLedgerReason] = useState<string>("all");
   const [ledgerSearch, setLedgerSearch] = useState<string>("");
@@ -47,20 +47,25 @@ function StockPage() {
   const [forecastHistoryLoading, setForecastHistoryLoading] = useState(false);
   const [forecastHistoryError, setForecastHistoryError] = useState<string | null>(null);
 
-  const { kpis, rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
-  const stockForecast = useStockForecast(1, 200, 90, method, lookbackDays);
+  const { rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
   const stockShortages = useStockShortages(shortagesPage, 50);
   const stockLedger = useStockLedger(1, 200, ledgerReason === "all" ? null : ledgerReason, ledgerSearch);
-  const stockKpi = kpis.find((item) => item.id === "stockAlerts");
 
   const [selectedStockRecords, setSelectedStockRecords] = useState<any[]>([]);
   const [bulkUpdateModalOpen, setBulkUpdateModalOpen] = useState(false);
   const [addToPoModalOpen, setAddToPoModalOpen] = useState(false);
+  const [stocktakeRows, setStocktakeRows] = useState<any[]>([]);
+  const [stocktakeColumns, setStocktakeColumns] = useState<any[]>([]);
+  const [stocktakeTotalCount, setStocktakeTotalCount] = useState(0);
+  const [stocktakeLoading, setStocktakeLoading] = useState(false);
+  const [stocktakeError, setStocktakeError] = useState<string | null>(null);
+  const [stocktakeInputs, setStocktakeInputs] = useState<Record<string, string>>({});
+  const [stocktakeSaving, setStocktakeSaving] = useState<Record<string, boolean>>({});
+  const [stocktakeMessages, setStocktakeMessages] = useState<Record<string, string>>({});
 
   const handleBulkUpdateSuccess = () => {
     setSelectedStockRecords([]);
     refetch();
-    stockForecast.refetch();
     stockShortages.refetch();
   };
 
@@ -89,9 +94,68 @@ function StockPage() {
     }
   };
 
-  const forecastVariants = stockForecast.records.flatMap((record: any) => record.variants || []);
+  useEffect(() => {
+    if (activeTab !== 2) return;
+    let isSubscribed = true;
+    setStocktakeLoading(true);
+    setStocktakeError(null);
+    getStocktakeRecords(filters, stocktakePage, 50)
+      .then((response) => {
+        if (!isSubscribed) return;
+        setStocktakeRows(response.records);
+        setStocktakeColumns(response.columns || []);
+        setStocktakeTotalCount(response.totalCount);
+      })
+      .catch((error: any) => {
+        if (isSubscribed) setStocktakeError(error.message || "Failed to load stocktake rows.");
+      })
+      .finally(() => {
+        if (isSubscribed) setStocktakeLoading(false);
+      });
+    return () => {
+      isSubscribed = false;
+    };
+  }, [activeTab, filters, stocktakePage]);
+
+  const refreshStocktake = async () => {
+    setStocktakeLoading(true);
+    setStocktakeError(null);
+    try {
+      const response = await getStocktakeRecords(filters, stocktakePage, 50);
+      setStocktakeRows(response.records);
+      setStocktakeColumns(response.columns || []);
+      setStocktakeTotalCount(response.totalCount);
+      refetch();
+    } catch (error: any) {
+      setStocktakeError(error.message || "Failed to refresh stocktake rows.");
+    } finally {
+      setStocktakeLoading(false);
+    }
+  };
+
+  const handleStocktakeSave = async (row: any) => {
+    const key = String(row.product_id);
+    const value = stocktakeInputs[key];
+    const nextQty = Number(value);
+    if (!Number.isFinite(nextQty) || nextQty < 0) {
+      setStocktakeMessages(prev => ({ ...prev, [key]: "Enter a stock quantity of 0 or higher." }));
+      return;
+    }
+    setStocktakeSaving(prev => ({ ...prev, [key]: true }));
+    setStocktakeMessages(prev => ({ ...prev, [key]: "Saving..." }));
+    try {
+      const response = await updateStockQuantity(Number(row.product_id), nextQty);
+      setStocktakeInputs(prev => ({ ...prev, [key]: String(response.stock_qty ?? nextQty) }));
+      setStocktakeMessages(prev => ({ ...prev, [key]: `Saved ${response.stock_qty ?? nextQty}` }));
+      await refreshStocktake();
+    } catch (error: any) {
+      setStocktakeMessages(prev => ({ ...prev, [key]: error.message || "Failed to update stock." }));
+    } finally {
+      setStocktakeSaving(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
   const ledgerItems = stockLedger.data?.items || [];
-  const findForecastVariant = (row: any) => forecastVariants.find((variant: any) => variant.product_id === row.product_id || variant.sku === row.sku);
   const findLedgerEntries = (row: any) => ledgerItems.filter((item: any) => (
     (row.wsvi_group_id && item.wsvi_group_id === row.wsvi_group_id)
     || item.product_id === row.product_id
@@ -99,15 +163,9 @@ function StockPage() {
     || item.sku === row.sku
   )).slice(0, 10);
   const unifiedRows = (rows as any[]).map((row) => {
-    const forecast = findForecastVariant(row);
     const movementEntries = findLedgerEntries(row);
     return {
       ...row,
-      avg_daily_usage: forecast?.avg_daily_usage ?? null,
-      days_of_cover: forecast?.days_of_cover ?? null,
-      forecast_source: forecast?.forecast_source ?? "insufficient_history",
-      reorder_within_lead_time: forecast?.reorder_within_lead_time ?? false,
-      projected_stockout_date: forecast?.projected_stockout_date ?? null,
       latest_movement: movementEntries[0]?.timestamp || null,
       recent_movement_count: movementEntries.length,
       actions: (
@@ -116,7 +174,7 @@ function StockPage() {
           name: row.product_name,
           productId: row.product_id ? Number(row.product_id) : null,
           wsviGroupId: row.wsvi_group_id || null,
-          canonicalProductKey: forecast?.canonical_product_key || null,
+          canonicalProductKey: row.canonical_product_key || null,
         })}>
           Drill Down
         </Button>
@@ -125,9 +183,6 @@ function StockPage() {
   });
   const unifiedColumns = [
     ...columns,
-    { key: "avg_daily_usage", label: "Avg Daily Usage", type: "number" as const },
-    { key: "days_of_cover", label: "Days of Cover", type: "number" as const },
-    { key: "forecast_source", label: "Forecast Source", type: "string" as const },
     { key: "reorder_within_lead_time", label: "Needs Reorder", type: "boolean" as const },
     { key: "recent_movement_count", label: "Recent Movements", type: "number" as const },
     { key: "actions", label: "Actions", type: "node" as const },
@@ -146,6 +201,7 @@ function StockPage() {
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="stock tabs">
           <Tab label="Stock Items" />
           <Tab label="Stock Shortages & Affected Orders" />
+          <Tab label="Stocktake" />
         </Tabs>
       </Box>
 
@@ -154,22 +210,7 @@ function StockPage() {
           <LoadStateBlock isLoading={isLoading} error={error} empty={!isLoading && !error && rows.length === 0} />
           {!isLoading && !error ? (
               <>
-                <KpiGrid cards={stockKpi ? [stockKpi] : []} />
                 <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      select
-                      label="Forecasting Method"
-                      value={method}
-                      onChange={(e) => setMethod(e.target.value)}
-                      size="small"
-                    >
-                      <MenuItem value="sma">Simple Moving Average</MenuItem>
-                      <MenuItem value="ema">Exponential Moving Average</MenuItem>
-                      <MenuItem value="linear">Linear Regression</MenuItem>
-                    </TextField>
-                  </Grid>
                   <Grid item xs={12} md={3}>
                     <TextField
                       fullWidth
@@ -238,22 +279,20 @@ function StockPage() {
                   onPageChange={setPage}
                   getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
                   renderExpandedRow={(row) => {
-                    const forecast = findForecastVariant(row);
                     const movementEntries = findLedgerEntries(row);
                     return (
                       <Stack spacing={2}>
                         <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
-                          <Typography variant="subtitle2">Forecast and Movement Context</Typography>
-                          <Button size="small" variant="outlined" onClick={() => setSelectedSku({
-                            sku: row.sku,
-                            name: row.product_name,
-                            productId: row.product_id ? Number(row.product_id) : null,
-                            wsviGroupId: row.wsvi_group_id || null,
-                            canonicalProductKey: forecast?.canonical_product_key || null,
-                          })}>
-                            View Stock History & Forecast
-                          </Button>
+                          <Typography variant="subtitle2">Stock History, Forecast, and Movement Context</Typography>
                         </Box>
+                        <StockHistoryForecastPanel
+                          sku={row.sku}
+                          productName={row.product_name}
+                          productId={row.product_id ? Number(row.product_id) : null}
+                          wsviGroupId={row.wsvi_group_id || null}
+                          canonicalProductKey={row.canonical_product_key || null}
+                          lookbackDays={lookbackDays}
+                        />
                         <Table size="small">
                           <TableHead>
                             <TableRow>
@@ -267,17 +306,15 @@ function StockPage() {
                           </TableHead>
                           <TableBody>
                             <TableRow>
-                              <TableCell>{forecast?.forecast_source || "insufficient_history"}</TableCell>
-                              <TableCell align="right">{forecast?.avg_daily_usage?.toFixed(2) || "-"}</TableCell>
-                              <TableCell align="right">{forecast?.days_of_cover?.toFixed(1) || "-"}</TableCell>
-                              <TableCell>{forecast?.projected_stockout_date ? new Date(forecast.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
-                              <TableCell align="right">{forecast?.historical_order_line_count ?? 0}</TableCell>
+                              <TableCell>{row.forecast_source || "insufficient_history"}</TableCell>
+                              <TableCell align="right">{row.avg_daily_usage?.toFixed(2) || "-"}</TableCell>
+                              <TableCell align="right">{row.days_of_cover?.toFixed(1) || "-"}</TableCell>
+                              <TableCell>{row.projected_stockout_date ? new Date(row.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
+                              <TableCell align="right">{row.historical_order_line_count ?? 0}</TableCell>
                               <TableCell>
-                                {forecast ? (
-                                  <Button size="small" variant="outlined" onClick={() => handleViewForecastHistory(forecast)}>
-                                    View History
-                                  </Button>
-                                ) : "-"}
+                                <Button size="small" variant="outlined" onClick={() => handleViewForecastHistory(row)}>
+                                  View Details
+                                </Button>
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -316,6 +353,9 @@ function StockPage() {
                   selectedRows={selectedStockRecords}
                   onSelectionChange={setSelectedStockRecords}
                   rowIdKey="product_id"
+                  stickyHeader
+                  maxHeight={720}
+                  expandOnRowClick
                 />
               </>
           ) : null}
@@ -369,131 +409,56 @@ function StockPage() {
 
       {activeTab === 2 && (
         <>
-        <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" fontWeight={700}>
-              Stock Reorder Forecast
-            </Typography>
-          </Grid>
-        <Grid item xs={12} md={3}>
-          <TextField
-            fullWidth
-            select
-            label="Forecasting Method"
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            size="small"
-          >
-            <MenuItem value="sma">Simple Moving Average</MenuItem>
-            <MenuItem value="ema">Exponential Moving Average</MenuItem>
-            <MenuItem value="linear">Linear Regression</MenuItem>
-          </TextField>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <TextField
-            fullWidth
-            select
-            label="Lookback Period"
-            value={lookbackDays}
-            onChange={(e) => setLookbackDays(Number(e.target.value))}
-            size="small"
-          >
-            <MenuItem value={30}>Last 30 Days</MenuItem>
-            <MenuItem value={60}>Last 60 Days</MenuItem>
-            <MenuItem value={90}>Last 90 Days</MenuItem>
-            <MenuItem value={180}>Last 180 Days</MenuItem>
-            <MenuItem value={365}>Last 365 Days</MenuItem>
-          </TextField>
-        </Grid>
-      </Grid>
-      
-      <LoadStateBlock
-        isLoading={stockForecast.isLoading}
-        error={stockForecast.error}
-        empty={!stockForecast.isLoading && !stockForecast.error && stockForecast.records.length === 0}
-      />
-      {!stockForecast.isLoading && !stockForecast.error ? (
-          <DataTablePanel
-            title=""
-            rows={stockForecast.records as any}
-              columns={[
-                { key: "base_sku", label: "Base SKU", type: "string" },
-                { key: "product_name", label: "Product Name", type: "string" },
-                { key: "category", label: "Category", type: "string" },
-                { key: "min_days_of_cover", label: "Min Days of Cover", type: "number" },
-                { key: "forecast_sources", label: "Forecast Sources", type: "string" },
-                { key: "historical_order_line_count", label: "Historical Lines", type: "number" },
-                { key: "any_reorder", label: "Needs Reorder (Any)", type: "boolean" },
-              ]}
-            page={stockForecast.page}
-            pageSize={stockForecast.pageSize}
-            totalCount={stockForecast.totalCount}
-            onPageChange={setForecastPage}
-            renderExpandedRow={(row) => {
-              const variants = row.variants as any[];
-              if (!variants || variants.length === 0) return null;
-              return (
-                <Table size="small" aria-label="variants">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Variant SKU</TableCell>
-                          <TableCell>Product Name</TableCell>
-                          <TableCell align="right">Current Stock</TableCell>
-                          <TableCell align="right">Avg Daily Usage</TableCell>
-                          <TableCell align="right">Days of Cover</TableCell>
-                          <TableCell>Projected Stockout</TableCell>
-                          <TableCell>Lead Time</TableCell>
-                          <TableCell>Forecast Source</TableCell>
-                          <TableCell align="right">Order Lines</TableCell>
-                          <TableCell>Incoming Qty</TableCell>
-                          <TableCell>ETA</TableCell>
-                          <TableCell>Needs Reorder</TableCell>
-                          <TableCell>History</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {variants.map((v: any, idx: number) => {
-                          let needsReorder = v.reorder_within_lead_time ? "Yes" : "No";
-                          if (v.reorder_within_lead_time && v.nya_stock_reorder_qty > 0 && v.nya_stock_eta) {
-                            const etaDate = new Date(v.nya_stock_eta);
-                            const stockoutDate = new Date(v.projected_stockout_date);
-                            if (etaDate <= stockoutDate) {
-                              needsReorder = "Incoming";
-                            }
-                          }
-                          return (
-                          <TableRow key={idx}>
-                            <TableCell>
-                              <a href={`https://naturalyield.com.au/wp-admin/post.php?post=${v.product_id}&action=edit`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
-                                {v.sku}
-                              </a>
-                            </TableCell>
-                            <TableCell>{v.product_name}</TableCell>
-                            <TableCell align="right">{v.current_stock_qty}</TableCell>
-                            <TableCell align="right">{v.avg_daily_usage?.toFixed(2)}</TableCell>
-                            <TableCell align="right">{v.days_of_cover?.toFixed(1)}</TableCell>
-                            <TableCell>{v.projected_stockout_date ? new Date(v.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
-                            <TableCell>{v.lead_time_days ? `${v.lead_time_days} days` : "-"}</TableCell>
-                            <TableCell>{v.forecast_source || "unknown"}</TableCell>
-                            <TableCell align="right">{v.historical_order_line_count ?? 0}</TableCell>
-                            <TableCell>{v.nya_stock_reorder_qty || "-"}</TableCell>
-                            <TableCell>{v.nya_stock_eta ? new Date(v.nya_stock_eta).toLocaleDateString("en-AU") : "-"}</TableCell>
-                            <TableCell>{needsReorder}</TableCell>
-                            <TableCell>
-                              <Button size="small" variant="outlined" onClick={() => handleViewForecastHistory(v)}>
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                </Table>
-            );
-          }}
-        />
-      ) : null}
-      </>
+          <LoadStateBlock isLoading={stocktakeLoading} error={stocktakeError} empty={!stocktakeLoading && !stocktakeError && stocktakeRows.length === 0} />
+          {!stocktakeLoading && !stocktakeError ? (
+            <DataTablePanel
+              title="Stocktake"
+              rows={stocktakeRows.map((row: any) => {
+                const key = String(row.product_id);
+                const inputValue = stocktakeInputs[key] ?? "";
+                return {
+                  ...row,
+                  new_qty: (
+                    <Stack direction="row" spacing={1} alignItems="center" onClick={(event) => event.stopPropagation()}>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={inputValue}
+                        placeholder={String(row.stock_qty ?? "")}
+                        inputProps={{ min: 0, step: "any" }}
+                        onChange={(event) => setStocktakeInputs(prev => ({ ...prev, [key]: event.target.value }))}
+                        sx={{ width: 120 }}
+                        disabled={row.manage_stock === false && !row.wsvi_group_id}
+                      />
+                      <Button
+                        size="small"
+                        variant="contained"
+                        disabled={stocktakeSaving[key] || inputValue === ""}
+                        onClick={() => handleStocktakeSave(row)}
+                      >
+                        Save
+                      </Button>
+                      {stocktakeMessages[key] ? (
+                        <Typography variant="caption" color={stocktakeMessages[key].startsWith("Saved") ? "success.main" : "text.secondary"}>
+                          {stocktakeMessages[key]}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  ),
+                };
+              })}
+              columns={stocktakeColumns.map((column: any) => column.key === "new_qty" ? { ...column, type: "node" as const } : column)}
+              page={stocktakePage}
+              pageSize={50}
+              totalCount={stocktakeTotalCount}
+              onPageChange={setStocktakePage}
+              getLinkUrl={(row, col) => col.key === "sku" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
+              stickyHeader
+              maxHeight={720}
+              rowIdKey="product_id"
+            />
+          ) : null}
+        </>
       )}
 
       {activeTab === 3 && (

@@ -38,9 +38,12 @@ type Props = {
   selectedRows?: any[];
   onSelectionChange?: (selected: any[]) => void;
   rowIdKey?: string;
+  stickyHeader?: boolean;
+  maxHeight?: number | string;
+  expandOnRowClick?: boolean;
 };
 
-function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow, selectable, selectedRows = [], onSelectionChange, rowIdKey = "id" }: Props) {
+function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow, selectable, selectedRows = [], onSelectionChange, rowIdKey = "id", stickyHeader = false, maxHeight, expandOnRowClick = false }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const { filters, updateFilter } = useFilters();
@@ -143,8 +146,8 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
             No records match the selected filters.
           </Typography>
         ) : (
-          <TableContainer sx={{ overflowX: "auto" }}>
-            <Table size="small">
+          <TableContainer sx={{ overflowX: "auto", maxHeight }}>
+            <Table size="small" stickyHeader={stickyHeader}>
               <TableHead>
                 <TableRow>
                   {selectable && (
@@ -179,10 +182,14 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
                   <TableRow 
                     hover
                     selected={isItemSelected}
-                    sx={{ '& > *': { borderBottom: renderExpandedRow ? 'unset' : undefined } }}
+                    onClick={renderExpandedRow && expandOnRowClick ? () => toggleRow(index) : undefined}
+                    sx={{
+                      cursor: renderExpandedRow && expandOnRowClick ? "pointer" : undefined,
+                      '& > *': { borderBottom: renderExpandedRow ? 'unset' : undefined }
+                    }}
                   >
                     {selectable && (
-                      <TableCell padding="checkbox">
+                      <TableCell padding="checkbox" onClick={(event) => event.stopPropagation()}>
                         <Checkbox
                           color="primary"
                           checked={isItemSelected}
@@ -195,7 +202,10 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
                         <IconButton
                           aria-label="expand row"
                           size="small"
-                          onClick={() => toggleRow(index)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleRow(index);
+                          }}
                         >
                           {expandedRows[index] ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
                         </IconButton>
@@ -217,7 +227,7 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
                   </TableRow>
                   {renderExpandedRow && (
                     <TableRow>
-                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={columns.length + 1}>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={columns.length + (renderExpandedRow ? 1 : 0) + (selectable ? 1 : 0)}>
                         <Collapse in={expandedRows[index]} timeout="auto" unmountOnExit>
                           <Box sx={{ margin: 1 }}>
                             {renderExpandedRow(row)}

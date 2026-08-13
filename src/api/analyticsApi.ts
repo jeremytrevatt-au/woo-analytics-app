@@ -301,6 +301,44 @@ export async function getStockRecords(
   };
 }
 
+export async function getStocktakeRecords(
+  filter: AppFilterState,
+  page: number,
+  pageSize: number
+): Promise<PaginatedRecords> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    q: filter.searchText,
+  });
+  if (filter.category) params.append("category", filter.category);
+  if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
+  if (filter.skuContains) params.append("sku_contains", filter.skuContains);
+  if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
+  if (filter.sortBy) {
+    params.append("sort_by", filter.sortBy);
+    params.append("sort_dir", filter.sortDir);
+  }
+  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock/stocktake?${params.toString()}`);
+  return {
+    records: response.records,
+    columns: response.columns || [],
+    page: response.page,
+    pageSize: response.page_size,
+    totalCount: response.total_count
+  };
+}
+
+export async function updateStockQuantity(productId: number, stockQuantity: number): Promise<any> {
+  return fetchJson<any>("/api/v1/stock/quantity", {
+    method: "POST",
+    body: JSON.stringify({
+      product_id: productId,
+      stock_quantity: stockQuantity,
+    }),
+  });
+}
+
 export async function getOrderTrends(filter: AppFilterState): Promise<TrendPoint[]> {
   const params = new URLSearchParams({
     granularity: filter.granularity,
