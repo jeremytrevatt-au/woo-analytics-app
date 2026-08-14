@@ -229,6 +229,8 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     <TableHead>
                       <TableRow>
                         <TableCell>SKU</TableCell>
+                        <TableCell>Stock Target</TableCell>
+                        <TableCell>WSVI Group</TableCell>
                         <TableCell align="right">Received</TableCell>
                         <TableCell align="right">Manual Hold</TableCell>
                         <TableCell align="right">Stock Before</TableCell>
@@ -240,6 +242,8 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                       {receivePreview.lines.map((line) => (
                         <TableRow key={line.po_line_id}>
                           <TableCell>{line.sku}</TableCell>
+                          <TableCell>{line.stock_target_type || "-"}</TableCell>
+                          <TableCell>{line.wsvi_group_name || line.wsvi_group_id || "-"}</TableCell>
                           <TableCell align="right">{qty(line.received_qty)}</TableCell>
                           <TableCell align="right">{qty(line.manual_hold_qty)}</TableCell>
                           <TableCell align="right">{qty(line.stock_before)}</TableCell>

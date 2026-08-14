@@ -59,6 +59,10 @@ export type PurchaseOrderReceiveLinePreview = {
   expected_stock_after: number;
   stock_after?: number;
   stock_target_type: string;
+  stock_target_product_id?: number;
+  stock_target_variation_id?: number;
+  wsvi_group_id?: string;
+  wsvi_group_name?: string;
   allocation_ids: number[];
   manual_reservation_ids: number[];
   order_reservation_ids: number[];
