@@ -215,3 +215,14 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    2. Stocktake should reuse the same stock update backend used by packing stock adjustments.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision is deployed.
+
+## 2026-08-14 02:22 UTC
+
+1. TODOs completed:
+   1. Added stock target type and WSVI group visibility to the received stock preview table.
+2. Git build reference:
+   1. App commit: `4e70c50`
+3. New understandings/learnings:
+   1. Operators need to see whether a PO receipt will write to a simple product, variation, or WSVI group before booking stock.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after building and deploying the fixed plugin package.
