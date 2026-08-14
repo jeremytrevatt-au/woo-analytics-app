@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow, FormControlLabel, Switch } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchStockLedgerChart, getStockForecastHistory } from "../api/analyticsApi";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { StockForecastHistoryResponse } from "../types/analytics";
+
+type LookbackMode = number | "dynamic";
 
 interface Props {
   sku: string | null;
@@ -11,15 +13,60 @@ interface Props {
   productId?: number | null;
   wsviGroupId?: string | null;
   canonicalProductKey?: string | null;
-  lookbackDays?: number;
+  lookbackDays?: LookbackMode;
+  startDate?: string | null;
+  endDate?: string | null;
   onClose: () => void;
 }
 
-export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, onClose }: Props) {
+function chooseDynamicLookback(points: Array<{ dateObj: Date; forecast_usage_qty: number }>): number {
+  const candidates = [7, 14, 30, 60, 90, 180, 365];
+  const latestDate = points[points.length - 1]?.dateObj;
+  if (!latestDate) return 30;
+
+  let best = { days: 30, relativeStandardError: Number.POSITIVE_INFINITY };
+  for (const days of candidates) {
+    const earliest = new Date(latestDate);
+    earliest.setDate(earliest.getDate() - days);
+    const values = points
+      .filter((point) => point.dateObj >= earliest)
+      .map((point) => point.forecast_usage_qty)
+      .filter((value) => Number.isFinite(value) && value > 0);
+    if (values.length < 5) continue;
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    if (mean <= 0) continue;
+    const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+    const relativeStandardError = Math.sqrt(variance) / Math.sqrt(values.length) / mean;
+    if (relativeStandardError < best.relativeStandardError) {
+      best = { days, relativeStandardError };
+    }
+  }
+  return best.days;
+}
+
+function addRollingAverage(points: Array<any>, lookbackDays: number): Array<any> {
+  return points.map((point) => {
+    const earliest = new Date(point.dateObj);
+    earliest.setDate(earliest.getDate() - lookbackDays);
+    const windowValues = points
+      .filter((candidate) => candidate.dateObj >= earliest && candidate.dateObj <= point.dateObj)
+      .map((candidate) => Number(candidate.forecast_usage_qty || 0));
+    const average = windowValues.length > 0
+      ? windowValues.reduce((sum, value) => sum + value, 0) / windowValues.length
+      : 0;
+    return {
+      ...point,
+      rolling_average_qty: average,
+    };
+  });
+}
+
+export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, onClose }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAverageLine, setShowAverageLine] = useState(true);
 
   useEffect(() => {
     if (!sku && !productId && !wsviGroupId && !canonicalProductKey) return;
@@ -28,9 +75,10 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
       setIsLoading(true);
       setError(null);
       try {
+        const apiLookbackDays = lookbackDays === "dynamic" ? 365 : lookbackDays;
         const [ledgerResult, forecastResult] = await Promise.all([
-          fetchStockLedgerChart({ sku, productId, wsviGroupId }),
-          getStockForecastHistory(lookbackDays, canonicalProductKey, sku)
+          fetchStockLedgerChart({ sku, productId, wsviGroupId, startDate, endDate }),
+          getStockForecastHistory(apiLookbackDays, canonicalProductKey, sku, startDate, endDate)
         ]);
         if (isMounted) {
           // Parse dates for the chart
@@ -53,12 +101,19 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
     };
     load();
     return () => { isMounted = false; };
-  }, [sku, productId, wsviGroupId, canonicalProductKey, lookbackDays]);
+  }, [sku, productId, wsviGroupId, canonicalProductKey, lookbackDays, startDate, endDate]);
 
-  const forecastPoints = forecastHistory?.points.map((point) => ({
+  const rawForecastPoints = forecastHistory?.points.map((point) => ({
     ...point,
+    dateObj: new Date(point.movement_date),
     movement_date_label: new Date(point.movement_date).toLocaleDateString("en-AU"),
+    forecast_usage_qty: Number(point.forecast_usage_qty || 0),
+    excluded_qty: Number(point.excluded_qty || 0),
   })) ?? [];
+  const effectiveLookbackDays = lookbackDays === "dynamic"
+    ? chooseDynamicLookback(rawForecastPoints)
+    : lookbackDays;
+  const forecastPoints = addRollingAverage(rawForecastPoints, effectiveLookbackDays);
   const includedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.forecast_usage_qty || 0), 0);
   const excludedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.excluded_qty || 0), 0);
   const firstLedgerDate = data[0]?.timestamp ?? "-";
@@ -94,7 +149,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             <Typography variant="caption" color="text.secondary">Order-Derived Usage Points</Typography>
             <Typography variant="h6">{forecastPoints.length}</Typography>
             <Typography variant="caption" color="text.secondary">
-              Included {includedUsageQty} | Excluded {excludedUsageQty} | {firstForecastDate} to {lastForecastDate}
+              Included {includedUsageQty} | Excluded {excludedUsageQty} | {firstForecastDate} to {lastForecastDate} | Avg window {effectiveLookbackDays}d
             </Typography>
           </Box>
         </Box>
@@ -125,7 +180,13 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             </ResponsiveContainer>
           )}
         </Box>
-        <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>Forecast Usage History</Typography>
+        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center", mt: 3 }}>
+          <Typography variant="subtitle2" gutterBottom>Forecast Usage History</Typography>
+          <FormControlLabel
+            control={<Switch size="small" checked={showAverageLine} onChange={(event) => setShowAverageLine(event.target.checked)} />}
+            label="Average line"
+          />
+        </Box>
         <Box sx={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isLoading ? (
             <CircularProgress />
@@ -146,7 +207,10 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
                 />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="forecast_usage_qty" stroke="#2e7d32" strokeWidth={2} dot={{ r: 3 }} name="Forecast Usage Qty" />
+                <Line type="monotone" dataKey="forecast_usage_qty" stroke="#2e7d32" strokeWidth={2} dot={{ r: 3 }} name="Actual Usage Qty" />
+                {showAverageLine ? (
+                  <Line type="monotone" dataKey="rolling_average_qty" stroke="#6a1b9a" strokeWidth={2} dot={false} name={`${effectiveLookbackDays}d Average`} />
+                ) : null}
                 <Line type="monotone" dataKey="excluded_qty" stroke="#ed6c02" strokeWidth={1.5} dot={false} name="Excluded Qty" />
               </LineChart>
             </ResponsiveContainer>

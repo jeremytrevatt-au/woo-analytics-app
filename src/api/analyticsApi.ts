@@ -80,11 +80,13 @@ type StockRow = {
 
 import { StockLedgerResponse } from "../types/analytics";
 
-export async function fetchStockLedgerChart(target: { sku?: string | null; productId?: number | null; wsviGroupId?: string | null }): Promise<any[]> {
+export async function fetchStockLedgerChart(target: { sku?: string | null; productId?: number | null; wsviGroupId?: string | null; startDate?: string | null; endDate?: string | null }): Promise<any[]> {
   const params = new URLSearchParams();
   if (target.wsviGroupId) params.append("wsvi_group_id", target.wsviGroupId);
   else if (target.productId) params.append("product_id", String(target.productId));
   else if (target.sku) params.append("sku", target.sku);
+  if (target.startDate) params.append("start_date", target.startDate);
+  if (target.endDate) params.append("end_date", target.endDate);
   return fetchJson<any[]>(`/api/v1/stock/ledger/chart?${params.toString()}`);
 }
 
@@ -470,13 +472,17 @@ export async function getStockForecast(
 export async function getStockForecastHistory(
   lookbackDays: number,
   canonicalProductKey?: string | null,
-  sku?: string | null
+  sku?: string | null,
+  startDate?: string | null,
+  endDate?: string | null
 ): Promise<StockForecastHistoryResponse> {
   const params = new URLSearchParams({
     lookback_days: String(lookbackDays)
   });
   if (canonicalProductKey) params.append("canonical_product_key", canonicalProductKey);
   if (sku) params.append("sku", sku);
+  if (startDate) params.append("start_date", startDate);
+  if (endDate) params.append("end_date", endDate);
   return fetchJson<StockForecastHistoryResponse>(`/api/v1/stock/forecast/history?${params.toString()}`);
 }
 

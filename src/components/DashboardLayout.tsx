@@ -105,7 +105,7 @@ function DashboardLayout({ children }: Props) {
         </Drawer>
       </nav>
 
-      <Container maxWidth="xl" sx={{ py: 3 }}>
+      <Container maxWidth={false} sx={{ py: 3, px: { xs: 2, sm: 3, lg: 4 }, width: "100%" }}>
         <FilterBar />
         <Box sx={{ mt: 3 }}>{children}</Box>
       </Container>

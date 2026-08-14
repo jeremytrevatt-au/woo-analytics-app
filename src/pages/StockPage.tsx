@@ -27,7 +27,7 @@ function StockPage() {
   };
 
   const [page, setPage] = useState(1);
-  const [lookbackDays, setLookbackDays] = useState(365);
+  const [lookbackDays, setLookbackDays] = useState<number | "dynamic">(365);
   
   const [shortagesPage, setShortagesPage] = useState(1);
   const [stocktakePage, setStocktakePage] = useState(1);
@@ -184,16 +184,22 @@ function StockPage() {
                     <TextField
                       fullWidth
                       select
-                      label="Lookback Period"
+                      label="Forecast Average Window"
                       value={lookbackDays}
-                      onChange={(e) => setLookbackDays(Number(e.target.value))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setLookbackDays(value === "dynamic" ? "dynamic" : Number(value));
+                      }}
                       size="small"
                     >
+                      <MenuItem value={7}>Last 7 Days</MenuItem>
+                      <MenuItem value={14}>Last 14 Days</MenuItem>
                       <MenuItem value={30}>Last 30 Days</MenuItem>
                       <MenuItem value={60}>Last 60 Days</MenuItem>
                       <MenuItem value={90}>Last 90 Days</MenuItem>
                       <MenuItem value={180}>Last 180 Days</MenuItem>
                       <MenuItem value={365}>Last 365 Days</MenuItem>
+                      <MenuItem value="dynamic">Dynamic</MenuItem>
                     </TextField>
                   </Grid>
                   <Grid item xs={12} md={3}>
@@ -456,6 +462,8 @@ function StockPage() {
         wsviGroupId={selectedSku?.wsviGroupId || null}
         canonicalProductKey={selectedSku?.canonicalProductKey || null}
         lookbackDays={lookbackDays}
+        startDate={filters.startDate}
+        endDate={filters.endDate}
         onClose={() => setSelectedSku(null)}
       />
 

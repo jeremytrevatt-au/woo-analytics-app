@@ -58,11 +58,17 @@ function ForecastPanel({ forecast }: Props) {
   }, [forecast, showCumulative]);
 
   return (
-    <Card sx={{ height: 400 }}>
+    <Card sx={{ height: 400, width: "100%" }}>
       <CardHeader 
         title="Revenue Forecast" 
+        sx={{
+          "& .MuiCardHeader-action": {
+            alignSelf: "center",
+            flexShrink: 0,
+          },
+        }}
         action={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <FormControlLabel
               control={<Switch size="small" checked={showCumulative} onChange={(e) => setShowCumulative(e.target.checked)} />}
               label="Cumulative"
