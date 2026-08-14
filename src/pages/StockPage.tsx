@@ -8,12 +8,10 @@ import { useDashboardData } from "../hooks/useDashboardData";
 import { useStockShortages } from "../hooks/useStockShortages";
 import { useStockLedger } from "../hooks/useStockLedger";
 import StockLedgerChartModal from "../components/StockLedgerChartModal";
-import StockHistoryForecastPanel from "../components/StockHistoryForecastPanel";
 import BulkUpdateModal from "../components/BulkUpdateModal";
 import AddToPOModal from "../components/AddToPOModal";
-import { Alert, Dialog, DialogContent, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
-import { getStockForecastHistory, getStocktakeRecords, updateStockQuantity } from "../api/analyticsApi";
-import { StockForecastHistoryResponse } from "../types/analytics";
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { getStocktakeRecords, updateStockQuantity } from "../api/analyticsApi";
 import { useFilters } from "../hooks/useFilters";
 
 function StockPage() {
@@ -43,9 +41,6 @@ function StockPage() {
     wsviGroupId?: string | null;
     canonicalProductKey?: string | null;
   } | null>(null);
-  const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
-  const [forecastHistoryLoading, setForecastHistoryLoading] = useState(false);
-  const [forecastHistoryError, setForecastHistoryError] = useState<string | null>(null);
 
   const { rows, columns, isLoading, error, totalCount, pageSize, refetch } = useDashboardData("stock", page, 50);
   const stockShortages = useStockShortages(shortagesPage, 50);
@@ -74,23 +69,6 @@ function StockPage() {
     if (saved) {
       setSelectedStockRecords([]);
       // Optionally refetch or show success message
-    }
-  };
-
-  const handleViewForecastHistory = async (variant: any) => {
-    setForecastHistoryLoading(true);
-    setForecastHistoryError(null);
-    try {
-      const response = await getStockForecastHistory(
-        lookbackDays,
-        variant.canonical_product_key,
-        variant.sku
-      );
-      setForecastHistory(response);
-    } catch (error: any) {
-      setForecastHistoryError(error.message || "Failed to load forecast history.");
-    } finally {
-      setForecastHistoryLoading(false);
     }
   };
 
@@ -155,19 +133,10 @@ function StockPage() {
     }
   };
 
-  const ledgerItems = stockLedger.data?.items || [];
-  const findLedgerEntries = (row: any) => ledgerItems.filter((item: any) => (
-    (row.wsvi_group_id && item.wsvi_group_id === row.wsvi_group_id)
-    || item.product_id === row.product_id
-    || item.variation_id === row.product_id
-    || item.sku === row.sku
-  )).slice(0, 10);
   const unifiedRows = (rows as any[]).map((row) => {
-    const movementEntries = findLedgerEntries(row);
     return {
       ...row,
-      latest_movement: movementEntries[0]?.timestamp || null,
-      recent_movement_count: movementEntries.length,
+      recent_movement_count: row.movement_count ?? 0,
       actions: (
         <Button size="small" variant="outlined" onClick={() => setSelectedSku({
           sku: row.sku,
@@ -176,7 +145,7 @@ function StockPage() {
           wsviGroupId: row.wsvi_group_id || null,
           canonicalProductKey: row.canonical_product_key || null,
         })}>
-          Drill Down
+          Analyze
         </Button>
       ),
     };
@@ -278,84 +247,12 @@ function StockPage() {
                   totalCount={totalCount}
                   onPageChange={setPage}
                   getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
-                  renderExpandedRow={(row) => {
-                    const movementEntries = findLedgerEntries(row);
-                    return (
-                      <Stack spacing={2}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
-                          <Typography variant="subtitle2">Stock History, Forecast, and Movement Context</Typography>
-                        </Box>
-                        <StockHistoryForecastPanel
-                          sku={row.sku}
-                          productName={row.product_name}
-                          productId={row.product_id ? Number(row.product_id) : null}
-                          wsviGroupId={row.wsvi_group_id || null}
-                          canonicalProductKey={row.canonical_product_key || null}
-                          lookbackDays={lookbackDays}
-                        />
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Forecast Source</TableCell>
-                              <TableCell align="right">Avg Daily Usage</TableCell>
-                              <TableCell align="right">Days of Cover</TableCell>
-                              <TableCell>Projected Stockout</TableCell>
-                              <TableCell align="right">Historical Lines</TableCell>
-                              <TableCell>History</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            <TableRow>
-                              <TableCell>{row.forecast_source || "insufficient_history"}</TableCell>
-                              <TableCell align="right">{row.avg_daily_usage?.toFixed(2) || "-"}</TableCell>
-                              <TableCell align="right">{row.days_of_cover?.toFixed(1) || "-"}</TableCell>
-                              <TableCell>{row.projected_stockout_date ? new Date(row.projected_stockout_date).toLocaleDateString("en-AU") : "-"}</TableCell>
-                              <TableCell align="right">{row.historical_order_line_count ?? 0}</TableCell>
-                              <TableCell>
-                                <Button size="small" variant="outlined" onClick={() => handleViewForecastHistory(row)}>
-                                  View Details
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                        <Typography variant="subtitle2">Recent Stock Movements</Typography>
-                        {movementEntries.length > 0 ? (
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Date/Time</TableCell>
-                                <TableCell>Reason</TableCell>
-                                <TableCell align="right">Change</TableCell>
-                                <TableCell align="right">New Level</TableCell>
-                                <TableCell>Order Ref</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {movementEntries.map((entry: any) => (
-                                <TableRow key={entry.id}>
-                                  <TableCell>{entry.timestamp}</TableCell>
-                                  <TableCell>{entry.reason}</TableCell>
-                                  <TableCell align="right">{entry.change_amount}</TableCell>
-                                  <TableCell align="right">{entry.new_stock_level}</TableCell>
-                                  <TableCell>{entry.reference_id || "-"}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">No recent movement rows loaded for this item.</Typography>
-                        )}
-                      </Stack>
-                    );
-                  }}
                   selectable
                   selectedRows={selectedStockRecords}
                   onSelectionChange={setSelectedStockRecords}
                   rowIdKey="product_id"
                   stickyHeader
                   maxHeight={720}
-                  expandOnRowClick
                 />
               </>
           ) : null}
@@ -551,55 +448,6 @@ function StockPage() {
         />
         </>
       )}
-
-      <Dialog
-        open={Boolean(forecastHistory) || forecastHistoryLoading || Boolean(forecastHistoryError)}
-        onClose={() => {
-          setForecastHistory(null);
-          setForecastHistoryError(null);
-        }}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle>Forecast Movement History</DialogTitle>
-        <DialogContent>
-          {forecastHistoryLoading ? <Typography>Loading forecast history...</Typography> : null}
-          {forecastHistoryError ? <Alert severity="error">{forecastHistoryError}</Alert> : null}
-          {forecastHistory ? (
-            <Box sx={{ overflowX: "auto" }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Showing reviewed historical order-line movements for {forecastHistory.sku || forecastHistory.canonical_product_key}.
-              </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>SKU</TableCell>
-                    <TableCell>Product</TableCell>
-                    <TableCell align="right">Included Usage</TableCell>
-                    <TableCell align="right">Excluded Qty</TableCell>
-                    <TableCell align="right">Included Lines</TableCell>
-                    <TableCell align="right">Excluded Lines</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {forecastHistory.points.map((point) => (
-                    <TableRow key={`${point.movement_date}-${point.canonical_product_key}`}>
-                      <TableCell>{new Date(point.movement_date).toLocaleDateString("en-AU")}</TableCell>
-                      <TableCell>{point.sku}</TableCell>
-                      <TableCell>{point.product_name}</TableCell>
-                      <TableCell align="right">{point.forecast_usage_qty}</TableCell>
-                      <TableCell align="right">{point.excluded_qty}</TableCell>
-                      <TableCell align="right">{point.included_lines}</TableCell>
-                      <TableCell align="right">{point.excluded_lines}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          ) : null}
-        </DialogContent>
-      </Dialog>
 
       <StockLedgerChartModal
         sku={selectedSku?.sku || null}
