@@ -239,3 +239,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Stock Items needs a larger analysis surface for precision because inline row charts hide too much context.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision is deployed.
+
+## 2026-08-14 23:43 UTC
+
+1. TODOs completed:
+   1. Passed Stock page `startDate` and `endDate` filters into the Stock analysis popup.
+   2. Added 7-day, 14-day, and dynamic forecast average window options.
+   3. Added a toggleable rolling-average line alongside actual order-derived usage.
+   4. Made the main app container and Home page chart panels full width with wrapping header controls.
+2. Git build reference:
+   1. App commit: `7b09101`
+3. New understandings/learnings:
+   1. The Stock page analysis popup needs a separate averaging window from the data date range so historical rows are not accidentally hidden.
+   2. Dashboard chart headers should wrap controls rather than constraining chart width.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision is deployed.
