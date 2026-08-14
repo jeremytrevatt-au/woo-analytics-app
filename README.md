@@ -226,3 +226,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Operators need to see whether a PO receipt will write to a simple product, variation, or WSVI group before booking stock.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after building and deploying the fixed plugin package.
+
+## 2026-08-14 21:11 UTC
+
+1. TODOs completed:
+   1. Replaced inline Stock Items row expansion with an `Analyze` action that opens the stock analysis popup.
+   2. Added popup summary cards for live ledger coverage and order-derived forecast coverage.
+   3. Added full detail tables for live stock ledger points and historical order-derived forecast rows.
+2. Git build reference:
+   1. App commit: `82f55cb`
+3. New understandings/learnings:
+   1. Stock Items needs a larger analysis surface for precision because inline row charts hide too much context.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision is deployed.
