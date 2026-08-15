@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow, FormControlLabel, Switch } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow, FormControlLabel, Switch, TextField, MenuItem } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchStockLedgerChart, getStockForecastHistory } from "../api/analyticsApi";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { StockForecastHistoryResponse } from "../types/analytics";
 
 type LookbackMode = number | "dynamic";
+type AnalysisAggregation = "day" | "week" | "month";
 
 interface Props {
   sku: string | null;
@@ -61,12 +62,130 @@ function addRollingAverage(points: Array<any>, lookbackDays: number): Array<any>
   });
 }
 
+function bucketStart(date: Date, aggregation: AnalysisAggregation): Date {
+  const bucket = new Date(date);
+  bucket.setHours(0, 0, 0, 0);
+  if (aggregation === "week") {
+    const day = bucket.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    bucket.setDate(bucket.getDate() + diff);
+  } else if (aggregation === "month") {
+    bucket.setDate(1);
+  }
+  return bucket;
+}
+
+function bucketKey(date: Date, aggregation: AnalysisAggregation): string {
+  return bucketStart(date, aggregation).toISOString().slice(0, 10);
+}
+
+function bucketLabel(date: Date, aggregation: AnalysisAggregation): string {
+  if (aggregation === "week") {
+    return `Week of ${date.toLocaleDateString("en-AU")}`;
+  }
+  if (aggregation === "month") {
+    return date.toLocaleDateString("en-AU", { month: "short", year: "numeric" });
+  }
+  return date.toLocaleDateString("en-AU");
+}
+
+function aggregateStockLevels(points: Array<any>, aggregation: AnalysisAggregation): Array<any> {
+  const buckets = new Map<string, any>();
+  [...points]
+    .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+    .forEach((point) => {
+      const start = bucketStart(point.dateObj, aggregation);
+      const key = bucketKey(point.dateObj, aggregation);
+      buckets.set(key, {
+        ...point,
+        bucket_date: key,
+        bucket_label: bucketLabel(start, aggregation),
+        dateObj: start,
+        stock_qty: Number(point.stock_qty ?? point.new_stock_level ?? 0),
+      });
+    });
+  return Array.from(buckets.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+}
+
+function aggregateUsagePoints(points: Array<any>, aggregation: AnalysisAggregation): Array<any> {
+  const buckets = new Map<string, any>();
+  points.forEach((point) => {
+    const start = bucketStart(point.dateObj, aggregation);
+    const key = bucketKey(point.dateObj, aggregation);
+    const existing = buckets.get(key) ?? {
+      ...point,
+      bucket_date: key,
+      movement_date_label: bucketLabel(start, aggregation),
+      dateObj: start,
+      forecast_usage_qty: 0,
+      excluded_qty: 0,
+      included_lines: 0,
+      excluded_lines: 0,
+    };
+    existing.forecast_usage_qty += Number(point.forecast_usage_qty || 0);
+    existing.excluded_qty += Number(point.excluded_qty || 0);
+    existing.included_lines += Number(point.included_lines || 0);
+    existing.excluded_lines += Number(point.excluded_lines || 0);
+    buckets.set(key, existing);
+  });
+  return Array.from(buckets.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+}
+
+function calculateAverageDailyUsage(points: Array<any>, lookbackDays: number): number {
+  const latestDate = points[points.length - 1]?.dateObj;
+  if (!latestDate) return 0;
+  const earliest = new Date(latestDate);
+  earliest.setDate(earliest.getDate() - lookbackDays);
+  const usageQty = points
+    .filter((point) => point.dateObj >= earliest && point.dateObj <= latestDate)
+    .reduce((total, point) => total + Number(point.forecast_usage_qty || 0), 0);
+  return usageQty > 0 ? usageQty / Math.max(lookbackDays, 1) : 0;
+}
+
+function buildStockLevelForecast(points: Array<any>, averageDailyUsage: number, aggregation: AnalysisAggregation): Array<any> {
+  if (points.length === 0) return [];
+  const actual = points.map((point) => ({
+    ...point,
+    projected_stock_qty: null as number | null,
+  }));
+  const last = actual[actual.length - 1];
+  const projected = [...actual];
+  projected[projected.length - 1] = {
+    ...last,
+    projected_stock_qty: last.stock_qty,
+  };
+
+  const futureBuckets = aggregation === "day" ? 30 : aggregation === "week" ? 12 : 12;
+  for (let index = 1; index <= futureBuckets; index += 1) {
+    const date = new Date(last.dateObj);
+    if (aggregation === "day") date.setDate(date.getDate() + index);
+    else if (aggregation === "week") date.setDate(date.getDate() + index * 7);
+    else date.setMonth(date.getMonth() + index);
+
+    const elapsedDays = Math.max(1, Math.round((date.getTime() - last.dateObj.getTime()) / 86400000));
+    projected.push({
+      bucket_date: bucketKey(date, aggregation),
+      bucket_label: bucketLabel(bucketStart(date, aggregation), aggregation),
+      dateObj: bucketStart(date, aggregation),
+      stock_qty: null,
+      projected_stock_qty: Math.max(0, Number(last.stock_qty || 0) - averageDailyUsage * elapsedDays),
+    });
+  }
+  return projected;
+}
+
 export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, onClose }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAverageLine, setShowAverageLine] = useState(true);
+  const [aggregation, setAggregation] = useState<AnalysisAggregation>("day");
+  const [localLookbackDays, setLocalLookbackDays] = useState<LookbackMode>(lookbackDays);
+
+  useEffect(() => {
+    setLocalLookbackDays(lookbackDays);
+  }, [lookbackDays]);
 
   useEffect(() => {
     if (!sku && !productId && !wsviGroupId && !canonicalProductKey) return;
@@ -75,7 +194,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
       setIsLoading(true);
       setError(null);
       try {
-        const apiLookbackDays = lookbackDays === "dynamic" ? 365 : lookbackDays;
+        const apiLookbackDays = localLookbackDays === "dynamic" ? 365 : localLookbackDays;
         const [ledgerResult, forecastResult] = await Promise.all([
           fetchStockLedgerChart({ sku, productId, wsviGroupId, startDate, endDate }),
           getStockForecastHistory(apiLookbackDays, canonicalProductKey, sku, startDate, endDate)
@@ -101,7 +220,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
     };
     load();
     return () => { isMounted = false; };
-  }, [sku, productId, wsviGroupId, canonicalProductKey, lookbackDays, startDate, endDate]);
+  }, [sku, productId, wsviGroupId, canonicalProductKey, localLookbackDays, startDate, endDate]);
 
   const rawForecastPoints = forecastHistory?.points.map((point) => ({
     ...point,
@@ -110,10 +229,13 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
     forecast_usage_qty: Number(point.forecast_usage_qty || 0),
     excluded_qty: Number(point.excluded_qty || 0),
   })) ?? [];
-  const effectiveLookbackDays = lookbackDays === "dynamic"
+  const effectiveLookbackDays = localLookbackDays === "dynamic"
     ? chooseDynamicLookback(rawForecastPoints)
-    : lookbackDays;
-  const forecastPoints = addRollingAverage(rawForecastPoints, effectiveLookbackDays);
+    : localLookbackDays;
+  const aggregatedStockPoints = aggregateStockLevels(data, aggregation);
+  const averageDailyUsage = calculateAverageDailyUsage(rawForecastPoints, effectiveLookbackDays);
+  const stockLevelChartPoints = buildStockLevelForecast(aggregatedStockPoints, averageDailyUsage, aggregation);
+  const forecastPoints = addRollingAverage(aggregateUsagePoints(rawForecastPoints, aggregation), effectiveLookbackDays);
   const includedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.forecast_usage_qty || 0), 0);
   const excludedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.excluded_qty || 0), 0);
   const firstLedgerDate = data[0]?.timestamp ?? "-";
@@ -139,35 +261,71 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             {productName}
           </Typography>
         )}
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "220px 220px auto" }, gap: 2, alignItems: "center", mb: 2 }}>
+          <TextField
+            select
+            size="small"
+            label="Aggregation"
+            value={aggregation}
+            onChange={(event) => setAggregation(event.target.value as AnalysisAggregation)}
+          >
+            <MenuItem value="day">Daily</MenuItem>
+            <MenuItem value="week">Weekly</MenuItem>
+            <MenuItem value="month">Monthly</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            label="Forecast Average"
+            value={localLookbackDays}
+            onChange={(event) => {
+              const value = event.target.value;
+              setLocalLookbackDays(value === "dynamic" ? "dynamic" : Number(value));
+            }}
+          >
+            <MenuItem value={7}>Last 7 Days</MenuItem>
+            <MenuItem value={14}>Last 14 Days</MenuItem>
+            <MenuItem value={30}>Last 30 Days</MenuItem>
+            <MenuItem value={60}>Last 60 Days</MenuItem>
+            <MenuItem value={90}>Last 90 Days</MenuItem>
+            <MenuItem value={180}>Last 180 Days</MenuItem>
+            <MenuItem value={365}>Last 365 Days</MenuItem>
+            <MenuItem value="dynamic">Dynamic</MenuItem>
+          </TextField>
+          <FormControlLabel
+            control={<Switch size="small" checked={showAverageLine} onChange={(event) => setShowAverageLine(event.target.checked)} />}
+            label="Average/forecast line"
+          />
+        </Box>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, mb: 2 }}>
           <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
             <Typography variant="caption" color="text.secondary">Live Ledger Points</Typography>
-            <Typography variant="h6">{data.length}</Typography>
+            <Typography variant="h6">{aggregatedStockPoints.length}</Typography>
             <Typography variant="caption" color="text.secondary">{firstLedgerDate} to {lastLedgerDate}</Typography>
           </Box>
           <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary">Order-Derived Usage Points</Typography>
+            <Typography variant="caption" color="text.secondary">Historical Usage Inputs</Typography>
             <Typography variant="h6">{forecastPoints.length}</Typography>
             <Typography variant="caption" color="text.secondary">
-              Included {includedUsageQty} | Excluded {excludedUsageQty} | {firstForecastDate} to {lastForecastDate} | Avg window {effectiveLookbackDays}d
+              Included {includedUsageQty} | Excluded {excludedUsageQty} | {firstForecastDate} to {lastForecastDate} | Avg {averageDailyUsage.toFixed(2)}/day over {effectiveLookbackDays}d
             </Typography>
           </Box>
         </Box>
 
-        <Typography variant="subtitle2" gutterBottom>Stock Level History</Typography>
+        <Typography variant="subtitle2" gutterBottom>Stock Level & Forecast</Typography>
         <Box sx={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isLoading ? (
             <CircularProgress />
           ) : error ? (
             <Typography color="error">{error}</Typography>
-          ) : data.length === 0 ? (
+          ) : stockLevelChartPoints.length === 0 ? (
             <Typography color="text.secondary">No history found for this SKU.</Typography>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <LineChart data={stockLevelChartPoints} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
-                  dataKey="timestamp" 
+                  dataKey="bucket_label" 
                   tick={{ fontSize: 12 }} 
                   angle={-45} 
                   textAnchor="end" 
@@ -176,42 +334,9 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
                 <YAxis />
                 <Tooltip />
                 <Line type="stepAfter" dataKey="stock_qty" stroke="#1976d2" strokeWidth={2} dot={{ r: 3 }} name="Stock Level" />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center", mt: 3 }}>
-          <Typography variant="subtitle2" gutterBottom>Forecast Usage History</Typography>
-          <FormControlLabel
-            control={<Switch size="small" checked={showAverageLine} onChange={(event) => setShowAverageLine(event.target.checked)} />}
-            label="Average line"
-          />
-        </Box>
-        <Box sx={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {isLoading ? (
-            <CircularProgress />
-          ) : error ? (
-            <Typography color="error">{error}</Typography>
-          ) : forecastPoints.length === 0 ? (
-            <Typography color="text.secondary">No forecast usage history found for this item.</Typography>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={forecastPoints} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="movement_date_label"
-                  tick={{ fontSize: 12 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="forecast_usage_qty" stroke="#2e7d32" strokeWidth={2} dot={{ r: 3 }} name="Actual Usage Qty" />
                 {showAverageLine ? (
-                  <Line type="monotone" dataKey="rolling_average_qty" stroke="#6a1b9a" strokeWidth={2} dot={false} name={`${effectiveLookbackDays}d Average`} />
+                  <Line type="monotone" dataKey="projected_stock_qty" stroke="#6a1b9a" strokeWidth={2} dot={false} name={`${effectiveLookbackDays}d Forecast Stock Level`} />
                 ) : null}
-                <Line type="monotone" dataKey="excluded_qty" stroke="#ed6c02" strokeWidth={1.5} dot={false} name="Excluded Qty" />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -226,16 +351,16 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
               </TableRow>
             </TableHead>
             <TableBody>
-              {data.map((item, index) => (
-                <TableRow key={`${item.timestamp}-${index}`}>
-                  <TableCell>{item.timestamp}</TableCell>
+              {aggregatedStockPoints.map((item, index) => (
+                <TableRow key={`${item.bucket_date}-${index}`}>
+                  <TableCell>{item.bucket_label}</TableCell>
                   <TableCell align="right">{item.stock_qty}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Box>
-        <Typography variant="subtitle2" gutterBottom>Order-Derived Forecast Detail</Typography>
+        <Typography variant="subtitle2" gutterBottom>Historical Usage Inputs</Typography>
         <Box sx={{ maxHeight: 320, overflow: "auto" }}>
           <Table size="small" stickyHeader>
             <TableHead>
