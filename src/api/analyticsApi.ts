@@ -1,5 +1,8 @@
 import {
   AppFilterState,
+  DrilldownChartResponse,
+  DrilldownDimension,
+  DrilldownMetric,
   ForecastPoint,
   KpiCardData,
   PaginatedRecords,
@@ -435,6 +438,28 @@ export async function getStockTrends(filter: AppFilterState): Promise<TrendPoint
 export async function getCategories(): Promise<string[]> {
   const response = await fetchJson<{ categories: string[] }>("/api/v1/categories");
   return response.categories;
+}
+
+export async function getDrilldownChart(
+  filter: AppFilterState,
+  metric: DrilldownMetric,
+  dimension: DrilldownDimension,
+  selectedValues: string[],
+  limit: number
+): Promise<DrilldownChartResponse> {
+  const params = new URLSearchParams({
+    metric,
+    dimension,
+    granularity: filter.granularity,
+    start_date: filter.startDate,
+    end_date: filter.endDate,
+    status: filter.orderStatus.length > 0 ? filter.orderStatus.join(",") : "all",
+    limit: String(limit),
+  });
+  selectedValues.forEach((value) => {
+    if (value) params.append("selected_values", value);
+  });
+  return fetchJson<DrilldownChartResponse>(`/api/v1/drilldown/chart?${params.toString()}`);
 }
 
 export async function getStockForecast(

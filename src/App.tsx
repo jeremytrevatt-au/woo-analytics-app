@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
 import FiltersProvider from "./components/FiltersProvider";
 import CustomersPage from "./pages/CustomersPage";
+import DrillDownPage from "./pages/DrillDownPage";
 import RevenuePage from "./pages/RevenuePage";
 import OverviewPage from "./pages/OverviewPage";
 import OrdersPage from "./pages/OrdersPage";
@@ -24,6 +25,7 @@ function App() {
               <Route path="/" element={<OverviewPage />} />
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/drill-down" element={<DrillDownPage />} />
               <Route path="/stock" element={<StockPage />} />
               <Route path="/revenue" element={<RevenuePage />} />
               <Route path="/backorders" element={<BackordersPage />} />

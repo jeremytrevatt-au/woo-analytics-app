@@ -68,6 +68,25 @@ export type ForecastPoint = {
   comparePredicted?: number | null;
 };
 
+export type DrilldownMetric = "revenue" | "orders" | "units_sold" | "aov";
+
+export type DrilldownDimension = "category" | "sku";
+
+export type DrilldownPoint = {
+  bucket_date: string;
+  series_key: string;
+  series_label: string;
+  actual_value: number;
+};
+
+export type DrilldownChartResponse = {
+  metric: DrilldownMetric;
+  dimension: DrilldownDimension;
+  granularity: AppFilterState["granularity"];
+  selected_values: string[];
+  points: DrilldownPoint[];
+};
+
 export type TableColumn = {
   key: string;
   label: string;
