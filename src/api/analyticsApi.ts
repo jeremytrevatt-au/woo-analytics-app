@@ -295,6 +295,12 @@ export async function getStockRecords(
   if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
   if (filter.skuContains) params.append("sku_contains", filter.skuContains);
   if (filter.skuEndsWith) params.append("sku_ends_with", filter.skuEndsWith);
+  if (filter.stockAvgDailyUsageMin) params.append("avg_daily_usage_min", filter.stockAvgDailyUsageMin);
+  if (filter.stockAvgDailyUsageMax) params.append("avg_daily_usage_max", filter.stockAvgDailyUsageMax);
+  if (filter.stockDaysOfCoverMin) params.append("days_of_cover_min", filter.stockDaysOfCoverMin);
+  if (filter.stockDaysOfCoverMax) params.append("days_of_cover_max", filter.stockDaysOfCoverMax);
+  if (filter.stockProjectedStockoutStart) params.append("projected_stockout_start", filter.stockProjectedStockoutStart);
+  if (filter.stockProjectedStockoutEnd) params.append("projected_stockout_end", filter.stockProjectedStockoutEnd);
   params.append("sort_by", filter.sortBy || "movement_count");
   params.append("sort_dir", filter.sortBy ? filter.sortDir : "desc");
   const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/stock?${params.toString()}`);

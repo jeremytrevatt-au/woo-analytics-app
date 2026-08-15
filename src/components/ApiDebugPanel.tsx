@@ -1,4 +1,4 @@
-import { BugReport, Close } from "@mui/icons-material";
+import { BugReport, Close, ContentCopy } from "@mui/icons-material";
 import {
   Accordion,
   AccordionDetails,
@@ -23,11 +23,13 @@ import {
   setApiDebugEnabled,
   subscribeApiDebug
 } from "../debug/apiDebugStore";
+import { ApiDebugEvent } from "../types/analytics";
 
 function ApiDebugPanel() {
   const [state, setState] = useState(getApiDebugState());
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<string | false>(false);
+  const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -49,6 +51,28 @@ function ApiDebugPanel() {
   const id = open ? 'api-debug-popover' : undefined;
 
   const errorCount = state.events.filter(e => e.statusCode && e.statusCode >= 400).length;
+
+  const handleCopyEvent = (event: ApiDebugEvent, clickEvent: React.MouseEvent<HTMLButtonElement>) => {
+    clickEvent.stopPropagation();
+    const payload = {
+      timestamp: event.timestamp,
+      request: {
+        method: event.method,
+        url: event.url,
+        body: event.requestBody ?? null,
+      },
+      response: {
+        statusCode: event.statusCode ?? null,
+        durationMs: event.durationMs ?? null,
+        body: event.responseBody ?? null,
+        error: event.error ?? null,
+      },
+    };
+    void navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
+      setCopiedEventId(event.id);
+      window.setTimeout(() => setCopiedEventId((current) => current === event.id ? null : current), 1500);
+    });
+  };
 
   return (
     <>
@@ -117,6 +141,14 @@ function ApiDebugPanel() {
                           label={String(event.statusCode)}
                         />
                       ) : null}
+                      <Button
+                        size="small"
+                        startIcon={<ContentCopy fontSize="small" />}
+                        onClick={(clickEvent) => handleCopyEvent(event, clickEvent)}
+                        sx={{ ml: "auto", flexShrink: 0 }}
+                      >
+                        {copiedEventId === event.id ? "Copied" : "Copy"}
+                      </Button>
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
                       {event.timestamp} | {event.durationMs ?? 0} ms

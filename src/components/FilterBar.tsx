@@ -88,6 +88,10 @@ function FilterBar() {
       const start = new Date();
       start.setMonth(start.getMonth() - 6);
       startDate = start.toISOString().slice(0, 10);
+    } else if (range === "last_12_months") {
+      const start = new Date();
+      start.setMonth(start.getMonth() - 12);
+      startDate = start.toISOString().slice(0, 10);
     } else if (range === "last_week") {
       const lastWeekEnd = new Date(today);
       lastWeekEnd.setDate(today.getDate() - today.getDay());
@@ -186,6 +190,7 @@ function FilterBar() {
                   <MenuItem value="last_week">Last Week</MenuItem>
                   <MenuItem value="last_3_months">Last 3 Months</MenuItem>
                   <MenuItem value="last_6_months">Last 6 Months</MenuItem>
+                  <MenuItem value="last_12_months">Last 12 Months</MenuItem>
                   <MenuItem value="mtd">Month to Date</MenuItem>
                   <MenuItem value="last_month">Last Month</MenuItem>
                   <MenuItem value="qtd">Quarter to Date</MenuItem>

@@ -18,7 +18,7 @@ function StockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "shortages" ? 1 : searchParams.get("tab") === "stocktake" ? 2 : 0;
   const [activeTab, setActiveTab] = useState(initialTab);
-  const { filters } = useFilters();
+  const { filters, updateFilter } = useFilters();
 
   const handleTabChange = (_event: SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -57,6 +57,13 @@ function StockPage() {
   const [stocktakeInputs, setStocktakeInputs] = useState<Record<string, string>>({});
   const [stocktakeSaving, setStocktakeSaving] = useState<Record<string, boolean>>({});
   const [stocktakeMessages, setStocktakeMessages] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setPage(1);
+    setShortagesPage(1);
+    setStocktakePage(1);
+    setLedgerPage(1);
+  }, [filters]);
 
   const handleBulkUpdateSuccess = () => {
     setSelectedStockRecords([]);
@@ -226,6 +233,72 @@ function StockPage() {
                       <MenuItem value="order_restocked">Order Restocked</MenuItem>
                       <MenuItem value="order_refunded">Order Refunded</MenuItem>
                     </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Avg Usage Min"
+                      value={filters.stockAvgDailyUsageMin}
+                      onChange={(e) => updateFilter("stockAvgDailyUsageMin", e.target.value)}
+                      size="small"
+                      inputProps={{ min: 0, step: "any" }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Avg Usage Max"
+                      value={filters.stockAvgDailyUsageMax}
+                      onChange={(e) => updateFilter("stockAvgDailyUsageMax", e.target.value)}
+                      size="small"
+                      inputProps={{ min: 0, step: "any" }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Days Cover Min"
+                      value={filters.stockDaysOfCoverMin}
+                      onChange={(e) => updateFilter("stockDaysOfCoverMin", e.target.value)}
+                      size="small"
+                      inputProps={{ min: 0, step: "any" }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Days Cover Max"
+                      value={filters.stockDaysOfCoverMax}
+                      onChange={(e) => updateFilter("stockDaysOfCoverMax", e.target.value)}
+                      size="small"
+                      inputProps={{ min: 0, step: "any" }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      type="date"
+                      label="Stockout From"
+                      value={filters.stockProjectedStockoutStart}
+                      onChange={(e) => updateFilter("stockProjectedStockoutStart", e.target.value)}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      type="date"
+                      label="Stockout To"
+                      value={filters.stockProjectedStockoutEnd}
+                      onChange={(e) => updateFilter("stockProjectedStockoutEnd", e.target.value)}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                    />
                   </Grid>
                 </Grid>
                 <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>

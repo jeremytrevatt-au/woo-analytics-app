@@ -22,7 +22,7 @@ export interface StockLedgerResponse {
 }
 
 export type AppFilterState = {
-  dateRange: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year" | "last_3_months" | "last_6_months" | "all_time";
+  dateRange: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year" | "last_3_months" | "last_6_months" | "last_12_months" | "all_time";
   compareEnabled: boolean;
   granularity: "day" | "week" | "month" | "quarter" | "year";
   startDate: string;
@@ -36,6 +36,12 @@ export type AppFilterState = {
   skuStartsWith: string;
   skuContains: string;
   skuEndsWith: string;
+  stockAvgDailyUsageMin: string;
+  stockAvgDailyUsageMax: string;
+  stockDaysOfCoverMin: string;
+  stockDaysOfCoverMax: string;
+  stockProjectedStockoutStart: string;
+  stockProjectedStockoutEnd: string;
   sortBy: string | null;
   sortDir: "asc" | "desc";
 };

@@ -31,6 +31,12 @@ const defaultFilters: AppFilterState = {
   skuStartsWith: "",
   skuContains: "",
   skuEndsWith: "",
+  stockAvgDailyUsageMin: "",
+  stockAvgDailyUsageMax: "",
+  stockDaysOfCoverMin: "",
+  stockDaysOfCoverMax: "",
+  stockProjectedStockoutStart: "",
+  stockProjectedStockoutEnd: "",
   sortBy: null,
   sortDir: "desc",
 };
