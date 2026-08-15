@@ -254,3 +254,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    2. Dashboard chart headers should wrap controls rather than constraining chart width.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision is deployed.
+
+## 2026-08-15 00:15 UTC
+
+1. TODOs completed:
+   1. Fixed Home page chart cards that were still shrink-wrapping instead of using full page width.
+   2. Replaced old Home page MUI Grid item wrappers with full-width responsive CSS grid wrappers.
+   3. Added visible Daily, Weekly, and Monthly aggregation controls beside the Home charts.
+2. Git build reference:
+   1. App commit: `dd2c33c`
+3. New understandings/learnings:
+   1. The current MUI version does not apply the old `Grid item xs={...}` layout props as expected, so Home chart wrappers need explicit CSS grid sizing.
+   2. Home chart aggregation can reuse the existing global `granularity` filter and backend trend aggregation.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify Home charts fill the available page width.
