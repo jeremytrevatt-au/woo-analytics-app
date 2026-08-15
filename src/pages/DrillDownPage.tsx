@@ -11,6 +11,7 @@ type AverageWindow = 7 | 14 | 30 | 60 | 90 | "dynamic";
 type ChartType = "line" | "bar";
 
 const COLORS = ["#1976d2", "#2e7d32", "#ed6c02", "#6a1b9a", "#00838f", "#ad1457", "#5d4037", "#7b1fa2", "#455a64", "#558b2f"];
+const CUSTOMER_SEGMENTS = ["New Customer", "Returning Customer"];
 
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00`);
@@ -119,6 +120,7 @@ function DrillDownPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<ProductSearchResult[]>([]);
+  const [selectedCustomerSegments, setSelectedCustomerSegments] = useState<string[]>([]);
   const [points, setPoints] = useState<DrilldownPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,11 +131,22 @@ function DrillDownPage() {
 
   const selectedValues = dimension === "category"
     ? selectedCategories
-    : selectedProducts.map((product) => product.sku).filter(Boolean);
-  const selectionLimit = dimension === "category" ? 5 : 10;
+    : dimension === "customer_segment"
+      ? selectedCustomerSegments
+      : selectedProducts.map((product) => product.sku).filter(Boolean);
+  const selectionLimit = dimension === "category" ? 5 : dimension === "customer_segment" ? 2 : 10;
+  const averageSeriesEnabled = selectedValues.length === 1;
 
   useEffect(() => {
     let isSubscribed = true;
+    if (selectedValues.length === 0) {
+      setPoints([]);
+      setLoading(false);
+      setError(null);
+      return () => {
+        isSubscribed = false;
+      };
+    }
     setLoading(true);
     setError(null);
     getDrilldownChart(filters, metric, dimension, selectedValues, selectionLimit)
@@ -153,9 +166,10 @@ function DrillDownPage() {
 
   const chart = useMemo(() => buildChart(points, averageWindow, filters.granularity), [points, averageWindow, filters.granularity]);
   const metricLabel = metric === "revenue" ? "Revenue" : metric === "orders" ? "Orders" : metric === "units_sold" ? "Units Sold" : "Average Order Value";
+  const dimensionLabel = dimension === "category" ? "Category" : dimension === "customer_segment" ? "Customer Segment" : "SKU";
 
   const renderSeries = (dataKey: string, name: string, color: string, dashed = false) => {
-    if (chartType === "bar") {
+    if (chartType === "bar" && !dashed) {
       return <Bar key={dataKey} dataKey={dataKey} name={name} fill={color} fillOpacity={dashed ? 0.45 : 0.8} />;
     }
     return <Line key={dataKey} type="monotone" dataKey={dataKey} name={name} stroke={color} strokeWidth={2} dot={false} strokeDasharray={dashed ? "5 5" : undefined} />;
@@ -183,6 +197,7 @@ function DrillDownPage() {
               <TextField select fullWidth size="small" label="Dimension" value={dimension} onChange={(event) => setDimension(event.target.value as DrilldownDimension)}>
                 <MenuItem value="category">Category</MenuItem>
                 <MenuItem value="sku">SKU</MenuItem>
+                <MenuItem value="customer_segment">Customer Segment</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} md={2}>
@@ -217,6 +232,27 @@ function DrillDownPage() {
                     ))}
                   </Select>
                 </FormControl>
+              ) : dimension === "customer_segment" ? (
+                <FormControl fullWidth size="small">
+                  <InputLabel>Customer Segments</InputLabel>
+                  <Select
+                    multiple
+                    value={selectedCustomerSegments}
+                    input={<OutlinedInput label="Customer Segments" />}
+                    renderValue={(selected) => selected.join(", ")}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSelectedCustomerSegments((typeof value === "string" ? value.split(",") : value).slice(0, 2));
+                    }}
+                  >
+                    {CUSTOMER_SEGMENTS.map((segment) => (
+                      <MenuItem key={segment} value={segment}>
+                        <Checkbox checked={selectedCustomerSegments.includes(segment)} />
+                        <Typography variant="body2">{segment}</Typography>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               ) : (
                 <ProductSearchAutocomplete
                   value={null}
@@ -235,8 +271,8 @@ function DrillDownPage() {
                   <ToggleButton value="bar">Bar</ToggleButton>
                 </ToggleButtonGroup>
                 <FormControlLabel control={<Switch size="small" checked={showActual} onChange={(event) => setShowActual(event.target.checked)} />} label="Actual" />
-                <FormControlLabel control={<Switch size="small" checked={showAverage} onChange={(event) => setShowAverage(event.target.checked)} />} label="Average" />
-                <FormControlLabel control={<Switch size="small" checked={showForecast} onChange={(event) => setShowForecast(event.target.checked)} />} label="Forecast" />
+                <FormControlLabel control={<Switch size="small" checked={showAverage && averageSeriesEnabled} disabled={!averageSeriesEnabled} onChange={(event) => setShowAverage(event.target.checked)} />} label="Average" />
+                <FormControlLabel control={<Switch size="small" checked={showForecast && averageSeriesEnabled} disabled={!averageSeriesEnabled} onChange={(event) => setShowForecast(event.target.checked)} />} label="Forecast" />
               </Stack>
             </Grid>
           </Grid>
@@ -249,7 +285,12 @@ function DrillDownPage() {
           ) : null}
           {selectedValues.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>
-              No {dimension === "category" ? "categories" : "SKUs"} selected. Showing the top {selectionLimit} by {metricLabel.toLowerCase()}.
+              Select at least one {dimensionLabel.toLowerCase()} to load the chart.
+            </Alert>
+          ) : null}
+          {selectedValues.length > 1 ? (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Average and forecast series are only shown when exactly one {dimensionLabel.toLowerCase()} is selected.
             </Alert>
           ) : null}
         </CardContent>
@@ -258,7 +299,7 @@ function DrillDownPage() {
       <Card sx={{ height: 520, width: "100%", minWidth: 0 }}>
         <CardContent sx={{ height: "100%", width: "100%", minWidth: 0 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="subtitle1" fontWeight={700}>{metricLabel} by {dimension === "category" ? "Category" : "SKU"}</Typography>
+            <Typography variant="subtitle1" fontWeight={700}>{metricLabel} by {dimensionLabel}</Typography>
             <Typography variant="caption" color="text.secondary">Rolling window: {chart.effectiveWindow} days</Typography>
           </Stack>
           <Box sx={{ height: 450, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -278,8 +319,8 @@ function DrillDownPage() {
                   <Legend />
                   {chart.series.flatMap((series) => [
                     showActual ? renderSeries(seriesId(series.index, "actual"), `${series.label} Actual`, series.color) : null,
-                    showAverage ? renderSeries(seriesId(series.index, "average"), `${series.label} Avg`, series.color, true) : null,
-                    showForecast ? renderSeries(seriesId(series.index, "forecast"), `${series.label} Forecast`, series.color, true) : null,
+                    showAverage && averageSeriesEnabled ? renderSeries(seriesId(series.index, "average"), `${series.label} Avg`, series.color, true) : null,
+                    showForecast && averageSeriesEnabled ? renderSeries(seriesId(series.index, "forecast"), `${series.label} Forecast`, series.color, true) : null,
                   ])}
                 </ComposedChart>
               </ResponsiveContainer>

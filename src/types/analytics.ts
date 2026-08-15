@@ -70,7 +70,7 @@ export type ForecastPoint = {
 
 export type DrilldownMetric = "revenue" | "orders" | "units_sold" | "aov";
 
-export type DrilldownDimension = "category" | "sku";
+export type DrilldownDimension = "category" | "sku" | "customer_segment";
 
 export type DrilldownPoint = {
   bucket_date: string;
