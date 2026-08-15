@@ -283,3 +283,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    2. Chart layout controls need to live in the popup where the user is analysing the stock item.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision and verify the Stock analysis popup behaviour in production.
+
+## 2026-08-15 04:16 UTC
+
+1. TODOs completed:
+   1. Added historical usage bars to the Stock analysis popup chart.
+   2. Kept actual stock level and projected stock level on the same chart timeline.
+   3. Ensured old SKU usage history can extend the chart date axis even when stock-level ledger data only exists from later dates.
+2. Git build reference:
+   1. App commit: `a27b334`
+3. New understandings/learnings:
+   1. Historical order-derived usage can predate available stock-level ledger points, so the chart needs to display both data types on a shared date axis.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify `BSF-TRA-1020-SH-NH-BK-01-OLD` shows 2023 historical usage in the popup chart.
