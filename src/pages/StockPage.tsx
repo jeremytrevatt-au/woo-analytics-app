@@ -32,7 +32,7 @@ function StockPage() {
   const [shortagesPage, setShortagesPage] = useState(1);
   const [stocktakePage, setStocktakePage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
-  const [ledgerReason, setLedgerReason] = useState<string>("all");
+  const [ledgerReason, setLedgerReason] = useState<string>("order_placed");
   const [ledgerSearch, setLedgerSearch] = useState<string>("");
   const [selectedSku, setSelectedSku] = useState<{
     sku: string;
@@ -450,6 +450,7 @@ function StockPage() {
         <StockLedgerChartModal 
           sku={selectedSku?.sku || null} 
           productName={selectedSku?.name || null} 
+          movementReason={ledgerReason}
           onClose={() => setSelectedSku(null)} 
         />
         </>
@@ -464,6 +465,7 @@ function StockPage() {
         lookbackDays={lookbackDays}
         startDate={filters.startDate}
         endDate={filters.endDate}
+        movementReason={ledgerReason}
         onClose={() => setSelectedSku(null)}
       />
 

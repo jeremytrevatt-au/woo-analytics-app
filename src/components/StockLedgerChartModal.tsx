@@ -17,6 +17,7 @@ interface Props {
   lookbackDays?: LookbackMode;
   startDate?: string | null;
   endDate?: string | null;
+  movementReason?: string | null;
   onClose: () => void;
 }
 
@@ -208,18 +209,26 @@ function mergeChartPoints(stockPoints: Array<any>, usagePoints: Array<any>): Arr
   return Array.from(byBucket.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 }
 
-export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, onClose }: Props) {
+export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, movementReason = "order_placed", onClose }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAverageLine, setShowAverageLine] = useState(true);
+  const [showHistoricalUsage, setShowHistoricalUsage] = useState(true);
+  const [showExcludedUsage, setShowExcludedUsage] = useState(false);
+  const [showActualStockLevel, setShowActualStockLevel] = useState(true);
+  const [showProjectedStockLevel, setShowProjectedStockLevel] = useState(true);
   const [aggregation, setAggregation] = useState<AnalysisAggregation>("day");
   const [localLookbackDays, setLocalLookbackDays] = useState<LookbackMode>(lookbackDays);
+  const [localMovementReason, setLocalMovementReason] = useState<string>(movementReason || "order_placed");
 
   useEffect(() => {
     setLocalLookbackDays(lookbackDays);
   }, [lookbackDays]);
+
+  useEffect(() => {
+    setLocalMovementReason(movementReason || "order_placed");
+  }, [movementReason]);
 
   useEffect(() => {
     if (!sku && !productId && !wsviGroupId && !canonicalProductKey) return;
@@ -230,7 +239,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
       try {
         const apiLookbackDays = localLookbackDays === "dynamic" ? 365 : localLookbackDays;
         const [ledgerResult, forecastResult] = await Promise.all([
-          fetchStockLedgerChart({ sku, productId, wsviGroupId, startDate, endDate }),
+          fetchStockLedgerChart({ sku, productId, wsviGroupId, startDate, endDate, reason: localMovementReason }),
           getStockForecastHistory(apiLookbackDays, canonicalProductKey, sku, startDate, endDate)
         ]);
         if (isMounted) {
@@ -254,7 +263,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
     };
     load();
     return () => { isMounted = false; };
-  }, [sku, productId, wsviGroupId, canonicalProductKey, localLookbackDays, startDate, endDate]);
+  }, [sku, productId, wsviGroupId, canonicalProductKey, localLookbackDays, localMovementReason, startDate, endDate]);
 
   const rawForecastPoints = forecastHistory?.points.map((point) => ({
     ...point,
@@ -296,7 +305,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             {productName}
           </Typography>
         )}
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "220px 220px auto" }, gap: 2, alignItems: "center", mb: 2 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "220px 220px 220px" }, gap: 2, alignItems: "center", mb: 2 }}>
           <TextField
             select
             size="small"
@@ -327,9 +336,36 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             <MenuItem value={365}>Last 365 Days</MenuItem>
             <MenuItem value="dynamic">Dynamic</MenuItem>
           </TextField>
+          <TextField
+            select
+            size="small"
+            label="Movement Reason"
+            value={localMovementReason}
+            onChange={(event) => setLocalMovementReason(event.target.value)}
+          >
+            <MenuItem value="order_placed">Order Placed</MenuItem>
+            <MenuItem value="manual_edit">Manual Edit</MenuItem>
+            <MenuItem value="order_restocked">Order Restocked</MenuItem>
+            <MenuItem value="order_refunded">Order Refunded</MenuItem>
+            <MenuItem value="all">All Movements</MenuItem>
+          </TextField>
+        </Box>
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
           <FormControlLabel
-            control={<Switch size="small" checked={showAverageLine} onChange={(event) => setShowAverageLine(event.target.checked)} />}
-            label="Average/forecast line"
+            control={<Switch size="small" checked={showHistoricalUsage} onChange={(event) => setShowHistoricalUsage(event.target.checked)} />}
+            label="Historical Usage"
+          />
+          <FormControlLabel
+            control={<Switch size="small" checked={showExcludedUsage} onChange={(event) => setShowExcludedUsage(event.target.checked)} />}
+            label="Excluded Usage"
+          />
+          <FormControlLabel
+            control={<Switch size="small" checked={showActualStockLevel} onChange={(event) => setShowActualStockLevel(event.target.checked)} />}
+            label="Actual Stock Level"
+          />
+          <FormControlLabel
+            control={<Switch size="small" checked={showProjectedStockLevel} onChange={(event) => setShowProjectedStockLevel(event.target.checked)} />}
+            label="Projected Stock Level"
           />
         </Box>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, mb: 2 }}>
@@ -369,10 +405,16 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
                 <YAxis yAxisId="stock" />
                 <YAxis yAxisId="usage" orientation="right" />
                 <Tooltip />
-                <Bar yAxisId="usage" dataKey="historical_usage_qty" fill="#9fceb0" name="Historical Usage" />
-                <Bar yAxisId="usage" dataKey="excluded_usage_qty" fill="#ed6c02" name="Excluded Usage" />
-                <Line yAxisId="stock" type="stepAfter" dataKey="stock_qty" stroke="#1976d2" strokeWidth={2} dot={{ r: 3 }} name="Actual Stock Level" />
-                {showAverageLine ? (
+                {showHistoricalUsage ? (
+                  <Bar yAxisId="usage" dataKey="historical_usage_qty" fill="#9fceb0" name="Historical Usage" />
+                ) : null}
+                {showExcludedUsage ? (
+                  <Bar yAxisId="usage" dataKey="excluded_usage_qty" fill="#ed6c02" name="Excluded Usage" />
+                ) : null}
+                {showActualStockLevel ? (
+                  <Line yAxisId="stock" type="stepAfter" dataKey="stock_qty" stroke="#1976d2" strokeWidth={2} dot={{ r: 3 }} name="Actual Stock Level" />
+                ) : null}
+                {showProjectedStockLevel ? (
                   <Line yAxisId="stock" type="monotone" dataKey="projected_stock_qty" stroke="#6a1b9a" strokeWidth={2} dot={false} name="Projected Stock Level" />
                 ) : null}
               </ComposedChart>

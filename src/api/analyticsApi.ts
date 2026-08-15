@@ -80,13 +80,14 @@ type StockRow = {
 
 import { StockLedgerResponse } from "../types/analytics";
 
-export async function fetchStockLedgerChart(target: { sku?: string | null; productId?: number | null; wsviGroupId?: string | null; startDate?: string | null; endDate?: string | null }): Promise<any[]> {
+export async function fetchStockLedgerChart(target: { sku?: string | null; productId?: number | null; wsviGroupId?: string | null; startDate?: string | null; endDate?: string | null; reason?: string | null }): Promise<any[]> {
   const params = new URLSearchParams();
   if (target.wsviGroupId) params.append("wsvi_group_id", target.wsviGroupId);
   else if (target.productId) params.append("product_id", String(target.productId));
   else if (target.sku) params.append("sku", target.sku);
   if (target.startDate) params.append("start_date", target.startDate);
   if (target.endDate) params.append("end_date", target.endDate);
+  if (target.reason && target.reason !== "all") params.append("reason", target.reason);
   return fetchJson<any[]>(`/api/v1/stock/ledger/chart?${params.toString()}`);
 }
 
