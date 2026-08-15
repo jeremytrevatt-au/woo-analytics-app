@@ -58,7 +58,7 @@ function ForecastPanel({ forecast }: Props) {
   }, [forecast, showCumulative]);
 
   return (
-    <Card sx={{ height: 400, width: "100%" }}>
+    <Card sx={{ height: 400, width: "100%", minWidth: 0 }}>
       <CardHeader 
         title="Revenue Forecast" 
         sx={{
@@ -91,7 +91,7 @@ function ForecastPanel({ forecast }: Props) {
           </Box>
         }
       />
-      <CardContent sx={{ height: 330 }}>
+      <CardContent sx={{ height: 330, width: "100%", minWidth: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
           {chartType === "area" ? (
             <AreaChart data={chartData}>

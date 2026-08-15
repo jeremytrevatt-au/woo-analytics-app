@@ -61,7 +61,7 @@ function TrendsChartPanel({ data, title, domain }: Props) {
   const DataComponent = chartType === "line" ? Line : Bar;
 
   return (
-    <Card sx={{ height: 400, width: "100%" }}>
+    <Card sx={{ height: 400, width: "100%", minWidth: 0 }}>
       <CardHeader 
         title={title} 
         sx={{
@@ -88,7 +88,7 @@ function TrendsChartPanel({ data, title, domain }: Props) {
           </Box>
         }
       />
-      <CardContent sx={{ height: 330 }}>
+      <CardContent sx={{ height: 330, width: "100%", minWidth: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
           <ChartComponent data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />

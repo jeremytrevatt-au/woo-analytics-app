@@ -1,5 +1,5 @@
 import { ArrowDownward, ArrowUpward } from "@mui/icons-material";
-import { Card, CardContent, Grid, Stack, Typography } from "@mui/material";
+import { Box, Card, CardContent, Stack, Typography } from "@mui/material";
 import { KpiCardData } from "../types/analytics";
 
 type Props = {
@@ -8,10 +8,22 @@ type Props = {
 
 function KpiGrid({ cards }: Props) {
   return (
-    <Grid container spacing={2}>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: {
+          xs: "minmax(0, 1fr)",
+          sm: "repeat(2, minmax(0, 1fr))",
+          lg: "repeat(4, minmax(0, 1fr))",
+        },
+        gap: 2,
+        width: "100%",
+        minWidth: 0,
+      }}
+    >
       {cards.map((card) => (
-        <Grid item xs={12} sm={4} key={card.id}>
-          <Card>
+        <Box key={card.id} sx={{ minWidth: 0 }}>
+          <Card sx={{ height: "100%", width: "100%" }}>
             <CardContent>
               <Typography variant="body2" color="text.secondary">
                 {card.label}
@@ -31,9 +43,9 @@ function KpiGrid({ cards }: Props) {
               </Stack>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
       ))}
-    </Grid>
+    </Box>
   );
 }
 
