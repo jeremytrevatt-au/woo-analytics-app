@@ -337,3 +337,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Multi-series average plots become too noisy for this dashboard, so rolling averages should be constrained to single-series analysis.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify Drill Down chart controls behave correctly in production.
+
+## 2026-08-15 23:17 UTC
+
+1. TODOs completed:
+   1. Added Copy to Clipboard controls to API Debug Panel entries for request/response payloads.
+   2. Reset Stock Items, Stock Shortages, and Stocktake pagination to page 1 when shared filters change.
+   3. Added `Last 12 Months` to the global Date Range dropdown.
+   4. Added Stock Items controls for Avg Daily Usage, Days of Cover, and Projected Stockout range filtering.
+2. Git build reference:
+   1. App commit: `14a0ba2a5f08ce495ed9561291a59d7abe66910f`
+3. New understandings/learnings:
+   1. Stock Items forecast metric filters need to live in shared filter state so the existing data hooks refetch consistently.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision and verify the debug copy action, new date range, page reset, and Stock Items filters in production.
