@@ -268,3 +268,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    2. Home chart aggregation can reuse the existing global `granularity` filter and backend trend aggregation.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify Home charts fill the available page width.
+
+## 2026-08-15 03:35 UTC
+
+1. TODOs completed:
+   1. Added Stock analysis popup controls for Daily, Weekly, and Monthly aggregation.
+   2. Added Forecast Average controls directly inside the Stock analysis popup.
+   3. Replaced the separate usage-average chart with a projected stock-level line overlaid on the Stock Level chart.
+   4. Renamed forecast-history wording to `Historical Usage Inputs`.
+2. Git build reference:
+   1. App commit: `da793e1`
+3. New understandings/learnings:
+   1. Stock forecasting should be presented as future projected stock level based on historical usage, not as a forecast of history.
+   2. Chart layout controls need to live in the popup where the user is analysing the stock item.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision and verify the Stock analysis popup behaviour in production.
