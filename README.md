@@ -296,3 +296,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Historical order-derived usage can predate available stock-level ledger points, so the chart needs to display both data types on a shared date axis.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify `BSF-TRA-1020-SH-NH-BK-01-OLD` shows 2023 historical usage in the popup chart.
+
+## 2026-08-15 04:45 UTC
+
+1. TODOs completed:
+   1. Added Stock analysis popup toggles for `Historical Usage`, `Excluded Usage`, `Actual Stock Level`, and `Projected Stock Level`.
+   2. Added a popup `Movement Reason` selector with `Order Placed`, `Manual Edit`, `Order Restocked`, `Order Refunded`, and `All Movements`.
+   3. Defaulted the Stock page movement reason to `Order Placed` and passed it into the popup while allowing popup-level changes.
+2. Git build reference:
+   1. App commit: `f8b75e6`
+3. New understandings/learnings:
+   1. The analysis popup needs independent series controls because historical usage, exclusions, actual stock, and projected stock answer different operational questions.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify the popup controls work against the production chart endpoint.
