@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow, FormControlLabel, Switch, TextField, MenuItem } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchStockLedgerChart, getStockForecastHistory } from "../api/analyticsApi";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockForecastHistoryResponse } from "../types/analytics";
 
 type LookbackMode = number | "dynamic";
@@ -174,6 +174,40 @@ function buildStockLevelForecast(points: Array<any>, averageDailyUsage: number, 
   return projected;
 }
 
+function mergeChartPoints(stockPoints: Array<any>, usagePoints: Array<any>): Array<any> {
+  const byBucket = new Map<string, any>();
+  usagePoints.forEach((point) => {
+    byBucket.set(point.bucket_date, {
+      bucket_date: point.bucket_date,
+      bucket_label: point.movement_date_label,
+      dateObj: point.dateObj,
+      historical_usage_qty: Number(point.forecast_usage_qty || 0),
+      excluded_usage_qty: Number(point.excluded_qty || 0),
+      stock_qty: null,
+      projected_stock_qty: null,
+    });
+  });
+  stockPoints.forEach((point) => {
+    const existing = byBucket.get(point.bucket_date) ?? {
+      bucket_date: point.bucket_date,
+      bucket_label: point.bucket_label,
+      dateObj: point.dateObj,
+      historical_usage_qty: 0,
+      excluded_usage_qty: 0,
+      stock_qty: null,
+      projected_stock_qty: null,
+    };
+    byBucket.set(point.bucket_date, {
+      ...existing,
+      bucket_label: point.bucket_label,
+      dateObj: point.dateObj,
+      stock_qty: point.stock_qty,
+      projected_stock_qty: point.projected_stock_qty,
+    });
+  });
+  return Array.from(byBucket.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+}
+
 export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, onClose }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
@@ -236,6 +270,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
   const averageDailyUsage = calculateAverageDailyUsage(rawForecastPoints, effectiveLookbackDays);
   const stockLevelChartPoints = buildStockLevelForecast(aggregatedStockPoints, averageDailyUsage, aggregation);
   const forecastPoints = addRollingAverage(aggregateUsagePoints(rawForecastPoints, aggregation), effectiveLookbackDays);
+  const unifiedChartPoints = mergeChartPoints(stockLevelChartPoints, forecastPoints);
   const includedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.forecast_usage_qty || 0), 0);
   const excludedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.excluded_qty || 0), 0);
   const firstLedgerDate = data[0]?.timestamp ?? "-";
@@ -312,17 +347,17 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
           </Box>
         </Box>
 
-        <Typography variant="subtitle2" gutterBottom>Stock Level & Forecast</Typography>
+        <Typography variant="subtitle2" gutterBottom>Historical Usage, Stock Level & Forecast</Typography>
         <Box sx={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isLoading ? (
             <CircularProgress />
           ) : error ? (
             <Typography color="error">{error}</Typography>
-          ) : stockLevelChartPoints.length === 0 ? (
+          ) : unifiedChartPoints.length === 0 ? (
             <Typography color="text.secondary">No history found for this SKU.</Typography>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stockLevelChartPoints} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+              <ComposedChart data={unifiedChartPoints} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="bucket_label" 
@@ -331,13 +366,16 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
                   textAnchor="end" 
                   height={60} 
                 />
-                <YAxis />
+                <YAxis yAxisId="stock" />
+                <YAxis yAxisId="usage" orientation="right" />
                 <Tooltip />
-                <Line type="stepAfter" dataKey="stock_qty" stroke="#1976d2" strokeWidth={2} dot={{ r: 3 }} name="Stock Level" />
+                <Bar yAxisId="usage" dataKey="historical_usage_qty" fill="#9fceb0" name="Historical Usage" />
+                <Bar yAxisId="usage" dataKey="excluded_usage_qty" fill="#ed6c02" name="Excluded Usage" />
+                <Line yAxisId="stock" type="stepAfter" dataKey="stock_qty" stroke="#1976d2" strokeWidth={2} dot={{ r: 3 }} name="Actual Stock Level" />
                 {showAverageLine ? (
-                  <Line type="monotone" dataKey="projected_stock_qty" stroke="#6a1b9a" strokeWidth={2} dot={false} name={`${effectiveLookbackDays}d Forecast Stock Level`} />
+                  <Line yAxisId="stock" type="monotone" dataKey="projected_stock_qty" stroke="#6a1b9a" strokeWidth={2} dot={false} name="Projected Stock Level" />
                 ) : null}
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </Box>
