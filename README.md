@@ -323,3 +323,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Rolling-average forecasting should be represented as its own series rather than a projection drawn over the actual series.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify the new Drill Down dashboard works against the deployed service endpoint.
+
+## 2026-08-15 09:29 UTC
+
+1. TODOs completed:
+   1. Added `Customer Segment` as a Drill Down dimension with `New Customer` and `Returning Customer` selections.
+   2. Changed the default Drill Down page to show no chart data until a dimension value is selected.
+   3. Kept actual values as bars in bar mode while rendering average and forecast series as lines.
+   4. Disabled average and forecast series unless exactly one category, SKU, or customer segment is selected.
+2. Git build reference:
+   1. App commit: `5fbea53`
+3. New understandings/learnings:
+   1. Multi-series average plots become too noisy for this dashboard, so rolling averages should be constrained to single-series analysis.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify Drill Down chart controls behave correctly in production.
