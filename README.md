@@ -309,3 +309,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. The analysis popup needs independent series controls because historical usage, exclusions, actual stock, and projected stock answer different operational questions.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify the popup controls work against the production chart endpoint.
+
+## 2026-08-15 07:08 UTC
+
+1. TODOs completed:
+   1. Added the new `Drill Down` dashboard route and navigation item.
+   2. Added category and SKU selection modes with caps of 5 categories or 10 SKUs.
+   3. Added actual, rolling average, and forecast series toggles with 7, 14, 30, 60, 90, and dynamic rolling windows.
+   4. Added line/bar chart mode switching for commerce metrics.
+2. Git build reference:
+   1. App commit: `62f7cd5`
+3. New understandings/learnings:
+   1. Rolling-average forecasting should be represented as its own series rather than a projection drawn over the actual series.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify the new Drill Down dashboard works against the deployed service endpoint.
