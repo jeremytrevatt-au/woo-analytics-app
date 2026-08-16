@@ -351,3 +351,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Stock Items forecast metric filters need to live in shared filter state so the existing data hooks refetch consistently.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision and verify the debug copy action, new date range, page reset, and Stock Items filters in production.
+
+## 2026-08-16 00:53 UTC
+
+1. TODOs completed:
+   1. Changed Stock Items range controls so typing in fields such as `Days Cover Min` no longer reloads the table on every keystroke.
+   2. Added `Apply` and `Clear` actions for Avg Daily Usage, Days of Cover, and Projected Stockout filters.
+   3. Added a bulk filter updater so applying those fields updates shared filters in one operation.
+2. Git build reference:
+   1. App commit: `923d1fe25cd4f7419f9ffc7c6a87acaa944a85b6`
+3. New understandings/learnings:
+   1. Stock Items range inputs need draft state because reload-on-change makes multi-character numeric edits difficult.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify Stock Items only reloads when `Apply` or `Clear` is clicked.
