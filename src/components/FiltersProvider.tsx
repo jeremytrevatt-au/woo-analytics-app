@@ -4,6 +4,7 @@ import { AppFilterState } from "../types/analytics";
 type FiltersContextValue = {
   filters: AppFilterState;
   updateFilter: <K extends keyof AppFilterState>(key: K, value: AppFilterState[K]) => void;
+  updateFilters: (values: Partial<AppFilterState>) => void;
 };
 
 function isoDateDaysAgo(daysAgo: number): string {
@@ -43,7 +44,8 @@ const defaultFilters: AppFilterState = {
 
 export const FiltersContext = createContext<FiltersContextValue>({
   filters: defaultFilters,
-  updateFilter: () => undefined
+  updateFilter: () => undefined,
+  updateFilters: () => undefined
 });
 
 type Props = {
@@ -60,6 +62,12 @@ function FiltersProvider({ children }: Props) {
         setFilters((previous) => ({
           ...previous,
           [key]: filterValue
+        }));
+      },
+      updateFilters: (values: Partial<AppFilterState>) => {
+        setFilters((previous) => ({
+          ...previous,
+          ...values
         }));
       }
     }),

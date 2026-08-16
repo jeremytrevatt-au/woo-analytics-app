@@ -13,12 +13,52 @@ import AddToPOModal from "../components/AddToPOModal";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { getStocktakeRecords, updateStockQuantity } from "../api/analyticsApi";
 import { useFilters } from "../hooks/useFilters";
+import type { AppFilterState } from "../types/analytics";
+
+type StockRangeFilterDraft = Pick<
+  AppFilterState,
+  | "stockAvgDailyUsageMin"
+  | "stockAvgDailyUsageMax"
+  | "stockDaysOfCoverMin"
+  | "stockDaysOfCoverMax"
+  | "stockProjectedStockoutStart"
+  | "stockProjectedStockoutEnd"
+>;
+
+const stockRangeFilterKeys: (keyof StockRangeFilterDraft)[] = [
+  "stockAvgDailyUsageMin",
+  "stockAvgDailyUsageMax",
+  "stockDaysOfCoverMin",
+  "stockDaysOfCoverMax",
+  "stockProjectedStockoutStart",
+  "stockProjectedStockoutEnd",
+];
+
+function getStockRangeFilterDraft(filters: AppFilterState): StockRangeFilterDraft {
+  return {
+    stockAvgDailyUsageMin: filters.stockAvgDailyUsageMin,
+    stockAvgDailyUsageMax: filters.stockAvgDailyUsageMax,
+    stockDaysOfCoverMin: filters.stockDaysOfCoverMin,
+    stockDaysOfCoverMax: filters.stockDaysOfCoverMax,
+    stockProjectedStockoutStart: filters.stockProjectedStockoutStart,
+    stockProjectedStockoutEnd: filters.stockProjectedStockoutEnd,
+  };
+}
+
+const emptyStockRangeFilterDraft: StockRangeFilterDraft = {
+  stockAvgDailyUsageMin: "",
+  stockAvgDailyUsageMax: "",
+  stockDaysOfCoverMin: "",
+  stockDaysOfCoverMax: "",
+  stockProjectedStockoutStart: "",
+  stockProjectedStockoutEnd: "",
+};
 
 function StockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "shortages" ? 1 : searchParams.get("tab") === "stocktake" ? 2 : 0;
   const [activeTab, setActiveTab] = useState(initialTab);
-  const { filters, updateFilter } = useFilters();
+  const { filters, updateFilter, updateFilters } = useFilters();
 
   const handleTabChange = (_event: SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -57,6 +97,18 @@ function StockPage() {
   const [stocktakeInputs, setStocktakeInputs] = useState<Record<string, string>>({});
   const [stocktakeSaving, setStocktakeSaving] = useState<Record<string, boolean>>({});
   const [stocktakeMessages, setStocktakeMessages] = useState<Record<string, string>>({});
+  const [stockRangeDraft, setStockRangeDraft] = useState<StockRangeFilterDraft>(() => getStockRangeFilterDraft(filters));
+
+  useEffect(() => {
+    setStockRangeDraft(getStockRangeFilterDraft(filters));
+  }, [
+    filters.stockAvgDailyUsageMin,
+    filters.stockAvgDailyUsageMax,
+    filters.stockDaysOfCoverMin,
+    filters.stockDaysOfCoverMax,
+    filters.stockProjectedStockoutStart,
+    filters.stockProjectedStockoutEnd,
+  ]);
 
   useEffect(() => {
     setPage(1);
@@ -138,6 +190,25 @@ function StockPage() {
     } finally {
       setStocktakeSaving(prev => ({ ...prev, [key]: false }));
     }
+  };
+
+  const updateStockRangeDraft = (key: keyof StockRangeFilterDraft, value: string) => {
+    setStockRangeDraft((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  };
+
+  const hasPendingStockRangeFilters = stockRangeFilterKeys.some((key) => stockRangeDraft[key] !== filters[key]);
+  const hasAppliedStockRangeFilters = stockRangeFilterKeys.some((key) => filters[key] !== "");
+
+  const handleApplyStockRangeFilters = () => {
+    updateFilters(stockRangeDraft);
+  };
+
+  const handleClearStockRangeFilters = () => {
+    setStockRangeDraft(emptyStockRangeFilterDraft);
+    updateFilters(emptyStockRangeFilterDraft);
   };
 
   const unifiedRows = (rows as any[]).map((row) => {
@@ -239,8 +310,8 @@ function StockPage() {
                       fullWidth
                       type="number"
                       label="Avg Usage Min"
-                      value={filters.stockAvgDailyUsageMin}
-                      onChange={(e) => updateFilter("stockAvgDailyUsageMin", e.target.value)}
+                      value={stockRangeDraft.stockAvgDailyUsageMin}
+                      onChange={(e) => updateStockRangeDraft("stockAvgDailyUsageMin", e.target.value)}
                       size="small"
                       inputProps={{ min: 0, step: "any" }}
                     />
@@ -250,8 +321,8 @@ function StockPage() {
                       fullWidth
                       type="number"
                       label="Avg Usage Max"
-                      value={filters.stockAvgDailyUsageMax}
-                      onChange={(e) => updateFilter("stockAvgDailyUsageMax", e.target.value)}
+                      value={stockRangeDraft.stockAvgDailyUsageMax}
+                      onChange={(e) => updateStockRangeDraft("stockAvgDailyUsageMax", e.target.value)}
                       size="small"
                       inputProps={{ min: 0, step: "any" }}
                     />
@@ -261,8 +332,8 @@ function StockPage() {
                       fullWidth
                       type="number"
                       label="Days Cover Min"
-                      value={filters.stockDaysOfCoverMin}
-                      onChange={(e) => updateFilter("stockDaysOfCoverMin", e.target.value)}
+                      value={stockRangeDraft.stockDaysOfCoverMin}
+                      onChange={(e) => updateStockRangeDraft("stockDaysOfCoverMin", e.target.value)}
                       size="small"
                       inputProps={{ min: 0, step: "any" }}
                     />
@@ -272,8 +343,8 @@ function StockPage() {
                       fullWidth
                       type="number"
                       label="Days Cover Max"
-                      value={filters.stockDaysOfCoverMax}
-                      onChange={(e) => updateFilter("stockDaysOfCoverMax", e.target.value)}
+                      value={stockRangeDraft.stockDaysOfCoverMax}
+                      onChange={(e) => updateStockRangeDraft("stockDaysOfCoverMax", e.target.value)}
                       size="small"
                       inputProps={{ min: 0, step: "any" }}
                     />
@@ -283,8 +354,8 @@ function StockPage() {
                       fullWidth
                       type="date"
                       label="Stockout From"
-                      value={filters.stockProjectedStockoutStart}
-                      onChange={(e) => updateFilter("stockProjectedStockoutStart", e.target.value)}
+                      value={stockRangeDraft.stockProjectedStockoutStart}
+                      onChange={(e) => updateStockRangeDraft("stockProjectedStockoutStart", e.target.value)}
                       size="small"
                       InputLabelProps={{ shrink: true }}
                     />
@@ -294,11 +365,31 @@ function StockPage() {
                       fullWidth
                       type="date"
                       label="Stockout To"
-                      value={filters.stockProjectedStockoutEnd}
-                      onChange={(e) => updateFilter("stockProjectedStockoutEnd", e.target.value)}
+                      value={stockRangeDraft.stockProjectedStockoutEnd}
+                      onChange={(e) => updateStockRangeDraft("stockProjectedStockoutEnd", e.target.value)}
                       size="small"
                       InputLabelProps={{ shrink: true }}
                     />
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={handleApplyStockRangeFilters}
+                        disabled={!hasPendingStockRangeFilters}
+                      >
+                        Apply
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={handleClearStockRangeFilters}
+                        disabled={!hasAppliedStockRangeFilters && !hasPendingStockRangeFilters}
+                      >
+                        Clear
+                      </Button>
+                    </Stack>
                   </Grid>
                 </Grid>
                 <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
