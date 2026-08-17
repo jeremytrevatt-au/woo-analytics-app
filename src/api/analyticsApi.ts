@@ -282,7 +282,7 @@ export async function getStockRecords(
   page: number,
   pageSize: number
 ): Promise<PaginatedRecords> {
-  const mappedStatus = filter.stockStatus.includes("instock") ? "instock" : filter.stockStatus.includes("outofstock") ? "outofstock" : "all";
+  const mappedStatus = filter.stockStatus.length > 0 ? filter.stockStatus.join(",") : "all";
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -323,6 +323,7 @@ export async function getStocktakeRecords(
     page_size: String(pageSize),
     q: filter.searchText,
   });
+  if (filter.stockStatus.length > 0) params.append("status", filter.stockStatus.join(","));
   if (filter.category) params.append("category", filter.category);
   if (filter.skuStartsWith) params.append("sku_starts_with", filter.skuStartsWith);
   if (filter.skuContains) params.append("sku_contains", filter.skuContains);

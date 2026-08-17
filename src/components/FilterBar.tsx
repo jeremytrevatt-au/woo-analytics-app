@@ -1,6 +1,27 @@
-import { Card, CardContent, Grid, MenuItem, Stack, TextField, FormControlLabel, Switch, Checkbox, ListItemText, Select, InputLabel, FormControl, OutlinedInput } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Checkbox,
+  Chip,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  InputLabel,
+  ListItemText,
+  MenuItem,
+  OutlinedInput,
+  Select,
+  Switch,
+  TextField,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
 import { useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { useFilters } from "../hooks/useFilters";
 import { getCategories } from "../api/analyticsApi";
 import type { AppFilterState } from "../types/analytics";
@@ -26,12 +47,152 @@ const OPEN_ORDER_STATUS_VALUES = ["wc-processing", "wc-pre-ordered", "wc-on-hold
 
 type DateRangeValue = AppFilterState["dateRange"];
 
+type FilterBarContext = {
+  hidden?: boolean;
+  title: string;
+  showDateRange?: boolean;
+  showGranularity?: boolean;
+  showCompare?: boolean;
+  showOrderStatus?: boolean;
+  showStockStatus?: boolean;
+  showSearch?: boolean;
+  showCategory?: boolean;
+  showSkuFilters?: boolean;
+  searchLabel?: string;
+};
+
+function getStockTab(search: string): "items" | "shortages" | "stocktake" {
+  const tab = new URLSearchParams(search).get("tab");
+  if (tab === "shortages" || tab === "stocktake") return tab;
+  return "items";
+}
+
+function getFilterBarContext(path: string, stockTab: "items" | "shortages" | "stocktake"): FilterBarContext {
+  if (path === "/purchase-orders" || path === "/suppliers" || path === "/admin" || path === "/preorders" || path === "/drill-down") {
+    return { title: "Filters", hidden: true };
+  }
+
+  if (path === "/") {
+    return {
+      title: "Dashboard Filters",
+      showDateRange: true,
+      showGranularity: true,
+      showCompare: true,
+    };
+  }
+
+  if (path === "/orders") {
+    return {
+      title: "Order Filters",
+      showDateRange: true,
+      showGranularity: true,
+      showCompare: true,
+      showOrderStatus: true,
+      showSearch: true,
+      showCategory: true,
+      showSkuFilters: true,
+      searchLabel: "Search order, customer, SKU",
+    };
+  }
+
+  if (path === "/customers") {
+    return {
+      title: "Customer Filters",
+      showDateRange: true,
+      showGranularity: true,
+      showCompare: true,
+      showSearch: true,
+      searchLabel: "Search customer",
+    };
+  }
+
+  if (path === "/revenue") {
+    return {
+      title: "Revenue Filters",
+      showDateRange: true,
+      showGranularity: true,
+      showOrderStatus: true,
+      showSearch: true,
+      showCategory: true,
+      showSkuFilters: true,
+      searchLabel: "Search order, product, SKU",
+    };
+  }
+
+  if (path === "/backorders") {
+    return {
+      title: "Backorder Filters",
+      showDateRange: true,
+      showGranularity: true,
+      showCompare: true,
+      showOrderStatus: true,
+      showStockStatus: true,
+      showSearch: true,
+      searchLabel: "Search order, product, SKU",
+    };
+  }
+
+  if (path === "/packing") {
+    return {
+      title: "Packing Filters",
+      showOrderStatus: true,
+      showSearch: true,
+      searchLabel: "Search order, customer, SKU",
+    };
+  }
+
+  if (path === "/stock" && stockTab === "stocktake") {
+    return {
+      title: "Stocktake Filters",
+      showStockStatus: true,
+      showSearch: true,
+      showCategory: true,
+      showSkuFilters: true,
+      searchLabel: "Search product or SKU",
+    };
+  }
+
+  if (path === "/stock" && stockTab === "shortages") {
+    return {
+      title: "Stock Shortage Filters",
+      showDateRange: true,
+      showOrderStatus: true,
+      showStockStatus: true,
+      showSearch: true,
+      showCategory: true,
+      showSkuFilters: true,
+      searchLabel: "Search order, product, SKU",
+    };
+  }
+
+  if (path === "/stock") {
+    return {
+      title: "Stock Item Filters",
+      showDateRange: true,
+      showGranularity: true,
+      showCompare: true,
+      showStockStatus: true,
+      showSearch: true,
+      showCategory: true,
+      showSkuFilters: true,
+      searchLabel: "Search product or SKU",
+    };
+  }
+
+  return { title: "Filters", hidden: true };
+}
+
 function FilterBar() {
   const { filters, updateFilter } = useFilters();
   const location = useLocation();
-  const path = location.pathname;
-  const stockTab = new URLSearchParams(location.search).get("tab");
-  const isStockShortagesTab = path === "/stock" && stockTab === "shortages";
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const stockTab = getStockTab(location.search);
+  const filterContext = useMemo(
+    () => getFilterBarContext(location.pathname, stockTab),
+    [location.pathname, stockTab]
+  );
+  const isStockShortagesTab = location.pathname === "/stock" && stockTab === "shortages";
   const orderStatusOptions = isStockShortagesTab
     ? ORDER_STATUS_OPTIONS.filter((option) => OPEN_ORDER_STATUS_VALUES.includes(option.value))
     : ORDER_STATUS_OPTIONS;
@@ -39,10 +200,15 @@ function FilterBar() {
     ? STOCK_STATUS_OPTIONS.filter((option) => option.value !== "instock")
     : STOCK_STATUS_OPTIONS;
   const [categories, setCategories] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     getCategories().then(setCategories).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    setExpanded(!isMobile);
+  }, [isMobile, location.pathname, stockTab]);
 
   useEffect(() => {
     if (!isStockShortagesTab) return;
@@ -59,13 +225,13 @@ function FilterBar() {
     }
   }, [filters.orderStatus, filters.stockStatus, isStockShortagesTab, updateFilter]);
 
-  const showOrderStatus = path === "/orders" || path === "/backorders" || path === "/packing" || isStockShortagesTab;
-  const showStockStatus = path === "/stock" || path === "/backorders";
-  const hideDateRange = path === "/packing";
+  if (filterContext.hidden) {
+    return null;
+  }
 
   const handleDateRangeChange = (range: DateRangeValue) => {
     updateFilter("dateRange", range);
-    
+
     const today = new Date();
     let endDate = today.toISOString().slice(0, 10);
     let startDate = filters.startDate;
@@ -77,9 +243,9 @@ function FilterBar() {
       startDate = today.toISOString().slice(0, 10);
     } else if (range === "this_week") {
       const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
       startDate = new Date(today.setDate(diff)).toISOString().slice(0, 10);
-      endDate = new Date().toISOString().slice(0, 10); // reset to today
+      endDate = new Date().toISOString().slice(0, 10);
     } else if (range === "last_3_months") {
       const start = new Date();
       start.setMonth(start.getMonth() - 3);
@@ -116,7 +282,7 @@ function FilterBar() {
 
     updateFilter("startDate", startDate);
     updateFilter("endDate", endDate);
-    
+
     if (filters.compareEnabled && startDate && endDate) {
       updateCompareDates(startDate, endDate, range);
     }
@@ -126,7 +292,7 @@ function FilterBar() {
     if (!start || !end) return;
     const sDate = new Date(start);
     const eDate = new Date(end);
-    
+
     let cStartDate = new Date(sDate);
     let cEndDate = new Date(eDate);
 
@@ -148,19 +314,19 @@ function FilterBar() {
     } else {
       const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+
       cEndDate = new Date(sDate);
       cEndDate.setDate(cEndDate.getDate() - 1);
-      
+
       cStartDate = new Date(cEndDate);
       cStartDate.setDate(cStartDate.getDate() - diffDays);
     }
-    
+
     updateFilter("compareStartDate", cStartDate.toISOString().slice(0, 10));
     updateFilter("compareEndDate", cEndDate.toISOString().slice(0, 10));
   };
 
-  const handleCompareToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCompareToggle = (event: ChangeEvent<HTMLInputElement>) => {
     const enabled = event.target.checked;
     updateFilter("compareEnabled", enabled);
     if (enabled) {
@@ -171,19 +337,41 @@ function FilterBar() {
     }
   };
 
+  const activeFilterCount = [
+    filterContext.showSearch && Boolean(filters.searchText),
+    filterContext.showCategory && Boolean(filters.category),
+    filterContext.showSkuFilters && Boolean(filters.skuStartsWith),
+    filterContext.showSkuFilters && Boolean(filters.skuContains),
+    filterContext.showSkuFilters && Boolean(filters.skuEndsWith),
+    filterContext.showOrderStatus && filters.orderStatus.length > 0,
+    filterContext.showStockStatus && filters.stockStatus.length > 0,
+    filterContext.showCompare && filters.compareEnabled,
+  ].filter(Boolean).length;
+
   return (
-    <Card>
-      <CardContent>
-        <Grid container spacing={2}>
-          {!hideDateRange && (
+    <Accordion
+      expanded={expanded}
+      onChange={(_event, nextExpanded) => setExpanded(nextExpanded)}
+      disableGutters
+      sx={{ "&::before": { display: "none" } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="filter-panel-content" id="filter-panel-header">
+        <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1 }}>
+          {filterContext.title}
+        </Typography>
+        {activeFilterCount > 0 ? <Chip size="small" label={`${activeFilterCount} active`} /> : null}
+      </AccordionSummary>
+      <AccordionDetails>
+        <Grid container spacing={2} alignItems="center">
+          {filterContext.showDateRange && (
             <>
-              <Grid item xs={12} md={2}>
+              <Grid item xs={12} sm={6} md={3} lg={2}>
                 <TextField
                   fullWidth
                   label="Date Range"
                   select
                   value={filters.dateRange}
-                  onChange={(event) => handleDateRangeChange(event.target.value as any)}
+                  onChange={(event) => handleDateRangeChange(event.target.value as DateRangeValue)}
                 >
                   <MenuItem value="today">Today</MenuItem>
                   <MenuItem value="this_week">This Week</MenuItem>
@@ -200,7 +388,7 @@ function FilterBar() {
                   <MenuItem value="custom">Custom</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={2}>
+              <Grid item xs={12} sm={6} md={3} lg={2}>
                 <TextField
                   fullWidth
                   label="Start date"
@@ -214,7 +402,7 @@ function FilterBar() {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={2}>
+              <Grid item xs={12} sm={6} md={3} lg={2}>
                 <TextField
                   fullWidth
                   label="End date"
@@ -228,34 +416,38 @@ function FilterBar() {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  label="Granularity"
-                  select
-                  value={filters.granularity}
-                  onChange={(event) =>
-                    updateFilter("granularity", event.target.value as "day" | "week" | "month" | "quarter" | "year")
-                  }
-                >
-                  <MenuItem value="day">Daily</MenuItem>
-                  <MenuItem value="week">Weekly</MenuItem>
-                  <MenuItem value="month">Monthly</MenuItem>
-                  <MenuItem value="quarter">Quarterly</MenuItem>
-                  <MenuItem value="year">Yearly</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={2}>
-                <FormControlLabel
-                  control={<Switch checked={filters.compareEnabled} onChange={handleCompareToggle} />}
-                  label="Compare to previous"
-                />
-              </Grid>
             </>
           )}
-          {showOrderStatus && (
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth sx={{ minWidth: 150 }}>
+          {filterContext.showGranularity && (
+            <Grid item xs={12} sm={6} md={3} lg={2}>
+              <TextField
+                fullWidth
+                label="Granularity"
+                select
+                value={filters.granularity}
+                onChange={(event) =>
+                  updateFilter("granularity", event.target.value as "day" | "week" | "month" | "quarter" | "year")
+                }
+              >
+                <MenuItem value="day">Daily</MenuItem>
+                <MenuItem value="week">Weekly</MenuItem>
+                <MenuItem value="month">Monthly</MenuItem>
+                <MenuItem value="quarter">Quarterly</MenuItem>
+                <MenuItem value="year">Yearly</MenuItem>
+              </TextField>
+            </Grid>
+          )}
+          {filterContext.showCompare && (
+            <Grid item xs={12} sm={6} md={3} lg={2}>
+              <FormControlLabel
+                control={<Switch checked={filters.compareEnabled} onChange={handleCompareToggle} />}
+                label="Compare to previous"
+              />
+            </Grid>
+          )}
+          {filterContext.showOrderStatus && (
+            <Grid item xs={12} sm={6} md={3} lg={2}>
+              <FormControl fullWidth>
                 <InputLabel id="order-status-label">Order status</InputLabel>
                 <Select
                   labelId="order-status-label"
@@ -265,10 +457,7 @@ function FilterBar() {
                     const {
                       target: { value },
                     } = event;
-                    updateFilter(
-                      "orderStatus",
-                      typeof value === 'string' ? value.split(',') : value
-                    );
+                    updateFilter("orderStatus", typeof value === "string" ? value.split(",") : value);
                   }}
                   input={<OutlinedInput label="Order status" />}
                   renderValue={(selected) => {
@@ -290,9 +479,9 @@ function FilterBar() {
               </FormControl>
             </Grid>
           )}
-          {showStockStatus && (
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth sx={{ minWidth: 150 }}>
+          {filterContext.showStockStatus && (
+            <Grid item xs={12} sm={6} md={3} lg={2}>
+              <FormControl fullWidth>
                 <InputLabel id="stock-status-label">Stock status</InputLabel>
                 <Select
                   labelId="stock-status-label"
@@ -302,10 +491,7 @@ function FilterBar() {
                     const {
                       target: { value },
                     } = event;
-                    updateFilter(
-                      "stockStatus",
-                      typeof value === 'string' ? value.split(',') : value
-                    );
+                    updateFilter("stockStatus", typeof value === "string" ? value.split(",") : value);
                   }}
                   input={<OutlinedInput label="Stock status" />}
                   renderValue={(selected) => {
@@ -327,14 +513,18 @@ function FilterBar() {
               </FormControl>
             </Grid>
           )}
-          <Grid item xs={12} md={12}>
-            <Stack direction="row" spacing={2}>
+          {filterContext.showSearch && (
+            <Grid item xs={12} sm={6} md={3} lg={3}>
               <TextField
                 fullWidth
-                label="Search product, customer, SKU"
+                label={filterContext.searchLabel || "Search"}
                 value={filters.searchText}
                 onChange={(event) => updateFilter("searchText", event.target.value)}
               />
+            </Grid>
+          )}
+          {filterContext.showCategory && (
+            <Grid item xs={12} sm={6} md={3} lg={2}>
               <TextField
                 fullWidth
                 select
@@ -347,32 +537,42 @@ function FilterBar() {
                   <MenuItem key={cat} value={cat}>{cat}</MenuItem>
                 ))}
               </TextField>
-              <TextField
-                fullWidth
-                label="SKU Starts With"
-                value={filters.skuStartsWith || ""}
-                onChange={(event) => updateFilter("skuStartsWith", event.target.value)}
-                placeholder="e.g. BSF"
-              />
-              <TextField
-                fullWidth
-                label="SKU Contains"
-                value={filters.skuContains || ""}
-                onChange={(event) => updateFilter("skuContains", event.target.value)}
-                placeholder="e.g. TRA"
-              />
-              <TextField
-                fullWidth
-                label="SKU Ends With"
-                value={filters.skuEndsWith || ""}
-                onChange={(event) => updateFilter("skuEndsWith", event.target.value)}
-                placeholder="e.g. 20"
-              />
-            </Stack>
-          </Grid>
+            </Grid>
+          )}
+          {filterContext.showSkuFilters && (
+            <>
+              <Grid item xs={12} sm={6} md={3} lg={2}>
+                <TextField
+                  fullWidth
+                  label="SKU Starts With"
+                  value={filters.skuStartsWith || ""}
+                  onChange={(event) => updateFilter("skuStartsWith", event.target.value)}
+                  placeholder="e.g. BSF"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3} lg={2}>
+                <TextField
+                  fullWidth
+                  label="SKU Contains"
+                  value={filters.skuContains || ""}
+                  onChange={(event) => updateFilter("skuContains", event.target.value)}
+                  placeholder="e.g. TRA"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3} lg={2}>
+                <TextField
+                  fullWidth
+                  label="SKU Ends With"
+                  value={filters.skuEndsWith || ""}
+                  onChange={(event) => updateFilter("skuEndsWith", event.target.value)}
+                  placeholder="e.g. 20"
+                />
+              </Grid>
+            </>
+          )}
         </Grid>
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 

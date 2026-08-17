@@ -137,6 +137,42 @@ function renderStocktakeItemCell(row: any) {
   );
 }
 
+function renderStocktakeProductCell(row: any) {
+  const parsedProduct = splitStocktakeProductName(String(row.product_name ?? ""));
+  const explicitAttributes = cleanStocktakeAttributes(String(row.variant_attributes ?? ""));
+  const attributes = explicitAttributes || parsedProduct.attributes;
+  const swatchColour = findColourSwatch(attributes);
+
+  return (
+    <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+      <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>
+        {parsedProduct.productName}
+      </Typography>
+      {attributes ? (
+        <Stack direction="row" spacing={0.75} alignItems="center">
+          {swatchColour ? (
+            <Box
+              aria-hidden="true"
+              sx={{
+                width: 16,
+                height: 16,
+                borderRadius: 1,
+                bgcolor: swatchColour,
+                border: "1px solid",
+                borderColor: swatchColour === "#ffffff" ? "grey.400" : "transparent",
+                flexShrink: 0,
+              }}
+            />
+          ) : null}
+          <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
+            {attributes}
+          </Typography>
+        </Stack>
+      ) : null}
+    </Stack>
+  );
+}
+
 function formatStocktakeQuantity(value: any): string {
   if (value === null || value === undefined || value === "") {
     return "-";
@@ -683,6 +719,7 @@ function StockPage() {
               rows={stocktakeRows.map((row: any) => {
                 const displayRow = {
                   ...row,
+                  product_name: renderStocktakeProductCell(row),
                   new_qty: (
                     <Stack direction="row" spacing={1} alignItems="center">
                       {renderStocktakeSaveControls(row)}
@@ -701,6 +738,7 @@ function StockPage() {
                   ]
                 : stocktakeColumns.map((column: any) => {
                     if (column.key === "new_qty") return { ...column, type: "node" as const };
+                    if (column.key === "product_name") return { ...column, type: "node" as const };
                     if (column.key === "qty_to_be_packed") return { ...column, label: "Unpacked" };
                     return column;
                   })}
