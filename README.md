@@ -379,3 +379,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Stocktake needs a purpose-built mobile row layout because the generic desktop table wastes portrait screen width.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify Stocktake mobile portrait view uses the compact item column and tick save control.
+
+## 2026-08-17 01:31 UTC
+
+1. TODOs completed:
+   1. Reworked mobile Stocktake rows into two sub-rows: full-width item details above and Qty/Unpacked/New Qty/save controls below.
+   2. Used `variant_attributes` from the service for Product Variant Attribute values.
+   3. Restored colour chip rendering from returned variant attributes.
+   4. Made Stock page tabs scrollable on mobile portrait layouts.
+2. Git build reference:
+   1. App commit: `fc4654ed54e7d46c6b95da25fbd5c3e61b4eb094`
+3. New understandings/learnings:
+   1. Mobile Stocktake needs a custom list/card layout because table columns cannot make the product identity row span the full available width.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision after the service revision and verify the Stocktake tab is reachable and attributes/colour chips render on mobile.
