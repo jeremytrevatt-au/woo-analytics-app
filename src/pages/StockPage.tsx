@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button } from "@mui/material";
+import { Check } from "@mui/icons-material";
+import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, IconButton, useMediaQuery, useTheme } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
@@ -54,11 +55,90 @@ const emptyStockRangeFilterDraft: StockRangeFilterDraft = {
   stockProjectedStockoutEnd: "",
 };
 
+const colourSwatches: Record<string, string> = {
+  black: "#111111",
+  blue: "#1976d2",
+  brown: "#795548",
+  clear: "#e0f7fa",
+  cream: "#fff8e1",
+  green: "#2e7d32",
+  grey: "#9e9e9e",
+  gray: "#9e9e9e",
+  orange: "#f57c00",
+  pink: "#ec407a",
+  purple: "#7b1fa2",
+  red: "#d32f2f",
+  silver: "#b0bec5",
+  white: "#ffffff",
+  yellow: "#fbc02d",
+};
+
+function splitStocktakeProductName(productName: string): { productName: string; attributes: string } {
+  const parts = productName.split(" - ").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) {
+    return { productName, attributes: "" };
+  }
+
+  const attributes = parts
+    .slice(1)
+    .join(" - ")
+    .replace(/\b(?:Pack Size|Choose Your Size|Colour|Color):\s*/gi, "")
+    .replace(/,\s*/g, " | ")
+    .trim();
+
+  return { productName: parts[0], attributes };
+}
+
+function findColourSwatch(attributes: string): string | null {
+  const lowerAttributes = attributes.toLowerCase();
+  const colourKey = Object.keys(colourSwatches).find((key) => new RegExp(`\\b${key}\\b`, "i").test(lowerAttributes));
+  return colourKey ? colourSwatches[colourKey] : null;
+}
+
+function renderStocktakeItemCell(row: any) {
+  const { productName, attributes } = splitStocktakeProductName(String(row.product_name ?? ""));
+  const swatchColour = findColourSwatch(attributes);
+
+  return (
+    <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+      <Typography variant="caption" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
+        {row.sku}
+      </Typography>
+      <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>
+        {productName}
+      </Typography>
+      {attributes ? (
+        <Stack direction="row" spacing={0.75} alignItems="center">
+          {swatchColour ? (
+            <Box
+              aria-hidden="true"
+              sx={{
+                width: 16,
+                height: 16,
+                borderRadius: 1,
+                bgcolor: swatchColour,
+                border: "1px solid",
+                borderColor: swatchColour === "#ffffff" ? "grey.400" : "transparent",
+                flexShrink: 0,
+              }}
+            />
+          ) : null}
+          <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
+            {attributes}
+          </Typography>
+        </Stack>
+      ) : null}
+    </Stack>
+  );
+}
+
 function StockPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "shortages" ? 1 : searchParams.get("tab") === "stocktake" ? 2 : 0;
   const [activeTab, setActiveTab] = useState(initialTab);
   const { filters, updateFilter, updateFilters } = useFilters();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const handleTabChange = (_event: SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -483,7 +563,7 @@ function StockPage() {
               rows={stocktakeRows.map((row: any) => {
                 const key = String(row.product_id);
                 const inputValue = stocktakeInputs[key] ?? "";
-                return {
+                const displayRow = {
                   ...row,
                   new_qty: (
                     <Stack direction="row" spacing={1} alignItems="center" onClick={(event) => event.stopPropagation()}>
@@ -497,14 +577,15 @@ function StockPage() {
                         sx={{ width: 120 }}
                         disabled={row.manage_stock === false && !row.wsvi_group_id}
                       />
-                      <Button
+                      <IconButton
                         size="small"
-                        variant="contained"
+                        color="primary"
                         disabled={stocktakeSaving[key] || inputValue === ""}
                         onClick={() => handleStocktakeSave(row)}
+                        aria-label={`Save stock quantity for ${row.sku}`}
                       >
-                        Save
-                      </Button>
+                        <Check fontSize="small" />
+                      </IconButton>
                       {stocktakeMessages[key] ? (
                         <Typography variant="caption" color={stocktakeMessages[key].startsWith("Saved") ? "success.main" : "text.secondary"}>
                           {stocktakeMessages[key]}
@@ -513,8 +594,25 @@ function StockPage() {
                     </Stack>
                   ),
                 };
+                return isMobile
+                  ? {
+                      ...displayRow,
+                      sku: renderStocktakeItemCell(row),
+                    }
+                  : displayRow;
               })}
-              columns={stocktakeColumns.map((column: any) => column.key === "new_qty" ? { ...column, type: "node" as const } : column)}
+              columns={isMobile
+                ? [
+                    { key: "sku", label: "Item", type: "node" as const },
+                    { key: "stock_qty", label: "Qty", type: "number" as const },
+                    { key: "qty_to_be_packed", label: "Unpacked", type: "number" as const },
+                    { key: "new_qty", label: "New Qty", type: "node" as const },
+                  ]
+                : stocktakeColumns.map((column: any) => {
+                    if (column.key === "new_qty") return { ...column, type: "node" as const };
+                    if (column.key === "qty_to_be_packed") return { ...column, label: "Unpacked" };
+                    return column;
+                  })}
               page={stocktakePage}
               pageSize={50}
               totalCount={stocktakeTotalCount}
