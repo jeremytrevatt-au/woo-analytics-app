@@ -92,7 +92,7 @@ function splitStocktakeProductName(productName: string): { productName: string; 
 }
 
 function removeWsviSizeAttributes(attributes: string): string {
-  const sizePattern = /^(?:\d+(?:\.\d+)?\s*(?:g|gm|kg|ml|l)|\d+\s*(?:pack|pk)|single)$/i;
+  const sizePattern = /^(?:\d+(?:\.\d+)?\s*(?:g|gm|gms|gram|grams|kg|kgs|kilogram|kilograms|ml|millilitre|millilitres|l|litre|litres)|\d+\s*(?:pack|pk)|single)$/i;
 
   return attributes
     .split(/\s*(?:\|| - )\s*/)
