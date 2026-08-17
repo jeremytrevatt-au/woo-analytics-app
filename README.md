@@ -364,3 +364,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Stock Items range inputs need draft state because reload-on-change makes multi-character numeric edits difficult.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision and verify Stock Items only reloads when `Apply` or `Clear` is clicked.
+
+## 2026-08-17 00:36 UTC
+
+1. TODOs completed:
+   1. Improved Stocktake mobile portrait layout by hiding `Category` on mobile.
+   2. Combined SKU, product name, and parsed variant attributes into one mobile `Item` cell.
+   3. Renamed `Qty To Be Packed` to `Unpacked`.
+   4. Replaced Stocktake `Save` button text with a tick icon.
+   5. Added approximate colour chips from variant attribute text.
+2. Git build reference:
+   1. App commit: `07209a0d77249dbf6ee4383172c3ea9f0af7bd31`
+3. New understandings/learnings:
+   1. Stocktake needs a purpose-built mobile row layout because the generic desktop table wastes portrait screen width.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the app revision and verify Stocktake mobile portrait view uses the compact item column and tick save control.
