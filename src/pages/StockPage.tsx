@@ -91,6 +91,25 @@ function splitStocktakeProductName(productName: string): { productName: string; 
   return { productName: parts[0], attributes };
 }
 
+function removeWsviSizeAttributes(attributes: string): string {
+  const sizePattern = /^(?:\d+(?:\.\d+)?\s*(?:g|gm|kg|ml|l)|\d+\s*(?:pack|pk)|single)$/i;
+
+  return attributes
+    .split(/\s*(?:\|| - )\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !sizePattern.test(part))
+    .filter((part, index, parts) => parts.findIndex((candidate) => candidate.toLowerCase() === part.toLowerCase()) === index)
+    .join(" | ");
+}
+
+function getStocktakeDisplayAttributes(row: any, parsedProduct: { productName: string; attributes: string }): string {
+  const explicitAttributes = cleanStocktakeAttributes(String(row.variant_attributes ?? ""));
+  const attributes = explicitAttributes || parsedProduct.attributes;
+
+  return row.product_type === "wsvi_group" ? removeWsviSizeAttributes(attributes) : attributes;
+}
+
 function findColourSwatch(attributes: string): string | null {
   const lowerAttributes = attributes.toLowerCase();
   const colourKey = Object.keys(colourSwatches).find((key) => new RegExp(`\\b${key}\\b`, "i").test(lowerAttributes));
@@ -99,8 +118,7 @@ function findColourSwatch(attributes: string): string | null {
 
 function renderStocktakeItemCell(row: any) {
   const parsedProduct = splitStocktakeProductName(String(row.product_name ?? ""));
-  const explicitAttributes = cleanStocktakeAttributes(String(row.variant_attributes ?? ""));
-  const attributes = explicitAttributes || parsedProduct.attributes;
+  const attributes = getStocktakeDisplayAttributes(row, parsedProduct);
   const productName = parsedProduct.productName;
   const swatchColour = findColourSwatch(attributes);
 
@@ -139,8 +157,7 @@ function renderStocktakeItemCell(row: any) {
 
 function renderStocktakeProductCell(row: any) {
   const parsedProduct = splitStocktakeProductName(String(row.product_name ?? ""));
-  const explicitAttributes = cleanStocktakeAttributes(String(row.variant_attributes ?? ""));
-  const attributes = explicitAttributes || parsedProduct.attributes;
+  const attributes = getStocktakeDisplayAttributes(row, parsedProduct);
   const swatchColour = findColourSwatch(attributes);
 
   return (
