@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Check } from "@mui/icons-material";
-import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, IconButton, useMediaQuery, useTheme } from "@mui/material";
+import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, Card, CardContent, IconButton, useMediaQuery, useTheme } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
@@ -73,18 +73,20 @@ const colourSwatches: Record<string, string> = {
   yellow: "#fbc02d",
 };
 
+function cleanStocktakeAttributes(attributes: string): string {
+  return attributes
+    .replace(/\b(?:Pack Size|Choose Your Size|Colour|Color|Holes or No Holes):\s*/gi, "")
+    .replace(/,\s*/g, " | ")
+    .trim();
+}
+
 function splitStocktakeProductName(productName: string): { productName: string; attributes: string } {
   const parts = productName.split(" - ").map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) {
     return { productName, attributes: "" };
   }
 
-  const attributes = parts
-    .slice(1)
-    .join(" - ")
-    .replace(/\b(?:Pack Size|Choose Your Size|Colour|Color):\s*/gi, "")
-    .replace(/,\s*/g, " | ")
-    .trim();
+  const attributes = cleanStocktakeAttributes(parts.slice(1).join(" - "));
 
   return { productName: parts[0], attributes };
 }
@@ -96,7 +98,10 @@ function findColourSwatch(attributes: string): string | null {
 }
 
 function renderStocktakeItemCell(row: any) {
-  const { productName, attributes } = splitStocktakeProductName(String(row.product_name ?? ""));
+  const parsedProduct = splitStocktakeProductName(String(row.product_name ?? ""));
+  const explicitAttributes = cleanStocktakeAttributes(String(row.variant_attributes ?? ""));
+  const attributes = explicitAttributes || parsedProduct.attributes;
+  const productName = parsedProduct.productName;
   const swatchColour = findColourSwatch(attributes);
 
   return (
@@ -130,6 +135,17 @@ function renderStocktakeItemCell(row: any) {
       ) : null}
     </Stack>
   );
+}
+
+function formatStocktakeQuantity(value: any): string {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue)
+    ? numericValue.toLocaleString("en-AU", { maximumFractionDigits: 2 })
+    : String(value);
 }
 
 function StockPage() {
@@ -272,6 +288,46 @@ function StockPage() {
     }
   };
 
+  const renderStocktakeSaveControls = (row: any, compact = false) => {
+    const key = String(row.product_id);
+    const inputValue = stocktakeInputs[key] ?? "";
+
+    return (
+      <Stack direction="row" spacing={compact ? 0.5 : 1} alignItems="center" onClick={(event) => event.stopPropagation()}>
+        <TextField
+          size="small"
+          type="number"
+          value={inputValue}
+          placeholder={String(row.stock_qty ?? "")}
+          inputProps={{ min: 0, step: "any" }}
+          onChange={(event) => setStocktakeInputs(prev => ({ ...prev, [key]: event.target.value }))}
+          sx={{ width: compact ? 92 : 120 }}
+          disabled={row.manage_stock === false && !row.wsvi_group_id}
+        />
+        <IconButton
+          size="small"
+          color="primary"
+          disabled={stocktakeSaving[key] || inputValue === ""}
+          onClick={() => handleStocktakeSave(row)}
+          aria-label={`Save stock quantity for ${row.sku}`}
+        >
+          <Check fontSize="small" />
+        </IconButton>
+      </Stack>
+    );
+  };
+
+  const renderStocktakeMessage = (row: any) => {
+    const key = String(row.product_id);
+    if (!stocktakeMessages[key]) return null;
+
+    return (
+      <Typography variant="caption" color={stocktakeMessages[key].startsWith("Saved") ? "success.main" : "text.secondary"}>
+        {stocktakeMessages[key]}
+      </Typography>
+    );
+  };
+
   const updateStockRangeDraft = (key: keyof StockRangeFilterDraft, value: string) => {
     setStockRangeDraft((previous) => ({
       ...previous,
@@ -325,7 +381,14 @@ function StockPage() {
       </Typography>
       
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={activeTab} onChange={handleTabChange} aria-label="stock tabs">
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          aria-label="stock tabs"
+          variant={isMobile ? "scrollable" : "standard"}
+          scrollButtons={isMobile ? "auto" : false}
+          allowScrollButtonsMobile
+        >
           <Tab label="Stock Items" />
           <Tab label="Stock Shortages & Affected Orders" />
           <Tab label="Stocktake" />
@@ -557,49 +620,77 @@ function StockPage() {
       {activeTab === 2 && (
         <>
           <LoadStateBlock isLoading={stocktakeLoading} error={stocktakeError} empty={!stocktakeLoading && !stocktakeError && stocktakeRows.length === 0} />
-          {!stocktakeLoading && !stocktakeError ? (
+          {!stocktakeLoading && !stocktakeError && isMobile ? (
+            <Stack spacing={1}>
+              {stocktakeRows.map((row: any) => (
+                <Card key={String(row.product_id)} variant="outlined">
+                  <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
+                    <Box sx={{ mb: 1 }}>
+                      {renderStocktakeItemCell(row)}
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "0.8fr 0.9fr minmax(128px, auto)",
+                        gap: 1,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Qty
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700}>
+                          {formatStocktakeQuantity(row.stock_qty)}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Unpacked
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700}>
+                          {formatStocktakeQuantity(row.qty_to_be_packed)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ justifySelf: "end" }}>
+                        {renderStocktakeSaveControls(row, true)}
+                      </Box>
+                    </Box>
+                    <Box sx={{ mt: 0.5 }}>
+                      {renderStocktakeMessage(row)}
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="caption" color="text.secondary">
+                  Page {stocktakePage} / {Math.max(1, Math.ceil(stocktakeTotalCount / 50))} | {stocktakeTotalCount} total records
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button size="small" disabled={stocktakePage <= 1} onClick={() => setStocktakePage(stocktakePage - 1)}>
+                    Previous
+                  </Button>
+                  <Button size="small" disabled={stocktakePage >= Math.max(1, Math.ceil(stocktakeTotalCount / 50))} onClick={() => setStocktakePage(stocktakePage + 1)}>
+                    Next
+                  </Button>
+                </Stack>
+              </Stack>
+            </Stack>
+          ) : null}
+          {!stocktakeLoading && !stocktakeError && !isMobile ? (
             <DataTablePanel
               title="Stocktake"
               rows={stocktakeRows.map((row: any) => {
-                const key = String(row.product_id);
-                const inputValue = stocktakeInputs[key] ?? "";
                 const displayRow = {
                   ...row,
                   new_qty: (
-                    <Stack direction="row" spacing={1} alignItems="center" onClick={(event) => event.stopPropagation()}>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={inputValue}
-                        placeholder={String(row.stock_qty ?? "")}
-                        inputProps={{ min: 0, step: "any" }}
-                        onChange={(event) => setStocktakeInputs(prev => ({ ...prev, [key]: event.target.value }))}
-                        sx={{ width: 120 }}
-                        disabled={row.manage_stock === false && !row.wsvi_group_id}
-                      />
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        disabled={stocktakeSaving[key] || inputValue === ""}
-                        onClick={() => handleStocktakeSave(row)}
-                        aria-label={`Save stock quantity for ${row.sku}`}
-                      >
-                        <Check fontSize="small" />
-                      </IconButton>
-                      {stocktakeMessages[key] ? (
-                        <Typography variant="caption" color={stocktakeMessages[key].startsWith("Saved") ? "success.main" : "text.secondary"}>
-                          {stocktakeMessages[key]}
-                        </Typography>
-                      ) : null}
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {renderStocktakeSaveControls(row)}
+                      {renderStocktakeMessage(row)}
                     </Stack>
                   ),
                 };
-                return isMobile
-                  ? {
-                      ...displayRow,
-                      sku: renderStocktakeItemCell(row),
-                    }
-                  : displayRow;
+                return displayRow;
               })}
               columns={isMobile
                 ? [
