@@ -303,22 +303,6 @@ function StockPage() {
     };
   }, [activeTab, filters, stocktakePage]);
 
-  const refreshStocktake = async () => {
-    setStocktakeLoading(true);
-    setStocktakeError(null);
-    try {
-      const response = await getStocktakeRecords(filters, stocktakePage, 50);
-      setStocktakeRows(response.records);
-      setStocktakeColumns(response.columns || []);
-      setStocktakeTotalCount(response.totalCount);
-      refetch();
-    } catch (error: any) {
-      setStocktakeError(error.message || "Failed to refresh stocktake rows.");
-    } finally {
-      setStocktakeLoading(false);
-    }
-  };
-
   const handleStocktakeSave = async (row: any) => {
     const key = String(row.product_id);
     const value = stocktakeInputs[key];
@@ -331,9 +315,21 @@ function StockPage() {
     setStocktakeMessages(prev => ({ ...prev, [key]: "Saving..." }));
     try {
       const response = await updateStockQuantity(Number(row.product_id), nextQty);
-      setStocktakeInputs(prev => ({ ...prev, [key]: String(response.stock_qty ?? nextQty) }));
-      setStocktakeMessages(prev => ({ ...prev, [key]: `Saved ${response.stock_qty ?? nextQty}` }));
-      await refreshStocktake();
+      const savedQty = response.stock_qty ?? nextQty;
+      setStocktakeRows(prev => prev.map((item: any) => String(item.product_id) === key
+        ? {
+            ...item,
+            stock_qty: savedQty,
+            stock_status: response.stock_status ?? item.stock_status,
+          }
+        : item
+      ));
+      setStocktakeInputs(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setStocktakeMessages(prev => ({ ...prev, [key]: `Saved ${savedQty}` }));
     } catch (error: any) {
       setStocktakeMessages(prev => ({ ...prev, [key]: error.message || "Failed to update stock." }));
     } finally {
@@ -341,9 +337,21 @@ function StockPage() {
     }
   };
 
+  const isStocktakeQuantityEditable = (row: any) => row.manage_stock !== false || Boolean(row.wsvi_group_id);
+
+  const renderStocktakeManualStatusNotice = () => (
+    <Typography variant="caption" color="text.secondary">
+      Stock status managed manually / bundle-derived
+    </Typography>
+  );
+
   const renderStocktakeSaveControls = (row: any, compact = false) => {
     const key = String(row.product_id);
     const inputValue = stocktakeInputs[key] ?? "";
+
+    if (!isStocktakeQuantityEditable(row)) {
+      return renderStocktakeManualStatusNotice();
+    }
 
     return (
       <Stack direction="row" spacing={compact ? 0.5 : 1} alignItems="center" onClick={(event) => event.stopPropagation()}>
@@ -355,7 +363,6 @@ function StockPage() {
           inputProps={{ min: 0, step: "any" }}
           onChange={(event) => setStocktakeInputs(prev => ({ ...prev, [key]: event.target.value }))}
           sx={{ width: compact ? 92 : 120 }}
-          disabled={row.manage_stock === false && !row.wsvi_group_id}
         />
         <IconButton
           size="small"
@@ -689,25 +696,33 @@ function StockPage() {
                         alignItems: "center",
                       }}
                     >
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Qty
-                        </Typography>
-                        <Typography variant="body2" fontWeight={700}>
-                          {formatStocktakeQuantity(row.stock_qty)}
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Unpacked
-                        </Typography>
-                        <Typography variant="body2" fontWeight={700}>
-                          {formatStocktakeQuantity(row.qty_to_be_packed)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ justifySelf: "end" }}>
-                        {renderStocktakeSaveControls(row, true)}
-                      </Box>
+                      {isStocktakeQuantityEditable(row) ? (
+                        <>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Qty
+                            </Typography>
+                            <Typography variant="body2" fontWeight={700}>
+                              {formatStocktakeQuantity(row.stock_qty)}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Unpacked
+                            </Typography>
+                            <Typography variant="body2" fontWeight={700}>
+                              {formatStocktakeQuantity(row.qty_to_be_packed)}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ justifySelf: "end" }}>
+                            {renderStocktakeSaveControls(row, true)}
+                          </Box>
+                        </>
+                      ) : (
+                        <Box sx={{ gridColumn: "1 / -1" }}>
+                          {renderStocktakeManualStatusNotice()}
+                        </Box>
+                      )}
                     </Box>
                     <Box sx={{ mt: 0.5 }}>
                       {renderStocktakeMessage(row)}
@@ -737,6 +752,8 @@ function StockPage() {
                 const displayRow = {
                   ...row,
                   product_name: renderStocktakeProductCell(row),
+                  stock_qty: isStocktakeQuantityEditable(row) ? row.stock_qty : "",
+                  qty_to_be_packed: isStocktakeQuantityEditable(row) ? row.qty_to_be_packed : "",
                   new_qty: (
                     <Stack direction="row" spacing={1} alignItems="center">
                       {renderStocktakeSaveControls(row)}
