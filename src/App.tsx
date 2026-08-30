@@ -12,7 +12,9 @@ import BackordersPage from "./pages/BackordersPage";
 import PreordersPage from "./pages/PreordersPage";
 import PackingPage from "./pages/PackingPage";
 import AdminPage from "./pages/AdminPage";
+import DocumentTemplatesPage from "./pages/DocumentTemplatesPage";
 import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
+import ReturnsPage from "./pages/ReturnsPage";
 
 import SuppliersPage from "./pages/SuppliersPage";
 
@@ -32,6 +34,8 @@ function App() {
               <Route path="/preorders" element={<PreordersPage />} />
               <Route path="/packing" element={<PackingPage />} />
               <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+              <Route path="/returns" element={<ReturnsPage />} />
+              <Route path="/document-templates" element={<DocumentTemplatesPage />} />
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/admin" element={<AdminPage />} />
             </Routes>

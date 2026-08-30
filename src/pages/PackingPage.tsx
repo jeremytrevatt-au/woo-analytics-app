@@ -1,11 +1,13 @@
 import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, CheckCircleOutline, Close } from "@mui/icons-material";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatCurrency } from "../lib/format";
 import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
+import { listDocumentTemplates } from "../api/documentTemplatesApi";
+import type { DocumentTemplate } from "../api/documentTemplatesApi";
 
 function PackingPage() {
   const [page, setPage] = useState(1);
@@ -17,6 +19,14 @@ function PackingPage() {
   const [stockMessages, setStockMessages] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
   const [stockOverrides, setStockOverrides] = useState<Record<string, PackingStockQuantityResponse>>({});
   const [stockPopover, setStockPopover] = useState<{ key: string; anchorEl: HTMLElement } | null>(null);
+  const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplate[]>([]);
+  const [documentTemplateError, setDocumentTemplateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listDocumentTemplates({ enabled: "true" })
+      .then(setDocumentTemplates)
+      .catch((error: any) => setDocumentTemplateError(error.message || "Failed to load document templates."));
+  }, []);
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
@@ -72,6 +82,23 @@ function PackingPage() {
   const getCompactFieldWidth = (label: string, value: any) => {
     const valueLength = String(value ?? "").length;
     return `${Math.max(valueLength + 5, label.length + 4)}ch`;
+  };
+
+  const getOrderDocumentTemplates = (order: any) => {
+    const lines = Array.isArray(order.lines) ? order.lines : [];
+    return documentTemplates.filter(template => {
+      if (!Boolean(Number(template.enabled))) return false;
+      const matchValue = String(template.match_value || "").trim().toLowerCase();
+      if (template.trigger_type === "manual") return true;
+      if (template.trigger_type === "new_customer") return Boolean(order.is_first_order);
+      if (template.trigger_type === "product_sku") {
+        return !!matchValue && lines.some((line: any) => String(line.sku || "").trim().toLowerCase() === matchValue);
+      }
+      if (template.trigger_type === "product_category") {
+        return !!matchValue && lines.some((line: any) => String(line.category || "").toLowerCase().includes(matchValue));
+      }
+      return false;
+    });
   };
 
   const handleStockOpen = (
@@ -139,6 +166,7 @@ function PackingPage() {
     const isExpanded = expandedOrders[order.order_id];
     const currentStatus = getOrderStatus(order);
     const packedBy = packingState[order.order_id] ? packingState[order.order_id].user : order.packed_by;
+    const orderDocuments = getOrderDocumentTemplates(order);
 
     let borderColor = 'divider';
     if (currentStatus === 'packed') borderColor = 'success.main';
@@ -202,6 +230,33 @@ function PackingPage() {
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <Divider />
           <CardContent sx={{ bgcolor: 'background.default', pt: 1, pb: 1 }}>
+            {documentTemplateError && (
+              <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1 }}>
+                {documentTemplateError}
+              </Typography>
+            )}
+            {orderDocuments.length > 0 && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 0.75 }}>
+                  Documents:
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {orderDocuments.map(template => (
+                    <Button
+                      key={template.id}
+                      size="small"
+                      variant="outlined"
+                      href={template.google_drive_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {template.name}
+                    </Button>
+                  ))}
+                </Stack>
+              </Box>
+            )}
             <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 1 }}>Items to Pack:</Typography>
             {order.lines && order.lines.map((line: any, idx: number) => {
               const isParentBundle = !!line.is_bundle_parent || (!!line.bundle_cart_key && !line.bundled_by);
