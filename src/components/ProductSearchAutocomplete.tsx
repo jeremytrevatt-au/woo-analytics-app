@@ -7,9 +7,11 @@ interface Props {
   onChange: (value: ProductSearchResult | null) => void;
   label?: string;
   size?: 'small' | 'medium';
+  isOptionDisabled?: (option: ProductSearchResult) => boolean;
+  formatOptionLabel?: (option: ProductSearchResult) => string;
 }
 
-export default function ProductSearchAutocomplete({ value, onChange, label = "Search Product", size = 'small' }: Props) {
+export default function ProductSearchAutocomplete({ value, onChange, label = "Search Product", size = 'small', isOptionDisabled, formatOptionLabel }: Props) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<readonly ProductSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,7 +57,8 @@ export default function ProductSearchAutocomplete({ value, onChange, label = "Se
       onOpen={() => setOpen(true)}
       onClose={() => setOpen(false)}
       isOptionEqualToValue={(option, value) => option.id === value.id}
-      getOptionLabel={(option) => `${option.sku ? `[${option.sku}] ` : ''}${option.name}`}
+      getOptionLabel={(option) => formatOptionLabel ? formatOptionLabel(option) : `${option.sku ? `[${option.sku}] ` : ''}${option.name}`}
+      getOptionDisabled={isOptionDisabled}
       options={options}
       loading={loading}
       value={value}

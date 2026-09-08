@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, CircularProgress, Typography } from "@mui/material";
+import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, CircularProgress, Typography } from "@mui/material";
 import { purchaseOrdersApi, PurchaseOrder } from "../api/purchaseOrdersApi";
 
 type Props = {
@@ -12,6 +12,7 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
   const [loading, setLoading] = useState(false);
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [selectedPoId, setSelectedPoId] = useState<string>("new");
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -24,7 +25,15 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
   }, [open]);
 
   const handleSave = async () => {
+    const blockedVariableParents = selectedItems.filter((item) => (item.product_type || item.type) === "variable" && !item.wsvi_group_id);
+    if (blockedVariableParents.length > 0) {
+      const names = blockedVariableParents.map((item) => item.sku || item.product_name || item.name || item.product_id).join(", ");
+      setValidationError(`These selected items are variable parent products and cannot be added to a purchase order: ${names}. Select specific variation SKUs instead.`);
+      return;
+    }
+
     setLoading(true);
+    setValidationError(null);
     try {
       let poToUpdate: PurchaseOrder;
       
@@ -83,7 +92,7 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
       onClose(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to add to Purchase Order");
+      alert(err instanceof Error ? err.message : "Failed to add to Purchase Order");
     } finally {
       setLoading(false);
     }
@@ -96,6 +105,11 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
         <Typography variant="body2" sx={{ mb: 2 }}>
           Adding {selectedItems.length} item(s) to a Purchase Order.
         </Typography>
+        {validationError && (
+          <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setValidationError(null)}>
+            {validationError}
+          </Alert>
+        )}
         
         {loading ? (
           <CircularProgress size={24} />

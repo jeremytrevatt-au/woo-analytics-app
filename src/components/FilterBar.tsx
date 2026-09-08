@@ -45,6 +45,18 @@ const STOCK_STATUS_OPTIONS = [
 
 const OPEN_ORDER_STATUS_VALUES = ["wc-processing", "wc-pre-ordered", "wc-on-hold", "wc-pending"];
 
+const WIDE_SELECT_GRID = { xs: 12, sm: 6, md: 4, lg: 3 };
+
+const selectControlSx = {
+  "& .MuiSelect-select": {
+    minWidth: 0,
+    overflow: "hidden",
+    pr: 4,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+};
+
 type DateRangeValue = AppFilterState["dateRange"];
 
 type FilterBarContext = {
@@ -446,9 +458,9 @@ function FilterBar() {
             </Grid>
           )}
           {filterContext.showOrderStatus && (
-            <Grid item xs={12} sm={6} md={3} lg={2}>
-              <FormControl fullWidth>
-                <InputLabel id="order-status-label">Order status</InputLabel>
+            <Grid item {...WIDE_SELECT_GRID}>
+              <FormControl fullWidth sx={selectControlSx}>
+                <InputLabel id="order-status-label">Order Status</InputLabel>
                 <Select
                   labelId="order-status-label"
                   multiple
@@ -459,7 +471,7 @@ function FilterBar() {
                     } = event;
                     updateFilter("orderStatus", typeof value === "string" ? value.split(",") : value);
                   }}
-                  input={<OutlinedInput label="Order status" />}
+                  input={<OutlinedInput label="Order Status" />}
                   renderValue={(selected) => {
                     if (selected.length === 0) {
                       return <em>All statuses</em>;
@@ -480,9 +492,9 @@ function FilterBar() {
             </Grid>
           )}
           {filterContext.showStockStatus && (
-            <Grid item xs={12} sm={6} md={3} lg={2}>
-              <FormControl fullWidth>
-                <InputLabel id="stock-status-label">Stock status</InputLabel>
+            <Grid item {...WIDE_SELECT_GRID}>
+              <FormControl fullWidth sx={selectControlSx}>
+                <InputLabel id="stock-status-label">Stock Status</InputLabel>
                 <Select
                   labelId="stock-status-label"
                   multiple
@@ -493,7 +505,7 @@ function FilterBar() {
                     } = event;
                     updateFilter("stockStatus", typeof value === "string" ? value.split(",") : value);
                   }}
-                  input={<OutlinedInput label="Stock status" />}
+                  input={<OutlinedInput label="Stock Status" />}
                   renderValue={(selected) => {
                     if (selected.length === 0) {
                       return <em>All statuses</em>;
@@ -524,13 +536,14 @@ function FilterBar() {
             </Grid>
           )}
           {filterContext.showCategory && (
-            <Grid item xs={12} sm={6} md={3} lg={2}>
+            <Grid item {...WIDE_SELECT_GRID}>
               <TextField
                 fullWidth
                 select
                 label="Category"
                 value={filters.category}
                 onChange={(event) => updateFilter("category", event.target.value)}
+                sx={selectControlSx}
               >
                 <MenuItem value=""><em>All Categories</em></MenuItem>
                 {categories.map((cat) => (

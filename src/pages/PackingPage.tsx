@@ -1,4 +1,4 @@
-import { Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover } from "@mui/material";
+import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover } from "@mui/material";
 import { useEffect, useState } from "react";
 import { Check, CheckCircleOutline, Close } from "@mui/icons-material";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -8,6 +8,17 @@ import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
 import { listDocumentTemplates } from "../api/documentTemplatesApi";
 import type { DocumentTemplate } from "../api/documentTemplatesApi";
+
+type QueueContext = {
+  duplicateFirstNameKeys: Set<string>;
+  customerGroups: Map<string, any[]>;
+};
+
+type QueueGroup = {
+  key: string;
+  orders: any[];
+  sameCustomer: boolean;
+};
 
 function PackingPage() {
   const [page, setPage] = useState(1);
@@ -101,6 +112,80 @@ function PackingPage() {
     });
   };
 
+  const getPackingFirstName = (order: any) => {
+    const explicitFirstName = String(order.packing_first_name || order.billing_first_name || "").trim();
+    if (explicitFirstName) return explicitFirstName;
+
+    const displayName = String(order.customer_name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+    return displayName.split(/\s+/)[0] || "";
+  };
+
+  const normaliseFirstNameKey = (firstName: string) => firstName.trim().toLowerCase();
+
+  const getCustomerMatchKey = (order: any) => {
+    const apiKey = String(order.customer_match_key || "").trim();
+    if (apiKey && !apiKey.startsWith("order:")) return apiKey;
+
+    const customerId = Number(order.customer_id || 0);
+    if (customerId > 0) return `customer:${customerId}`;
+
+    const phone = String(order.billing_phone || "").replace(/\D/g, "");
+    if (phone) return `phone:${phone}`;
+
+    const email = String(order.billing_email || "").trim().toLowerCase();
+    if (email) return `email:${email}`;
+
+    return "";
+  };
+
+  const buildQueueContext = (orders: any[]): QueueContext => {
+    const firstNameGroups = new Map<string, any[]>();
+    const customerGroups = new Map<string, any[]>();
+
+    orders.forEach(order => {
+      const firstName = getPackingFirstName(order);
+      const firstNameKey = normaliseFirstNameKey(firstName);
+      if (firstNameKey) {
+        firstNameGroups.set(firstNameKey, [...(firstNameGroups.get(firstNameKey) || []), order]);
+      }
+
+      const customerKey = getCustomerMatchKey(order);
+      if (customerKey) {
+        customerGroups.set(customerKey, [...(customerGroups.get(customerKey) || []), order]);
+      }
+    });
+
+    return {
+      duplicateFirstNameKeys: new Set(
+        Array.from(firstNameGroups.entries())
+          .filter(([, groupedOrders]) => groupedOrders.length > 1)
+          .map(([firstNameKey]) => firstNameKey)
+      ),
+      customerGroups,
+    };
+  };
+
+  const buildQueueGroups = (orders: any[], queueContext: QueueContext): QueueGroup[] => {
+    const groupedKeys = new Set<string>();
+    const groups: QueueGroup[] = [];
+
+    orders.forEach(order => {
+      const customerKey = getCustomerMatchKey(order);
+      const sameCustomerOrders = customerKey ? queueContext.customerGroups.get(customerKey) || [] : [];
+
+      if (customerKey && sameCustomerOrders.length > 1) {
+        if (groupedKeys.has(customerKey)) return;
+        groupedKeys.add(customerKey);
+        groups.push({ key: customerKey, orders: sameCustomerOrders, sameCustomer: true });
+        return;
+      }
+
+      groups.push({ key: `order:${order.order_id}`, orders: [order], sameCustomer: false });
+    });
+
+    return groups;
+  };
+
   const handleStockOpen = (
     key: string,
     anchorEl: HTMLElement,
@@ -161,12 +246,19 @@ function PackingPage() {
   const awaitingStock = rows.filter(r => r.order_status !== 'wc-pre-ordered' && r.has_backorders && getOrderStatus(r) === 'unpacked');
   const currentlyPacking = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packing');
   const recentlyPacked = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packed');
+  const readyToPackContext = buildQueueContext(readyToPack);
+  const readyToPackGroups = buildQueueGroups(readyToPack, readyToPackContext);
 
-  const renderOrderCard = (order: any) => {
+  const renderOrderCard = (order: any, queueContext?: QueueContext) => {
     const isExpanded = expandedOrders[order.order_id];
     const currentStatus = getOrderStatus(order);
     const packedBy = packingState[order.order_id] ? packingState[order.order_id].user : order.packed_by;
     const orderDocuments = getOrderDocumentTemplates(order);
+    const packingFirstName = getPackingFirstName(order);
+    const firstNameKey = normaliseFirstNameKey(packingFirstName);
+    const hasDuplicateFirstName = !!firstNameKey && !!queueContext?.duplicateFirstNameKeys.has(firstNameKey);
+    const customerKey = getCustomerMatchKey(order);
+    const sameCustomerOrders = customerKey && queueContext ? queueContext.customerGroups.get(customerKey) || [] : [];
 
     let borderColor = 'divider';
     if (currentStatus === 'packed') borderColor = 'success.main';
@@ -191,6 +283,11 @@ function PackingPage() {
                       />
                     )}
                   </Typography>
+                  {hasDuplicateFirstName && (
+                    <Alert severity="warning" sx={{ mt: 1, py: 0, '& .MuiAlert-message': { py: 0.5 } }}>
+                      Warning! There is more than one {packingFirstName} in this queue!
+                    </Alert>
+                  )}
                   <Box sx={{ mt: 0.5 }}>
                   <Chip 
                     size="small" 
@@ -220,6 +317,14 @@ function PackingPage() {
                   )}
                   {currentStatus === 'unpacked' && packedBy && (
                     <Chip size="small" label={`Unpacked by ${packedBy}`} variant="outlined" />
+                  )}
+                  {sameCustomerOrders.length > 1 && (
+                    <Chip
+                      size="small"
+                      label={`Same customer: ${sameCustomerOrders.length} orders`}
+                      color="info"
+                      variant="outlined"
+                    />
                   )}
                 </Stack>
               </Grid>
@@ -530,6 +635,35 @@ function PackingPage() {
     );
   };
 
+  const renderReadyToPackOrders = () => {
+    return readyToPackGroups.map(group => {
+      if (!group.sameCustomer) {
+        return renderOrderCard(group.orders[0], readyToPackContext);
+      }
+
+      const firstOrder = group.orders[0];
+      const orderIds = group.orders.map(order => `#${order.order_id}`).join(", ");
+      return (
+        <Box
+          key={group.key}
+          sx={{
+            mb: 2,
+            p: 1,
+            border: 2,
+            borderColor: "info.main",
+            borderRadius: 2,
+            bgcolor: "background.default",
+          }}
+        >
+          <Alert severity="info" sx={{ mb: 1 }}>
+            Same customer group: {firstOrder.customer_name} has {group.orders.length} orders in Ready to Pack ({orderIds})
+          </Alert>
+          {group.orders.map(order => renderOrderCard(order, readyToPackContext))}
+        </Box>
+      );
+    });
+  };
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -552,7 +686,7 @@ function PackingPage() {
             {readyToPack.length === 0 ? (
               <Typography variant="body2" color="text.secondary">No orders currently ready to pack.</Typography>
             ) : (
-              readyToPack.map(renderOrderCard)
+              renderReadyToPackOrders()
             )}
           </Box>
 

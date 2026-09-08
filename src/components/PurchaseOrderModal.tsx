@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Autocomplete, CircularProgress } from "@mui/material";
+import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -106,12 +106,31 @@ const normalisePurchaseOrderPayload = (po: Partial<PurchaseOrder>): Partial<Purc
   };
 };
 
+const isVariableParentProduct = (product: ProductSearchResult) => product.type === "variable";
+
+const formatPoProductSearchLabel = (product: ProductSearchResult) =>
+  `${product.sku ? `[${product.sku}] ` : ""}${product.name}${isVariableParentProduct(product) ? " (parent product - choose a variation SKU)" : ""}`;
+
+const variableParentMessage = (skuOrName: string) =>
+  `${skuOrName} is a variable parent product. Select the specific variation SKU for purchase order stock.`;
+
+const selectTextFieldSx = {
+  "& .MuiSelect-select": {
+    minWidth: 0,
+    overflow: "hidden",
+    pr: 4,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+};
+
 export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   const [formData, setFormData] = useState<Partial<PurchaseOrder>>(defaultPo);
   const [loading, setLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
   const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
+  const [lineProductError, setLineProductError] = useState<string | null>(null);
 
   useEffect(() => {
     suppliersApi.getAll().then(setSuppliers).catch(console.error);
@@ -188,6 +207,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
   const handleAddProductFromSearch = (product: ProductSearchResult | null) => {
     if (!product) return;
+    if (isVariableParentProduct(product)) {
+      setLineProductError(variableParentMessage(product.sku || product.name));
+      return;
+    }
     
     let wsviGroupId = undefined;
 
@@ -208,6 +231,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       total_aud: 0
     }];
     setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
+    setLineProductError(null);
   };
 
   const handleRemoveLine = (index: number) => {
@@ -246,7 +270,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       onClose(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to save purchase order");
+      alert(err instanceof Error ? err.message : "Failed to save purchase order");
     } finally {
       setLoading(false);
     }
@@ -286,7 +310,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
         <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={6} md={2}>
                 <TextField
                   fullWidth
                   label="PO Number"
@@ -297,7 +321,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   helperText={po ? "" : "Generated when saved"}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={6} md={3}>
                 <TextField
                   fullWidth
                   label="Supplier Order Number"
@@ -306,7 +330,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   margin="normal"
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={8} md={4}>
                 <TextField
                   fullWidth
                   select
@@ -314,6 +338,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   value={formData.supplier_id || ""}
                 onChange={(e) => handleChange("supplier_id", e.target.value ? parseInt(e.target.value) : undefined)}
                   margin="normal"
+                  sx={selectTextFieldSx}
                 >
                   <MenuItem value=""><em>None</em></MenuItem>
                   {suppliers.map(s => (
@@ -321,7 +346,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={4} md={3}>
               <TextField
                 fullWidth
                 select
@@ -329,6 +354,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                 value={formData.status || "draft"}
                 onChange={(e) => handleChange("status", e.target.value)}
                 margin="normal"
+                sx={selectTextFieldSx}
               >
               <MenuItem value="draft">Draft</MenuItem>
               <MenuItem value="ordered">Ordered</MenuItem>
@@ -613,7 +639,14 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                   onChange={handleAddProductFromSearch}
                   label="Search to Add Product..."
                   size="medium"
+                  isOptionDisabled={isVariableParentProduct}
+                  formatOptionLabel={formatPoProductSearchLabel}
                 />
+                {lineProductError && (
+                  <Alert severity="warning" sx={{ mt: 1 }} onClose={() => setLineProductError(null)}>
+                    {lineProductError}
+                  </Alert>
+                )}
               </Box>
   
                 <Box sx={{ width: '100%', overflowX: 'auto' }}>
