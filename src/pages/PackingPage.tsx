@@ -1,6 +1,7 @@
-import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover } from "@mui/material";
+import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover, Dialog, DialogContent, DialogTitle } from "@mui/material";
 import { useEffect, useState } from "react";
 import { Check, CheckCircleOutline, Close } from "@mui/icons-material";
+import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatCurrency } from "../lib/format";
@@ -8,6 +9,8 @@ import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
 import { listDocumentTemplates } from "../api/documentTemplatesApi";
 import type { DocumentTemplate } from "../api/documentTemplatesApi";
+import { listCrmNotes } from "../api/crmApi";
+import type { CrmNote } from "../api/crmApi";
 
 type QueueContext = {
   duplicateFirstNameKeys: Set<string>;
@@ -32,11 +35,28 @@ function PackingPage() {
   const [stockPopover, setStockPopover] = useState<{ key: string; anchorEl: HTMLElement } | null>(null);
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplate[]>([]);
   const [documentTemplateError, setDocumentTemplateError] = useState<string | null>(null);
+  const [crmNotes, setCrmNotes] = useState<CrmNote[]>([]);
+  const [crmNotesError, setCrmNotesError] = useState<string | null>(null);
+  const [crmOrder, setCrmOrder] = useState<any | null>(null);
 
   useEffect(() => {
     listDocumentTemplates({ enabled: "true" })
       .then(setDocumentTemplates)
       .catch((error: any) => setDocumentTemplateError(error.message || "Failed to load document templates."));
+  }, []);
+
+  const loadCrmNotes = async () => {
+    try {
+      const notes = await listCrmNotes({ status: "open" });
+      setCrmNotes(notes);
+      setCrmNotesError(null);
+    } catch (error: any) {
+      setCrmNotesError(error.message || "Failed to load CRM notes.");
+    }
+  };
+
+  useEffect(() => {
+    loadCrmNotes();
   }, []);
 
   const toggleOrder = (orderId: string) => {
@@ -136,6 +156,33 @@ function PackingPage() {
     if (email) return `email:${email}`;
 
     return "";
+  };
+
+  const getOrderCrmIdentity = (order: any) => ({
+    customer_id: Number(order.customer_id || 0) > 0 ? Number(order.customer_id) : undefined,
+    customer_key: getCustomerMatchKey(order) || undefined,
+    customer_email: String(order.billing_email || "").trim() || undefined,
+    customer_phone: String(order.billing_phone || "").trim() || undefined,
+  });
+
+  const normalizePhone = (value: any) => String(value || "").replace(/\D/g, "");
+
+  const getOrderCrmNotes = (order: any) => {
+    const customerKey = getCustomerMatchKey(order);
+    const customerId = Number(order.customer_id || 0);
+    const phone = normalizePhone(order.billing_phone);
+    const email = String(order.billing_email || "").trim().toLowerCase();
+    const orderId = Number(order.order_id);
+
+    return crmNotes.filter(note => {
+      if (!["packing_order", "next_order_created"].includes(note.trigger_event)) return false;
+      if (Number(note.order_id || 0) > 0 && Number(note.order_id) === orderId) return true;
+      if (note.customer_key && customerKey && note.customer_key === customerKey) return true;
+      if (Number(note.customer_id || 0) > 0 && customerId > 0 && Number(note.customer_id) === customerId) return true;
+      if (note.customer_phone && phone && normalizePhone(note.customer_phone) === phone) return true;
+      if (note.customer_email && email && note.customer_email.toLowerCase() === email) return true;
+      return false;
+    });
   };
 
   const buildQueueContext = (orders: any[]): QueueContext => {
@@ -259,6 +306,7 @@ function PackingPage() {
     const hasDuplicateFirstName = !!firstNameKey && !!queueContext?.duplicateFirstNameKeys?.has(firstNameKey);
     const customerKey = getCustomerMatchKey(order);
     const sameCustomerOrders = customerKey && queueContext ? queueContext.customerGroups.get(customerKey) || [] : [];
+    const orderCrmNotes = getOrderCrmNotes(order);
 
     let borderColor = 'divider';
     if (currentStatus === 'packed') borderColor = 'success.main';
@@ -326,6 +374,13 @@ function PackingPage() {
                       variant="outlined"
                     />
                   )}
+                  {orderCrmNotes.length > 0 && (
+                    <Chip
+                      size="small"
+                      label={`CRM notes: ${orderCrmNotes.length}`}
+                      color="warning"
+                    />
+                  )}
                 </Stack>
               </Grid>
             </Grid>
@@ -335,6 +390,32 @@ function PackingPage() {
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <Divider />
           <CardContent sx={{ bgcolor: 'background.default', pt: 1, pb: 1 }}>
+            {crmNotesError && (
+              <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1 }}>
+                {crmNotesError}
+              </Typography>
+            )}
+            {orderCrmNotes.length > 0 && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 0.75 }}>
+                  CRM Notes:
+                </Typography>
+                <Stack spacing={1}>
+                  {orderCrmNotes.map(note => (
+                    <Alert key={note.id} severity="warning" sx={{ py: 0 }}>
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                        {note.note_content}
+                      </Typography>
+                      {note.reminder_date ? (
+                        <Typography variant="caption" color="text.secondary">
+                          Reminder {new Date(note.reminder_date).toLocaleDateString("en-AU")}
+                        </Typography>
+                      ) : null}
+                    </Alert>
+                  ))}
+                </Stack>
+              </Box>
+            )}
             {documentTemplateError && (
               <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1 }}>
                 {documentTemplateError}
@@ -600,6 +681,16 @@ function PackingPage() {
 
         <Divider />
         <CardActions sx={{ justifyContent: 'flex-end' }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCrmOrder(order);
+            }}
+          >
+            Customer CRM
+          </Button>
           {currentStatus === 'unpacked' && (
             <>
               <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)}>
@@ -729,6 +820,22 @@ function PackingPage() {
           )}
         </>
       )}
+      <Dialog open={!!crmOrder} onClose={() => setCrmOrder(null)} fullWidth maxWidth="lg">
+        <DialogTitle>
+          Customer CRM{crmOrder ? ` - ${crmOrder.customer_name}` : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          {crmOrder ? (
+            <CustomerCrmPanel
+              {...getOrderCrmIdentity(crmOrder)}
+              customerName={String(crmOrder.customer_name || "")}
+              orderId={Number(crmOrder.order_id)}
+              defaultTriggerEvent="packing_order"
+              onChanged={loadCrmNotes}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }

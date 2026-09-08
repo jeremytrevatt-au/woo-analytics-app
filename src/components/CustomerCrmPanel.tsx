@@ -1,0 +1,268 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { createCrmNote, CrmCustomerIdentity, CrmCustomerProfile, CrmNote, getCrmCustomerProfile, updateCrmNote } from "../api/crmApi";
+import { formatCurrency } from "../lib/format";
+
+type Props = CrmCustomerIdentity & {
+  customerName?: string;
+  orderId?: number;
+  defaultTriggerEvent?: string;
+  onChanged?: () => void;
+};
+
+const triggerOptions = [
+  { value: "manual", label: "Manual reference" },
+  { value: "packing_order", label: "Show when packing an order" },
+  { value: "next_order_created", label: "Show on the next order" },
+  { value: "follow_up", label: "Follow up" },
+];
+
+function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_phone, customerName, orderId, defaultTriggerEvent, onChanged }: Props) {
+  const [profile, setProfile] = useState<CrmCustomerProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [noteContent, setNoteContent] = useState("");
+  const [triggerEvent, setTriggerEvent] = useState(defaultTriggerEvent ?? "packing_order");
+  const [reminderDate, setReminderDate] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const identity = useMemo<CrmCustomerIdentity>(
+    () => ({
+      customer_id: customer_id && customer_id > 0 ? customer_id : undefined,
+      customer_key,
+      customer_email,
+      customer_phone,
+    }),
+    [customer_id, customer_email, customer_key, customer_phone],
+  );
+
+  const hasIdentity = Boolean(identity.customer_id || identity.customer_key || identity.customer_email || identity.customer_phone);
+
+  const loadProfile = async () => {
+    if (!hasIdentity) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const nextProfile = await getCrmCustomerProfile(identity);
+      setProfile(nextProfile);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasIdentity, identity.customer_id, identity.customer_key, identity.customer_email, identity.customer_phone]);
+
+  const handleCreateNote = async () => {
+    if (!noteContent.trim() || !hasIdentity) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await createCrmNote({
+        ...identity,
+        order_id: orderId,
+        trigger_event: triggerEvent,
+        reminder_date: reminderDate || undefined,
+        note_content: noteContent.trim(),
+      });
+      setNoteContent("");
+      setReminderDate("");
+      await loadProfile();
+      onChanged?.();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdateStatus = async (note: CrmNote, status: CrmNote["status"]) => {
+    setError(null);
+    try {
+      await updateCrmNote(note.id, { status });
+      await loadProfile();
+      onChanged?.();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    }
+  };
+
+  if (!hasIdentity) {
+    return (
+      <Alert severity="info">
+        This customer record does not currently include a stable customer identity for CRM notes.
+      </Alert>
+    );
+  }
+
+  const profileData = profile?.profile;
+  const displayName = profileData?.customer_name || customerName || "Customer";
+
+  return (
+    <Stack spacing={2}>
+      {error ? <Alert severity="error">{error}</Alert> : null}
+      {isLoading && !profile ? (
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <CircularProgress size={18} />
+          <Typography variant="body2" color="text.secondary">
+            Loading customer profile...
+          </Typography>
+        </Stack>
+      ) : null}
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={1}>
+          <Typography variant="subtitle1" fontWeight={700}>
+            {displayName}
+          </Typography>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            {profileData?.customer_key ? <Chip size="small" label={profileData.customer_key} /> : null}
+            {profileData?.billing_email ? <Chip size="small" label={profileData.billing_email} /> : null}
+            {profileData?.billing_phone ? <Chip size="small" label={profileData.billing_phone} /> : null}
+            <Chip size="small" label={`${profileData?.order_count ?? 0} orders`} />
+            <Chip size="small" label={`${formatCurrency(profileData?.lifetime_value ?? 0)} lifetime value`} />
+          </Stack>
+        </Stack>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={1.5}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            Add CRM Note
+          </Typography>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <TextField
+              select
+              size="small"
+              label="Trigger"
+              value={triggerEvent}
+              onChange={(event) => setTriggerEvent(event.target.value)}
+              sx={{ minWidth: 240 }}
+            >
+              {triggerOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              size="small"
+              label="Reminder date"
+              type="date"
+              value={reminderDate}
+              onChange={(event) => setReminderDate(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
+          <TextField
+            multiline
+            minRows={2}
+            label="Note"
+            value={noteContent}
+            onChange={(event) => setNoteContent(event.target.value)}
+            fullWidth
+          />
+          <Box>
+            <Button variant="contained" onClick={handleCreateNote} disabled={isSaving || !noteContent.trim()}>
+              Save Note
+            </Button>
+          </Box>
+        </Stack>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={1.5}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            Notes
+          </Typography>
+          {(profile?.notes ?? []).length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No CRM notes have been recorded for this customer.
+            </Typography>
+          ) : (
+            (profile?.notes ?? []).map((note) => (
+              <Paper key={note.id} variant="outlined" sx={{ p: 1.5, bgcolor: note.status === "open" ? "warning.light" : "background.paper" }}>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    <Chip size="small" color={note.status === "open" ? "warning" : "default"} label={note.status} />
+                    <Chip size="small" label={note.trigger_event.replace(/_/g, " ")} />
+                    {note.reminder_date ? <Chip size="small" label={`Reminder ${new Date(note.reminder_date).toLocaleDateString("en-AU")}`} /> : null}
+                    {note.order_id ? <Chip size="small" label={`Order ${note.order_id}`} /> : null}
+                  </Stack>
+                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                    {note.note_content}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Created {new Date(note.created_at).toLocaleString("en-AU")} by {note.created_by_name || "NYA API"}
+                  </Typography>
+                  {note.status === "open" ? (
+                    <Stack direction="row" spacing={1}>
+                      <Button size="small" onClick={() => handleUpdateStatus(note, "acknowledged")}>
+                        Acknowledge
+                      </Button>
+                      <Button size="small" onClick={() => handleUpdateStatus(note, "completed")}>
+                        Complete
+                      </Button>
+                    </Stack>
+                  ) : null}
+                </Stack>
+              </Paper>
+            ))
+          )}
+        </Stack>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+          Recent Orders
+        </Typography>
+        <Divider sx={{ mb: 1 }} />
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Order</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell align="right">Total</TableCell>
+              <TableCell align="right">Lines</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {(profile?.orders ?? []).slice(0, 10).map((order) => (
+              <TableRow key={order.order_id}>
+                <TableCell>{order.order_id}</TableCell>
+                <TableCell>{order.order_date ? new Date(order.order_date).toLocaleDateString("en-AU") : "-"}</TableCell>
+                <TableCell>{order.order_status}</TableCell>
+                <TableCell align="right">{formatCurrency(Number(order.order_total ?? 0))}</TableCell>
+                <TableCell align="right">{order.lines?.length ?? 0}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+    </Stack>
+  );
+}
+
+export default CustomerCrmPanel;
