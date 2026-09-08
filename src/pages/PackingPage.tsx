@@ -11,6 +11,7 @@ import { listDocumentTemplates } from "../api/documentTemplatesApi";
 import type { DocumentTemplate } from "../api/documentTemplatesApi";
 import { listCrmNotes } from "../api/crmApi";
 import type { CrmNote } from "../api/crmApi";
+import PackingLineDetails from "../components/PackingLineDetails";
 
 type QueueContext = {
   duplicateFirstNameKeys: Set<string>;
@@ -477,26 +478,31 @@ function PackingPage() {
                 }}>
                   <Grid container spacing={1} alignItems="center">
                     <Grid item xs={12}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {line.qty}x {line.sku}
-                        {isParentBundle && (
-                          <Chip size="small" label="Bundle" color="primary" variant="outlined" sx={{ ml: 1, height: '20px', fontSize: '0.7rem' }} />
-                        )}
-                        <Chip 
-                          size="small" 
-                          label="Woo" 
-                          component="a" 
-                          href={`https://naturalyield.com.au/wp-admin/post.php?post=${stockOverride?.stock_target_product_id ?? line.stock_target_product_id ?? line.product_id}&action=edit`} 
-                          target="_blank" 
-                          clickable 
-                          onClick={(e) => e.stopPropagation()} 
-                          sx={{ cursor: 'pointer', ml: 1, height: '20px', fontSize: '0.7rem' }}
-                        />
-                      </Typography>
                       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 0, flex: 1 }}>
-                          {line.product_name || line.category}
-                        </Typography>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <PackingLineDetails
+                            description={line.product_name || line.category || ""}
+                            quantity={line.qty}
+                            sku={line.sku || ""}
+                            skuActions={(
+                              <>
+                                {isParentBundle && (
+                                  <Chip size="small" label="Bundle" color="primary" variant="outlined" sx={{ height: '20px', fontSize: '0.7rem' }} />
+                                )}
+                                <Chip
+                                  size="small"
+                                  label="Woo"
+                                  component="a"
+                                  href={`https://naturalyield.com.au/wp-admin/post.php?post=${stockOverride?.stock_target_product_id ?? line.stock_target_product_id ?? line.product_id}&action=edit`}
+                                  target="_blank"
+                                  clickable
+                                  onClick={(e) => e.stopPropagation()}
+                                  sx={{ cursor: 'pointer', height: '20px', fontSize: '0.7rem' }}
+                                />
+                              </>
+                            )}
+                          />
+                        </Box>
                         {canUpdateStock && (
                           <TextField
                             size="small"
