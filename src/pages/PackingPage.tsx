@@ -256,7 +256,7 @@ function PackingPage() {
     const orderDocuments = getOrderDocumentTemplates(order);
     const packingFirstName = getPackingFirstName(order);
     const firstNameKey = normaliseFirstNameKey(packingFirstName);
-    const hasDuplicateFirstName = !!firstNameKey && !!queueContext?.duplicateFirstNameKeys.has(firstNameKey);
+    const hasDuplicateFirstName = !!firstNameKey && !!queueContext?.duplicateFirstNameKeys?.has(firstNameKey);
     const customerKey = getCustomerMatchKey(order);
     const sameCustomerOrders = customerKey && queueContext ? queueContext.customerGroups.get(customerKey) || [] : [];
 
@@ -697,7 +697,7 @@ function PackingPage() {
             {awaitingStock.length === 0 ? (
               <Typography variant="body2" color="text.secondary">No orders waiting on backordered items.</Typography>
             ) : (
-              awaitingStock.map(renderOrderCard)
+              awaitingStock.map(order => renderOrderCard(order))
             )}
           </Box>
 
@@ -706,7 +706,7 @@ function PackingPage() {
               <Typography variant="h6" color="secondary.main" gutterBottom>
                 Pre Orders ({preOrders.length})
               </Typography>
-              {preOrders.map(renderOrderCard)}
+              {preOrders.map(order => renderOrderCard(order))}
             </Box>
           )}
 
@@ -715,7 +715,7 @@ function PackingPage() {
               <Typography variant="h6" color="warning.dark" gutterBottom>
                 Currently Packing ({currentlyPacking.length})
               </Typography>
-              {currentlyPacking.map(renderOrderCard)}
+              {currentlyPacking.map(order => renderOrderCard(order))}
             </Box>
           )}
 
@@ -724,7 +724,7 @@ function PackingPage() {
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 Recently Packed ({recentlyPacked.length})
               </Typography>
-              {recentlyPacked.map(renderOrderCard)}
+              {recentlyPacked.map(order => renderOrderCard(order))}
             </Box>
           )}
         </>
