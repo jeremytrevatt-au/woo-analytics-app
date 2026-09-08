@@ -3,6 +3,20 @@ import { ApiDebugEvent } from "../types/analytics";
 
 const apiBaseUrl = (import.meta.env.VITE_ANALYTICS_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
 
+export class ApiRequestError extends Error {
+  status: number;
+  url: string;
+  responseBody: unknown;
+
+  constructor(message: string, status: number, url: string, responseBody: unknown) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.url = url;
+    this.responseBody = responseBody;
+  }
+}
+
 export function requireApiBaseUrl(): string {
   if (!apiBaseUrl) {
     throw new Error("VITE_ANALYTICS_API_BASE_URL is not configured.");
@@ -48,7 +62,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     mirrorDebugEvent(baseUrl, event);
 
     if (!response.ok) {
-      throw new Error(`API request failed (${response.status}) ${url}: ${textBody}`);
+      throw new ApiRequestError(buildErrorMessage(response.status, url, parsedBody, textBody), response.status, url, parsedBody);
     }
     return parsedBody as T;
   } catch (error) {
@@ -65,6 +79,21 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     mirrorDebugEvent(baseUrl, event);
     throw error;
   }
+}
+
+function buildErrorMessage(status: number, url: string, parsedBody: unknown, textBody: string): string {
+  if (parsedBody && typeof parsedBody === "object" && "detail" in parsedBody) {
+    const detail = (parsedBody as { detail?: unknown }).detail;
+    if (typeof detail === "string") {
+      return `API request failed (${status}) ${url}: ${detail}`;
+    }
+    if (detail && typeof detail === "object" && "message" in detail) {
+      const message = String((detail as { message?: unknown }).message ?? textBody);
+      return `API request failed (${status}) ${url}: ${message}`;
+    }
+  }
+
+  return `API request failed (${status}) ${url}: ${textBody}`;
 }
 
 function mirrorDebugEvent(baseUrl: string, event: ApiDebugEvent): void {

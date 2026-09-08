@@ -7,6 +7,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
 import { purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
+import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
@@ -16,6 +17,18 @@ const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "c
 function qty(value: number | string | null | undefined): string {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "0";
+}
+
+function receivePreviewFromError(error: unknown): PurchaseOrderReceiveStockResult | null {
+  if (!(error instanceof ApiRequestError)) {
+    return null;
+  }
+  const body = error.responseBody as { detail?: { preview?: PurchaseOrderReceiveStockResult } } | null;
+  return body?.detail?.preview ?? null;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function lineTotals(summary?: PurchaseOrderPreorderLineSummary) {
@@ -43,6 +56,8 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const [receiveLoading, setReceiveLoading] = useState(false);
   const [receiveError, setReceiveError] = useState<string | null>(null);
   const [receiveMessage, setReceiveMessage] = useState<string | null>(null);
+  const receiveBlockingErrors = receivePreview?.blocking_errors ?? [];
+  const canBookReceiveStock = !!receivePreview && receiveBlockingErrors.length === 0;
 
   const loadSummary = useCallback(async () => {
     if (!po.id) return;
@@ -136,7 +151,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
     try {
       setReceivePreview(await purchaseOrdersApi.receiveStock(po.id, { dry_run: true }));
     } catch (err) {
-      setReceiveError(err instanceof Error ? err.message : "Failed to preview received stock booking");
+      setReceiveError(errorMessage(err, "Failed to preview received stock booking"));
     } finally {
       setReceiveLoading(false);
     }
@@ -155,7 +170,11 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
       setReceiveMessage(`Stock booked${result.receipt_id ? ` with receipt ${result.receipt_id}` : ""}. Processed ${result.processed_order_ids?.length ?? 0} preorder order(s).`);
       await loadSummary();
     } catch (err) {
-      setReceiveError(err instanceof Error ? err.message : "Failed to book received stock");
+      const errorPreview = receivePreviewFromError(err);
+      if (errorPreview) {
+        setReceivePreview(errorPreview);
+      }
+      setReceiveError(errorMessage(err, "Failed to book received stock"));
     } finally {
       setReceiveLoading(false);
     }
@@ -206,13 +225,18 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                   {bulkAllocating ? "Allocating..." : "Bulk Allocate Full PO"}
                 </Button>
                 {po.status === "received" && (
-                  <Stack direction="row" spacing={1}>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                     <Button size="small" variant="outlined" onClick={handlePreviewReceiveStock} disabled={!po.id || receiveLoading}>
                       Preview Stock Receipt
                     </Button>
-                    <Button size="small" variant="contained" color="success" onClick={handleBookReceiveStock} disabled={!po.id || receiveLoading}>
+                    <Button size="small" variant="contained" color="success" onClick={handleBookReceiveStock} disabled={!po.id || receiveLoading || !canBookReceiveStock}>
                       Book Received Stock
                     </Button>
+                    {!receivePreview && (
+                      <Typography variant="caption" color="text.secondary">
+                        Run preview before booking.
+                      </Typography>
+                    )}
                   </Stack>
                 )}
               </Stack>
@@ -223,7 +247,20 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
               {receivePreview && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2">Received Stock Preview</Typography>
-                  {receivePreview.blocking_errors.length > 0 && <Alert severity="warning" sx={{ my: 1 }}>There are blocking line errors. Review the preview before booking.</Alert>}
+                  {receiveBlockingErrors.length > 0 && (
+                    <Alert severity="error" sx={{ my: 1 }}>
+                      <Typography variant="body2" fontWeight={700}>
+                        Stock receipt is blocked until these line errors are resolved:
+                      </Typography>
+                      <Stack spacing={0.5} sx={{ mt: 1 }}>
+                        {receiveBlockingErrors.map((error, index) => (
+                          <Typography key={`${error.po_line_id ?? "line"}-${index}`} variant="body2">
+                            Line {error.po_line_id ?? "-"} / SKU {error.sku || "-"}: {error.error_code || "error"} - {error.message || "No detail returned."}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    </Alert>
+                  )}
                   {receivePreview.blocked_orders.length > 0 && <Alert severity="info" sx={{ my: 1 }}>{receivePreview.blocked_orders.length} preorder order(s) are not ready to process yet.</Alert>}
                   <Table size="small">
                     <TableHead>

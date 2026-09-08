@@ -68,6 +68,13 @@ export type PurchaseOrderReceiveLinePreview = {
   order_reservation_ids: number[];
 };
 
+export type PurchaseOrderReceiveBlockingError = {
+  po_line_id?: number;
+  sku?: string;
+  error_code?: string;
+  message?: string;
+};
+
 export type PurchaseOrderReceiveStockResult = {
   po_id: number;
   po_number: string;
@@ -78,7 +85,7 @@ export type PurchaseOrderReceiveStockResult = {
   lines: PurchaseOrderReceiveLinePreview[];
   eligible_orders: Array<{ order_id: number; reservation_ids: number[] }>;
   blocked_orders: Array<Record<string, unknown>>;
-  blocking_errors: Array<Record<string, unknown>>;
+  blocking_errors: PurchaseOrderReceiveBlockingError[];
   processed_order_ids?: number[];
 };
 
