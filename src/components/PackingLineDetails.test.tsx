@@ -48,10 +48,10 @@ describe("PackingLineDetails", () => {
       />,
     );
 
-    expect(screen.getByText("Greenstalk Vertical Planter")).toBeInTheDocument();
+    expect(screen.getByText("1 x Greenstalk Vertical Planter")).toBeInTheDocument();
     expect(screen.getByText("greenstalk-tier:")).toBeInTheDocument();
     expect(screen.getByText("Pre-order ETA:")).toBeInTheDocument();
-    expect(screen.getByText("1x GS-PLANTER-5-BA-SS")).toBeInTheDocument();
+    expect(screen.getByText("GS-PLANTER-5-BA-SS")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /stunning-stone colour swatch/i })).toBeInTheDocument();
   });
 });

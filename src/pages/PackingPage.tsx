@@ -111,11 +111,6 @@ function PackingPage() {
     return { bgcolor: "action.hover", color: "text.primary" };
   };
 
-  const getCompactFieldWidth = (label: string, value: any) => {
-    const valueLength = String(value ?? "").length;
-    return `${Math.max(valueLength + 5, label.length + 4)}ch`;
-  };
-
   const getOrderDocumentTemplates = (order: any) => {
     const lines = Array.isArray(order.lines) ? order.lines : [];
     return documentTemplates.filter(template => {
@@ -337,18 +332,41 @@ function PackingPage() {
                       Warning! There is more than one {packingFirstName} in this queue!
                     </Alert>
                   )}
-                  <Box sx={{ mt: 0.5 }}>
-                  <Chip 
-                    size="small" 
-                    label="Woo" 
-                    component="a" 
-                    href={`https://naturalyield.com.au/wp-admin/admin.php?page=wc-orders&action=edit&id=${order.order_id}`} 
-                    target="_blank" 
-                    clickable 
-                    onClick={(e) => e.stopPropagation()} 
-                    sx={{ cursor: 'pointer' }}
-                  />
-                </Box>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                    <Chip
+                      size="small"
+                      label="Woo"
+                      component="a"
+                      href={`https://naturalyield.com.au/wp-admin/admin.php?page=wc-orders&action=edit&id=${order.order_id}`}
+                      target="_blank"
+                      clickable
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{ cursor: 'pointer' }}
+                    />
+                    {orderDocuments.length > 0 && (
+                      <Typography variant="caption" fontWeight={700}>
+                        Documents:
+                      </Typography>
+                    )}
+                    {orderDocuments.map(template => (
+                      <Button
+                        key={template.id}
+                        size="small"
+                        variant="outlined"
+                        href={template.google_drive_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {template.name}
+                      </Button>
+                    ))}
+                  </Stack>
+                  {documentTemplateError && (
+                    <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
+                      {documentTemplateError}
+                    </Typography>
+                  )}
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
@@ -417,34 +435,6 @@ function PackingPage() {
                 </Stack>
               </Box>
             )}
-            {documentTemplateError && (
-              <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1 }}>
-                {documentTemplateError}
-              </Typography>
-            )}
-            {orderDocuments.length > 0 && (
-              <Box sx={{ mb: 1.5 }}>
-                <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 0.75 }}>
-                  Documents:
-                </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {orderDocuments.map(template => (
-                    <Button
-                      key={template.id}
-                      size="small"
-                      variant="outlined"
-                      href={template.google_drive_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {template.name}
-                    </Button>
-                  ))}
-                </Stack>
-              </Box>
-            )}
-            <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 1 }}>Items to Pack:</Typography>
             {order.lines && order.lines.map((line: any, idx: number) => {
               const isParentBundle = !!line.is_bundle_parent || (!!line.bundle_cart_key && !line.bundled_by);
               const isChildItem = !!line.bundled_by;
@@ -478,8 +468,19 @@ function PackingPage() {
                 }}>
                   <Grid container spacing={1} alignItems="center">
                     <Grid item xs={12}>
-                      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: {
+                            xs: "96px 96px",
+                            sm: "minmax(0, 1fr) 96px 96px",
+                          },
+                          columnGap: 1,
+                          rowGap: 1,
+                          alignItems: "start",
+                        }}
+                      >
+                        <Box sx={{ minWidth: 0, gridColumn: { xs: "1 / -1", sm: "auto" } }}>
                           <PackingLineDetails
                             description={line.product_name || line.category || ""}
                             quantity={line.qty}
@@ -512,8 +513,7 @@ function PackingPage() {
                             inputProps={{ readOnly: true }}
                             onClick={(event) => handleStockOpen(key, event.currentTarget, reportedStockQty, event)}
                             sx={{
-                              width: getCompactFieldWidth("Stock", reportedStockQty),
-                              flexShrink: 0,
+                              width: 96,
                               cursor: "pointer",
                               "& .MuiInputBase-root": {
                                 height: 34,
@@ -549,8 +549,7 @@ function PackingPage() {
                             value={adjustedStockQty ?? ""}
                             inputProps={{ readOnly: true }}
                             sx={{
-                              width: getCompactFieldWidth("Adjusted", adjustedStockQty),
-                              flexShrink: 0,
+                              width: 96,
                               "& .MuiInputBase-root": {
                                 height: 34,
                                 bgcolor: "background.paper"
@@ -580,10 +579,16 @@ function PackingPage() {
                             label="Stock not managed"
                             variant="outlined"
                             color="default"
-                            sx={{ flexShrink: 0, height: 24, fontSize: '0.7rem', fontWeight: 700 }}
+                            sx={{
+                              gridColumn: { xs: "1 / -1", sm: "2 / 4" },
+                              justifySelf: "start",
+                              height: 24,
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                            }}
                           />
                         )}
-                      </Stack>
+                      </Box>
                       {isParentBundle ? (
                         <Chip size="small" label="Bundle parent - stock on child SKUs" variant="outlined" sx={{ mt: 0.75, height: 20, fontSize: '0.7rem' }} />
                       ) : !managesStock ? (

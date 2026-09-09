@@ -80,7 +80,7 @@ function PackingLineDetails({ description, quantity, sku, skuActions }: PackingL
   return (
     <Stack spacing={0.25} sx={{ minWidth: 0 }}>
       <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
-        {parsed.productName}
+        {quantity} x {parsed.productName}
       </Typography>
       {parsed.attributes.map((attribute, index) => {
         const swatchColour = findPackingColourSwatch(attribute);
@@ -122,7 +122,7 @@ function PackingLineDetails({ description, quantity, sku, skuActions }: PackingL
           <Box component="span" fontWeight={700}>
             SKU:
           </Box>{" "}
-          {quantity}x {sku}
+          {sku}
         </Typography>
         {skuActions}
       </Stack>
