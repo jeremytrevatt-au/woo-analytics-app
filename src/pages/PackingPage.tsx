@@ -180,19 +180,10 @@ function PackingPage() {
   const normalizePhone = (value: any) => String(value || "").replace(/\D/g, "");
 
   const getOrderCrmNotes = (order: any) => {
-    const customerKey = getCustomerMatchKey(order);
-    const customerId = Number(order.customer_id || 0);
-    const phone = normalizePhone(order.billing_phone);
-    const email = String(order.billing_email || "").trim().toLowerCase();
     const orderId = Number(order.order_id);
 
     return crmNotes.filter(note => {
-      if (!["packing_order", "next_order_created"].includes(note.trigger_event)) return false;
       if (Number(note.order_id || 0) > 0 && Number(note.order_id) === orderId) return true;
-      if (note.customer_key && customerKey && note.customer_key === customerKey) return true;
-      if (Number(note.customer_id || 0) > 0 && customerId > 0 && Number(note.customer_id) === customerId) return true;
-      if (note.customer_phone && phone && normalizePhone(note.customer_phone) === phone) return true;
-      if (note.customer_email && email && note.customer_email.toLowerCase() === email) return true;
       return false;
     });
   };
@@ -432,12 +423,6 @@ function PackingPage() {
                       color="warning"
                     />
                   )}
-                  {(orderCrmProfile?.flags ?? []).map(flag => (
-                    <Chip key={`flag:${order.order_id}:${flag}`} size="small" label={flag} color="warning" variant="outlined" />
-                  ))}
-                  {(orderCrmProfile?.tags ?? []).map(tag => (
-                    <Chip key={`tag:${order.order_id}:${tag}`} size="small" label={tag} color="info" variant="outlined" />
-                  ))}
                 </Stack>
               </Grid>
             </Grid>
@@ -457,22 +442,32 @@ function PackingPage() {
                 {crmProfilesError}
               </Typography>
             )}
-            {orderCrmProfile?.preferred_handling_notes && (
-              <Alert severity="info" sx={{ mb: 1.5 }}>
-                <Typography variant="caption" fontWeight="bold" sx={{ display: "block" }}>
-                  Preferred Handling:
-                </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                  {orderCrmProfile.preferred_handling_notes}
-                </Typography>
-              </Alert>
-            )}
             {orderCrmNotes.length > 0 && (
               <Box sx={{ mb: 1.5 }}>
-                <Typography variant="caption" fontWeight="bold" sx={{ display: 'block', mb: 0.75 }}>
-                  CRM Notes:
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ display: 'block', mb: 0.75 }}>
+                  CRM
                 </Typography>
-                <Stack spacing={1}>
+                <Stack spacing={1} sx={{ p: 1.25, border: 1, borderColor: "warning.main", borderRadius: 1, bgcolor: "background.paper" }}>
+                  {((orderCrmProfile?.flags ?? []).length > 0 || (orderCrmProfile?.tags ?? []).length > 0) && (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {(orderCrmProfile?.flags ?? []).map(flag => (
+                        <Chip key={`crm-section-flag:${order.order_id}:${flag}`} size="small" label={flag} color="warning" variant="outlined" />
+                      ))}
+                      {(orderCrmProfile?.tags ?? []).map(tag => (
+                        <Chip key={`crm-section-tag:${order.order_id}:${tag}`} size="small" label={tag} color="info" variant="outlined" />
+                      ))}
+                    </Stack>
+                  )}
+                  {orderCrmProfile?.preferred_handling_notes && (
+                    <Alert severity="info" sx={{ py: 0 }}>
+                      <Typography variant="caption" fontWeight="bold" sx={{ display: "block" }}>
+                        Preferred Handling:
+                      </Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                        {orderCrmProfile.preferred_handling_notes}
+                      </Typography>
+                    </Alert>
+                  )}
                   {orderCrmNotes.map(note => (
                     <Alert key={note.id} severity="warning" sx={{ py: 0 }}>
                       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>

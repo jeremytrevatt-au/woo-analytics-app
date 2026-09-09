@@ -3,9 +3,11 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Divider,
+  FormControlLabel,
   MenuItem,
   Paper,
   Stack,
@@ -50,6 +52,7 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
   const [triggerEvent, setTriggerEvent] = useState(defaultTriggerEvent ?? "packing_order");
   const [reminderDate, setReminderDate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [attachToOrder, setAttachToOrder] = useState(Boolean(orderId));
   const [tagsInput, setTagsInput] = useState("");
   const [flagsInput, setFlagsInput] = useState("");
   const [handlingNotes, setHandlingNotes] = useState("");
@@ -98,6 +101,10 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
     setNextFollowUpDate(extension.next_follow_up_date ?? "");
   }, [profile?.profile_extension]);
 
+  useEffect(() => {
+    setAttachToOrder(Boolean(orderId));
+  }, [orderId]);
+
   const handleCreateNote = async () => {
     if (!noteContent.trim() || !hasIdentity) return;
     setIsSaving(true);
@@ -105,7 +112,7 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
     try {
       await createCrmNote({
         ...identity,
-        order_id: orderId,
+        order_id: attachToOrder ? orderId : undefined,
         trigger_event: triggerEvent,
         reminder_date: reminderDate || undefined,
         note_content: noteContent.trim(),
@@ -277,7 +284,13 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
               size="small"
               label="Trigger"
               value={triggerEvent}
-              onChange={(event) => setTriggerEvent(event.target.value)}
+              onChange={(event) => {
+                const nextTriggerEvent = event.target.value;
+                setTriggerEvent(nextTriggerEvent);
+                if (nextTriggerEvent === "next_order_created") {
+                  setAttachToOrder(false);
+                }
+              }}
               sx={{ minWidth: 240 }}
             >
               {triggerOptions.map((option) => (
@@ -295,6 +308,17 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
               InputLabelProps={{ shrink: true }}
             />
           </Stack>
+          {orderId ? (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={attachToOrder}
+                  onChange={(event) => setAttachToOrder(event.target.checked)}
+                />
+              }
+              label={`Attach note to order #${orderId}`}
+            />
+          ) : null}
           <TextField
             multiline
             minRows={2}
