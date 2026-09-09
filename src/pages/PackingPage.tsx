@@ -9,8 +9,8 @@ import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
 import { listDocumentTemplates } from "../api/documentTemplatesApi";
 import type { DocumentTemplate } from "../api/documentTemplatesApi";
-import { listCrmNotes } from "../api/crmApi";
-import type { CrmNote } from "../api/crmApi";
+import { listCrmCustomerProfileExtensions, listCrmNotes } from "../api/crmApi";
+import type { CrmCustomerProfileExtension, CrmNote } from "../api/crmApi";
 import PackingLineDetails from "../components/PackingLineDetails";
 
 type QueueContext = {
@@ -38,6 +38,8 @@ function PackingPage() {
   const [documentTemplateError, setDocumentTemplateError] = useState<string | null>(null);
   const [crmNotes, setCrmNotes] = useState<CrmNote[]>([]);
   const [crmNotesError, setCrmNotesError] = useState<string | null>(null);
+  const [crmProfiles, setCrmProfiles] = useState<CrmCustomerProfileExtension[]>([]);
+  const [crmProfilesError, setCrmProfilesError] = useState<string | null>(null);
   const [crmOrder, setCrmOrder] = useState<any | null>(null);
 
   useEffect(() => {
@@ -58,6 +60,20 @@ function PackingPage() {
 
   useEffect(() => {
     loadCrmNotes();
+  }, []);
+
+  const loadCrmProfiles = async () => {
+    try {
+      const profiles = await listCrmCustomerProfileExtensions();
+      setCrmProfiles(Array.isArray(profiles) ? profiles : [profiles]);
+      setCrmProfilesError(null);
+    } catch (error: any) {
+      setCrmProfilesError(error.message || "Failed to load CRM customer profiles.");
+    }
+  };
+
+  useEffect(() => {
+    loadCrmProfiles();
   }, []);
 
   const toggleOrder = (orderId: string) => {
@@ -177,6 +193,21 @@ function PackingPage() {
       if (Number(note.customer_id || 0) > 0 && customerId > 0 && Number(note.customer_id) === customerId) return true;
       if (note.customer_phone && phone && normalizePhone(note.customer_phone) === phone) return true;
       if (note.customer_email && email && note.customer_email.toLowerCase() === email) return true;
+      return false;
+    });
+  };
+
+  const getOrderCrmProfile = (order: any) => {
+    const customerKey = getCustomerMatchKey(order);
+    const customerId = Number(order.customer_id || 0);
+    const phone = normalizePhone(order.billing_phone);
+    const email = String(order.billing_email || "").trim().toLowerCase();
+
+    return crmProfiles.find(profile => {
+      if (profile.customer_key && customerKey && profile.customer_key === customerKey) return true;
+      if (Number(profile.customer_id || 0) > 0 && customerId > 0 && Number(profile.customer_id) === customerId) return true;
+      if (profile.customer_phone && phone && normalizePhone(profile.customer_phone) === phone) return true;
+      if (profile.customer_email && email && profile.customer_email.toLowerCase() === email) return true;
       return false;
     });
   };
@@ -303,6 +334,7 @@ function PackingPage() {
     const customerKey = getCustomerMatchKey(order);
     const sameCustomerOrders = customerKey && queueContext ? queueContext.customerGroups.get(customerKey) || [] : [];
     const orderCrmNotes = getOrderCrmNotes(order);
+    const orderCrmProfile = getOrderCrmProfile(order);
 
     let borderColor = 'divider';
     if (currentStatus === 'packed') borderColor = 'success.main';
@@ -400,6 +432,12 @@ function PackingPage() {
                       color="warning"
                     />
                   )}
+                  {(orderCrmProfile?.flags ?? []).map(flag => (
+                    <Chip key={`flag:${order.order_id}:${flag}`} size="small" label={flag} color="warning" variant="outlined" />
+                  ))}
+                  {(orderCrmProfile?.tags ?? []).map(tag => (
+                    <Chip key={`tag:${order.order_id}:${tag}`} size="small" label={tag} color="info" variant="outlined" />
+                  ))}
                 </Stack>
               </Grid>
             </Grid>
@@ -413,6 +451,21 @@ function PackingPage() {
               <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1 }}>
                 {crmNotesError}
               </Typography>
+            )}
+            {crmProfilesError && (
+              <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1 }}>
+                {crmProfilesError}
+              </Typography>
+            )}
+            {orderCrmProfile?.preferred_handling_notes && (
+              <Alert severity="info" sx={{ mb: 1.5 }}>
+                <Typography variant="caption" fontWeight="bold" sx={{ display: "block" }}>
+                  Preferred Handling:
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                  {orderCrmProfile.preferred_handling_notes}
+                </Typography>
+              </Alert>
             )}
             {orderCrmNotes.length > 0 && (
               <Box sx={{ mb: 1.5 }}>
@@ -842,7 +895,10 @@ function PackingPage() {
               customerName={String(crmOrder.customer_name || "")}
               orderId={Number(crmOrder.order_id)}
               defaultTriggerEvent="packing_order"
-              onChanged={loadCrmNotes}
+              onChanged={() => {
+                loadCrmNotes();
+                loadCrmProfiles();
+              }}
             />
           ) : null}
         </DialogContent>

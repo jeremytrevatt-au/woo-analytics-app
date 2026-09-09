@@ -40,6 +40,19 @@ export type CrmCustomerIdentity = {
   customer_phone?: string;
 };
 
+export type CrmCustomerProfileExtension = CrmCustomerIdentity & {
+  id: number;
+  tags: string[];
+  flags: string[];
+  preferred_handling_notes: string;
+  last_reviewed_date: string | null;
+  next_follow_up_date: string | null;
+  created_by: number;
+  updated_by: number;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type CrmCustomerProfile = {
   profile: {
     customer_id?: number;
@@ -52,6 +65,7 @@ export type CrmCustomerProfile = {
     lifetime_value: number;
     last_order_date?: string | null;
   };
+  profile_extension: CrmCustomerProfileExtension;
   orders: Array<Record<string, any> & { lines?: Array<Record<string, any>> }>;
   notes: CrmNote[];
 };
@@ -91,4 +105,18 @@ export async function getCrmCustomerProfile(identity: CrmCustomerIdentity): Prom
   const query = new URLSearchParams();
   appendIdentityParams(query, identity);
   return fetchJson<CrmCustomerProfile>(`/api/v1/crm/customer-profile?${query.toString()}`);
+}
+
+export async function listCrmCustomerProfileExtensions(identity: CrmCustomerIdentity = {}): Promise<CrmCustomerProfileExtension[] | CrmCustomerProfileExtension> {
+  const query = new URLSearchParams();
+  appendIdentityParams(query, identity);
+  const qs = query.toString();
+  return fetchJson<CrmCustomerProfileExtension[] | CrmCustomerProfileExtension>(`/api/v1/crm/customer-profile-extensions${qs ? `?${qs}` : ""}`);
+}
+
+export async function updateCrmCustomerProfileExtension(payload: Partial<CrmCustomerProfileExtension> & CrmCustomerIdentity): Promise<CrmCustomerProfileExtension> {
+  return fetchJson<CrmCustomerProfileExtension>("/api/v1/crm/customer-profile/extension", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }

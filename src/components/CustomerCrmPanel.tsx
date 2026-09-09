@@ -17,7 +17,15 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { createCrmNote, CrmCustomerIdentity, CrmCustomerProfile, CrmNote, getCrmCustomerProfile, updateCrmNote } from "../api/crmApi";
+import {
+  createCrmNote,
+  CrmCustomerIdentity,
+  CrmCustomerProfile,
+  CrmNote,
+  getCrmCustomerProfile,
+  updateCrmCustomerProfileExtension,
+  updateCrmNote,
+} from "../api/crmApi";
 import { formatCurrency } from "../lib/format";
 
 type Props = CrmCustomerIdentity & {
@@ -42,6 +50,12 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
   const [triggerEvent, setTriggerEvent] = useState(defaultTriggerEvent ?? "packing_order");
   const [reminderDate, setReminderDate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [tagsInput, setTagsInput] = useState("");
+  const [flagsInput, setFlagsInput] = useState("");
+  const [handlingNotes, setHandlingNotes] = useState("");
+  const [lastReviewedDate, setLastReviewedDate] = useState("");
+  const [nextFollowUpDate, setNextFollowUpDate] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const identity = useMemo<CrmCustomerIdentity>(
     () => ({
@@ -73,6 +87,16 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
     loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasIdentity, identity.customer_id, identity.customer_key, identity.customer_email, identity.customer_phone]);
+
+  useEffect(() => {
+    const extension = profile?.profile_extension;
+    if (!extension) return;
+    setTagsInput((extension.tags ?? []).join(", "));
+    setFlagsInput((extension.flags ?? []).join(", "));
+    setHandlingNotes(extension.preferred_handling_notes ?? "");
+    setLastReviewedDate(extension.last_reviewed_date ?? "");
+    setNextFollowUpDate(extension.next_follow_up_date ?? "");
+  }, [profile?.profile_extension]);
 
   const handleCreateNote = async () => {
     if (!noteContent.trim() || !hasIdentity) return;
@@ -108,6 +132,34 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
     }
   };
 
+  const parseListInput = (value: string) =>
+    value
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter((item, index, items) => item && items.indexOf(item) === index);
+
+  const handleSaveProfileExtension = async () => {
+    if (!hasIdentity) return;
+    setIsSavingProfile(true);
+    setError(null);
+    try {
+      await updateCrmCustomerProfileExtension({
+        ...identity,
+        tags: parseListInput(tagsInput),
+        flags: parseListInput(flagsInput),
+        preferred_handling_notes: handlingNotes,
+        last_reviewed_date: lastReviewedDate || undefined,
+        next_follow_up_date: nextFollowUpDate || undefined,
+      });
+      await loadProfile();
+      onChanged?.();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   if (!hasIdentity) {
     return (
       <Alert severity="info">
@@ -117,6 +169,7 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
   }
 
   const profileData = profile?.profile;
+  const profileExtension = profile?.profile_extension;
   const displayName = profileData?.customer_name || customerName || "Customer";
 
   return (
@@ -143,6 +196,73 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
             <Chip size="small" label={`${profileData?.order_count ?? 0} orders`} />
             <Chip size="small" label={`${formatCurrency(profileData?.lifetime_value ?? 0)} lifetime value`} />
           </Stack>
+          {(profileExtension?.tags?.length || profileExtension?.flags?.length) ? (
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              {(profileExtension.tags ?? []).map((tag) => (
+                <Chip key={`tag:${tag}`} size="small" color="info" variant="outlined" label={tag} />
+              ))}
+              {(profileExtension.flags ?? []).map((flag) => (
+                <Chip key={`flag:${flag}`} size="small" color="warning" label={flag} />
+              ))}
+            </Stack>
+          ) : null}
+        </Stack>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={1.5}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            Customer Profile Extension
+          </Typography>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <TextField
+              size="small"
+              label="Tags"
+              helperText="Comma separated, e.g. school, wholesale, VIP"
+              value={tagsInput}
+              onChange={(event) => setTagsInput(event.target.value)}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Important flags"
+              helperText="Comma separated, e.g. needs follow-up, packing care"
+              value={flagsInput}
+              onChange={(event) => setFlagsInput(event.target.value)}
+              fullWidth
+            />
+          </Stack>
+          <TextField
+            multiline
+            minRows={2}
+            label="Preferred handling notes"
+            value={handlingNotes}
+            onChange={(event) => setHandlingNotes(event.target.value)}
+            fullWidth
+          />
+          <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <TextField
+              size="small"
+              label="Last reviewed"
+              type="date"
+              value={lastReviewedDate}
+              onChange={(event) => setLastReviewedDate(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              size="small"
+              label="Next follow-up"
+              type="date"
+              value={nextFollowUpDate}
+              onChange={(event) => setNextFollowUpDate(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
+          <Box>
+            <Button variant="outlined" onClick={handleSaveProfileExtension} disabled={isSavingProfile}>
+              Save Profile
+            </Button>
+          </Box>
         </Stack>
       </Paper>
 
