@@ -24,6 +24,7 @@ import {
   CrmCustomerIdentity,
   CrmCustomerProfile,
   CrmNote,
+  deleteCrmNote,
   getCrmCustomerProfile,
   updateCrmCustomerProfileExtension,
   updateCrmNote,
@@ -59,6 +60,10 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
   const [lastReviewedDate, setLastReviewedDate] = useState("");
   const [nextFollowUpDate, setNextFollowUpDate] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
+  const [editTriggerEvent, setEditTriggerEvent] = useState("manual");
+  const [editReminderDate, setEditReminderDate] = useState("");
 
   const identity = useMemo<CrmCustomerIdentity>(
     () => ({
@@ -132,6 +137,49 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
     setError(null);
     try {
       await updateCrmNote(note.id, { status });
+      await loadProfile();
+      onChanged?.();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    }
+  };
+
+  const handleStartEditNote = (note: CrmNote) => {
+    setEditingNoteId(Number(note.id));
+    setEditNoteContent(note.note_content ?? "");
+    setEditTriggerEvent(note.trigger_event ?? "manual");
+    setEditReminderDate(note.reminder_date ?? "");
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditNoteContent("");
+    setEditTriggerEvent("manual");
+    setEditReminderDate("");
+  };
+
+  const handleSaveEditNote = async (note: CrmNote) => {
+    if (!editNoteContent.trim()) return;
+    setError(null);
+    try {
+      await updateCrmNote(note.id, {
+        note_content: editNoteContent.trim(),
+        trigger_event: editTriggerEvent,
+        reminder_date: editReminderDate,
+      });
+      handleCancelEditNote();
+      await loadProfile();
+      onChanged?.();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    }
+  };
+
+  const handleDeleteNote = async (note: CrmNote) => {
+    if (!window.confirm("Delete this CRM note?")) return;
+    setError(null);
+    try {
+      await deleteCrmNote(note.id);
       await loadProfile();
       onChanged?.();
     } catch (saveError) {
@@ -354,20 +402,75 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
                     {note.reminder_date ? <Chip size="small" label={`Reminder ${new Date(note.reminder_date).toLocaleDateString("en-AU")}`} /> : null}
                     {note.order_id ? <Chip size="small" label={`Order ${note.order_id}`} /> : null}
                   </Stack>
-                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                    {note.note_content}
-                  </Typography>
+                  {editingNoteId === Number(note.id) ? (
+                    <Stack spacing={1}>
+                      <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                        <TextField
+                          select
+                          size="small"
+                          label="Trigger"
+                          value={editTriggerEvent}
+                          onChange={(event) => setEditTriggerEvent(event.target.value)}
+                          sx={{ minWidth: 240 }}
+                        >
+                          {triggerOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          size="small"
+                          label="Reminder date"
+                          type="date"
+                          value={editReminderDate}
+                          onChange={(event) => setEditReminderDate(event.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Stack>
+                      <TextField
+                        multiline
+                        minRows={2}
+                        label="Note"
+                        value={editNoteContent}
+                        onChange={(event) => setEditNoteContent(event.target.value)}
+                        fullWidth
+                      />
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" variant="contained" onClick={() => handleSaveEditNote(note)} disabled={!editNoteContent.trim()}>
+                          Save
+                        </Button>
+                        <Button size="small" onClick={handleCancelEditNote}>
+                          Cancel
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                      {note.note_content}
+                    </Typography>
+                  )}
                   <Typography variant="caption" color="text.secondary">
                     Created {new Date(note.created_at).toLocaleString("en-AU")} by {note.created_by_name || "NYA API"}
                   </Typography>
-                  {note.status === "open" ? (
-                    <Stack direction="row" spacing={1}>
+                  {editingNoteId !== Number(note.id) ? (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button size="small" onClick={() => handleStartEditNote(note)}>
+                        Edit
+                      </Button>
+                      <Button size="small" color="error" onClick={() => handleDeleteNote(note)}>
+                        Delete
+                      </Button>
+                      {note.status === "open" ? (
+                        <>
                       <Button size="small" onClick={() => handleUpdateStatus(note, "acknowledged")}>
                         Acknowledge
                       </Button>
                       <Button size="small" onClick={() => handleUpdateStatus(note, "completed")}>
                         Complete
                       </Button>
+                        </>
+                      ) : null}
                     </Stack>
                   ) : null}
                 </Stack>

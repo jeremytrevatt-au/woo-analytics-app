@@ -101,6 +101,12 @@ export async function updateCrmNote(noteId: number, payload: CrmNoteUpdatePayloa
   });
 }
 
+export async function deleteCrmNote(noteId: number): Promise<{ success: boolean; id: number }> {
+  return fetchJson<{ success: boolean; id: number }>(`/api/v1/crm/notes/${noteId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getCrmCustomerProfile(identity: CrmCustomerIdentity): Promise<CrmCustomerProfile> {
   const query = new URLSearchParams();
   appendIdentityParams(query, identity);
