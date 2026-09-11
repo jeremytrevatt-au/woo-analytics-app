@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Divider,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -19,7 +20,17 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { createReturn, listReturns, ReturnCase, ReturnStatus, updateReturn } from "../api/returnsApi";
+import {
+  createReturn,
+  getReturnableOrderItems,
+  listReturns,
+  probeShippitReturnsEndpoints,
+  ReturnableOrderResponse,
+  ReturnCase,
+  ReturnStatus,
+  ShippitReturnsProbeResponse,
+  updateReturn,
+} from "../api/returnsApi";
 
 const RETURN_STATUS_OPTIONS: Array<{ value: ReturnStatus | "all"; label: string }> = [
   { value: "all", label: "All" },
@@ -41,6 +52,12 @@ function ReturnsPage() {
   const [resolution, setResolution] = useState("");
   const [refundExpected, setRefundExpected] = useState(false);
   const [notes, setNotes] = useState("");
+  const [returnableOrder, setReturnableOrder] = useState<ReturnableOrderResponse | null>(null);
+  const [returnLineQty, setReturnLineQty] = useState<Record<number, string>>({});
+  const [loadingReturnableItems, setLoadingReturnableItems] = useState(false);
+  const [probeTrackingNumber, setProbeTrackingNumber] = useState("");
+  const [probeResult, setProbeResult] = useState<ShippitReturnsProbeResponse | null>(null);
+  const [probingShippit, setProbingShippit] = useState(false);
 
   const loadReturns = async () => {
     setLoading(true);
@@ -69,25 +86,80 @@ function ReturnsPage() {
     setSaving(true);
     setMessage(null);
     try {
+      const selectedLines = returnableOrder?.items
+        .map(item => ({
+          order_item_id: item.order_item_id,
+          product_id: item.product_id,
+          variation_id: item.variation_id,
+          sku: item.sku,
+          product_name: item.product_name,
+          qty: Number(returnLineQty[item.order_item_id] || 0),
+        }))
+        .filter(line => Number.isFinite(line.qty) && line.qty > 0) ?? [];
+
       await createReturn({
         order_id: numericOrderId,
         reason,
         resolution,
         refund_expected: refundExpected,
         notes,
-        lines: [],
+        lines: selectedLines,
       });
       setOrderId("");
       setReason("");
       setResolution("");
       setRefundExpected(false);
       setNotes("");
+      setReturnableOrder(null);
+      setReturnLineQty({});
       setMessage({ type: "success", text: "Return case created." });
       await loadReturns();
     } catch (error: any) {
       setMessage({ type: "error", text: error.message || "Failed to create return case." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLoadReturnableItems = async () => {
+    const numericOrderId = Number(orderId);
+    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
+      setMessage({ type: "error", text: "Enter a valid WooCommerce order ID first." });
+      return;
+    }
+
+    setLoadingReturnableItems(true);
+    setMessage(null);
+    try {
+      const response = await getReturnableOrderItems(numericOrderId);
+      setReturnableOrder(response);
+      const initialQty: Record<number, string> = {};
+      response.items.forEach(item => {
+        initialQty[item.order_item_id] = "";
+      });
+      setReturnLineQty(initialQty);
+      setMessage({ type: "success", text: `Loaded ${response.items.length} returnable item rows for order #${response.order.number}.` });
+    } catch (error: any) {
+      setReturnableOrder(null);
+      setReturnLineQty({});
+      setMessage({ type: "error", text: error.message || "Failed to load returnable order items." });
+    } finally {
+      setLoadingReturnableItems(false);
+    }
+  };
+
+  const handleProbeShippit = async () => {
+    setProbingShippit(true);
+    setMessage(null);
+    try {
+      const response = await probeShippitReturnsEndpoints({ trackingNumber: probeTrackingNumber.trim() || undefined });
+      setProbeResult(response);
+      setMessage({ type: "success", text: "Shippit returns endpoint probe completed." });
+    } catch (error: any) {
+      setProbeResult(null);
+      setMessage({ type: "error", text: error.message || "Failed to probe Shippit returns endpoints." });
+    } finally {
+      setProbingShippit(false);
     }
   };
 
@@ -129,7 +201,11 @@ function ReturnsPage() {
             <TextField
               label="WooCommerce Order ID"
               value={orderId}
-              onChange={(event) => setOrderId(event.target.value)}
+              onChange={(event) => {
+                setOrderId(event.target.value);
+                setReturnableOrder(null);
+                setReturnLineQty({});
+              }}
               type="number"
               inputProps={{ min: 1 }}
               sx={{ minWidth: 220 }}
@@ -147,6 +223,55 @@ function ReturnsPage() {
               sx={{ minWidth: 260 }}
             />
           </Stack>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button variant="outlined" onClick={handleLoadReturnableItems} disabled={loadingReturnableItems || saving}>
+              {loadingReturnableItems ? "Loading Items..." : "Load Returnable Items"}
+            </Button>
+            {returnableOrder ? (
+              <Typography variant="body2" color="text.secondary">
+                Order #{returnableOrder.order.number}: {returnableOrder.items.length} physical item rows
+              </Typography>
+            ) : null}
+          </Stack>
+          {returnableOrder ? (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Item</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell align="right">Ordered</TableCell>
+                  <TableCell align="right">Already Return/Refund</TableCell>
+                  <TableCell align="right">Returnable</TableCell>
+                  <TableCell align="right">Return Qty</TableCell>
+                  <TableCell>Parcel Data</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {returnableOrder.items.map(item => (
+                  <TableRow key={item.order_item_id}>
+                    <TableCell>{item.product_name}</TableCell>
+                    <TableCell>{item.sku || "-"}</TableCell>
+                    <TableCell align="right">{item.ordered_qty}</TableCell>
+                    <TableCell align="right">{item.existing_return_qty + item.refunded_qty}</TableCell>
+                    <TableCell align="right">{item.returnable_qty}</TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={returnLineQty[item.order_item_id] ?? ""}
+                        onChange={(event) => setReturnLineQty(prev => ({ ...prev, [item.order_item_id]: event.target.value }))}
+                        inputProps={{ min: 0, max: item.returnable_qty, step: 1 }}
+                        sx={{ width: 110 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {item.weight_g}g, {item.length_cm} x {item.width_cm} x {item.height_cm}cm
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
           <TextField
             label="Notes"
             value={notes}
@@ -164,6 +289,54 @@ function ReturnsPage() {
             </Button>
           </Stack>
         </Stack>
+      </Paper>
+
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Shippit Returns Diagnostics
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Probes Shippit returns endpoints from the WordPress Shippit extension using empty validation payloads. This should verify endpoint names without creating a return shipment.
+        </Typography>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+          <TextField
+            label="Optional Return Tracking Number"
+            value={probeTrackingNumber}
+            onChange={(event) => setProbeTrackingNumber(event.target.value)}
+            sx={{ minWidth: 280 }}
+          />
+          <Button variant="outlined" onClick={handleProbeShippit} disabled={probingShippit}>
+            {probingShippit ? "Probing..." : "Probe Returns Endpoints"}
+          </Button>
+        </Stack>
+        {probeResult ? (
+          <Box sx={{ mt: 2 }}>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Environment: {probeResult.environment}; checked: {probeResult.checked_at}
+            </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Check</TableCell>
+                  <TableCell>Method</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Duration</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {probeResult.results.map(result => (
+                  <TableRow key={result.name}>
+                    <TableCell>{result.name}</TableCell>
+                    <TableCell>{result.method}</TableCell>
+                    <TableCell>{result.status_code ?? result.error ?? "No response"}</TableCell>
+                    <TableCell>{result.duration_ms}ms</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        ) : null}
       </Paper>
 
       <Paper sx={{ p: 3 }}>

@@ -31,6 +31,55 @@ export type ReturnCase = {
   lines: ReturnLine[];
 };
 
+export type ReturnableOrderItem = {
+  order_item_id: number;
+  product_id: number;
+  variation_id: number;
+  sku: string;
+  product_name: string;
+  ordered_qty: number;
+  refunded_qty: number;
+  existing_return_qty: number;
+  returnable_qty: number;
+  unit_price: number;
+  weight_g: number;
+  length_cm: number;
+  width_cm: number;
+  height_cm: number;
+};
+
+export type ReturnableOrderResponse = {
+  order: {
+    id: number;
+    number: string;
+    status: string;
+    date_created: string | null;
+    customer: {
+      email: string;
+      first_name: string;
+      last_name: string;
+    };
+    shipping_address: Record<string, string>;
+  };
+  items: ReturnableOrderItem[];
+};
+
+export type ShippitReturnsProbeResult = {
+  name: string;
+  method: string;
+  url: string;
+  status_code: number | null;
+  duration_ms: number;
+  body?: unknown;
+  error?: string;
+};
+
+export type ShippitReturnsProbeResponse = {
+  environment: string;
+  checked_at: string;
+  results: ShippitReturnsProbeResult[];
+};
+
 export type ReturnCreatePayload = {
   order_id: number;
   status?: ReturnStatus;
@@ -63,5 +112,16 @@ export async function updateReturn(returnId: number, payload: ReturnUpdatePayloa
   return fetchJson<ReturnCase>(`/api/v1/returns/${returnId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getReturnableOrderItems(orderId: number): Promise<ReturnableOrderResponse> {
+  return fetchJson<ReturnableOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/returnable-items`);
+}
+
+export async function probeShippitReturnsEndpoints(params: { trackingNumber?: string } = {}): Promise<ShippitReturnsProbeResponse> {
+  return fetchJson<ShippitReturnsProbeResponse>("/api/v1/shippit/returns/diagnostics/probe", {
+    method: "POST",
+    body: JSON.stringify({ tracking_number: params.trackingNumber || undefined }),
   });
 }
