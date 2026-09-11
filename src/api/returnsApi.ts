@@ -66,8 +66,8 @@ export type ReturnableOrderResponse = {
 
 export type ShippitReturnsProbeResult = {
   name: string;
-  method: string;
-  url: string;
+  method: string | null;
+  url: string | null;
   status_code: number | null;
   duration_ms: number;
   body?: unknown;
@@ -77,6 +77,7 @@ export type ShippitReturnsProbeResult = {
 export type ShippitReturnsProbeResponse = {
   environment: string;
   checked_at: string;
+  order_id?: number | null;
   results: ShippitReturnsProbeResult[];
 };
 
@@ -119,9 +120,9 @@ export async function getReturnableOrderItems(orderId: number): Promise<Returnab
   return fetchJson<ReturnableOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/returnable-items`);
 }
 
-export async function probeShippitReturnsEndpoints(params: { trackingNumber?: string } = {}): Promise<ShippitReturnsProbeResponse> {
+export async function probeShippitReturnsEndpoints(params: { orderId?: number; trackingNumber?: string } = {}): Promise<ShippitReturnsProbeResponse> {
   return fetchJson<ShippitReturnsProbeResponse>("/api/v1/shippit/returns/diagnostics/probe", {
     method: "POST",
-    body: JSON.stringify({ tracking_number: params.trackingNumber || undefined }),
+    body: JSON.stringify({ order_id: params.orderId, tracking_number: params.trackingNumber || undefined }),
   });
 }

@@ -152,7 +152,11 @@ function ReturnsPage() {
     setProbingShippit(true);
     setMessage(null);
     try {
-      const response = await probeShippitReturnsEndpoints({ trackingNumber: probeTrackingNumber.trim() || undefined });
+      const numericOrderId = Number(orderId);
+      const response = await probeShippitReturnsEndpoints({
+        orderId: Number.isInteger(numericOrderId) && numericOrderId > 0 ? numericOrderId : undefined,
+        trackingNumber: probeTrackingNumber.trim() || undefined,
+      });
       setProbeResult(response);
       setMessage({ type: "success", text: "Shippit returns endpoint probe completed." });
     } catch (error: any) {
@@ -296,7 +300,7 @@ function ReturnsPage() {
           Shippit Returns Diagnostics
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Probes Shippit returns endpoints from the WordPress Shippit extension using empty validation payloads. This should verify endpoint names without creating a return shipment.
+          Probes Shippit returns endpoints from the WordPress Shippit extension. Enter a WooCommerce order ID above to include a controlled quote probe without creating a return shipment.
         </Typography>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
           <TextField
@@ -313,7 +317,7 @@ function ReturnsPage() {
           <Box sx={{ mt: 2 }}>
             <Divider sx={{ mb: 2 }} />
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Environment: {probeResult.environment}; checked: {probeResult.checked_at}
+              Environment: {probeResult.environment}; checked: {probeResult.checked_at}; order probe: {probeResult.order_id ?? "not supplied"}
             </Typography>
             <Table size="small">
               <TableHead>
