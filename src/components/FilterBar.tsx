@@ -48,6 +48,7 @@ const OPEN_ORDER_STATUS_VALUES = ["wc-processing", "wc-pre-ordered", "wc-on-hold
 const WIDE_SELECT_GRID = { xs: 12, sm: 6, md: 4, lg: 3 };
 
 const selectControlSx = {
+  minWidth: { sm: 220, md: 240 },
   "& .MuiSelect-select": {
     minWidth: 0,
     overflow: "hidden",

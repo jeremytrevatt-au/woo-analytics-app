@@ -352,6 +352,27 @@ export async function updateStockQuantity(productId: number, stockQuantity: numb
   });
 }
 
+export type StockProductFieldUpdateResponse = {
+  success: boolean;
+  message: string;
+  updated_count: number;
+  products: any[];
+  errors: Array<{ product_id: number; message: string }>;
+};
+
+export async function updateStockProductFields(
+  productIds: number[],
+  fields: Record<string, unknown>
+): Promise<StockProductFieldUpdateResponse> {
+  return fetchJson<StockProductFieldUpdateResponse>("/api/v1/stock/product-fields", {
+    method: "POST",
+    body: JSON.stringify({
+      product_ids: productIds,
+      fields,
+    }),
+  });
+}
+
 export async function getOrderTrends(filter: AppFilterState): Promise<TrendPoint[]> {
   const params = new URLSearchParams({
     granularity: filter.granularity,

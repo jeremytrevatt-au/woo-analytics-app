@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Check } from "@mui/icons-material";
-import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, Card, CardContent, IconButton, useMediaQuery, useTheme } from "@mui/material";
+import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, Card, CardContent, IconButton, useMediaQuery, useTheme, Menu, Checkbox, ListItemText } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
@@ -12,7 +12,7 @@ import StockLedgerChartModal from "../components/StockLedgerChartModal";
 import BulkUpdateModal from "../components/BulkUpdateModal";
 import AddToPOModal from "../components/AddToPOModal";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
-import { getStocktakeRecords, updateStockQuantity } from "../api/analyticsApi";
+import { getStocktakeRecords, updateStockProductFields, updateStockQuantity } from "../api/analyticsApi";
 import { useFilters } from "../hooks/useFilters";
 import type { AppFilterState } from "../types/analytics";
 
@@ -54,6 +54,65 @@ const emptyStockRangeFilterDraft: StockRangeFilterDraft = {
   stockProjectedStockoutStart: "",
   stockProjectedStockoutEnd: "",
 };
+
+const stockColumnStorageKey = "nya.stockItems.visibleColumns.v1";
+
+const defaultStockColumnKeys = [
+  "product_id",
+  "sku",
+  "product_name",
+  "category",
+  "product_type",
+  "stock_qty",
+  "stock_status",
+  "movement_count",
+  "avg_daily_usage",
+  "days_of_cover",
+  "projected_stockout_date",
+  "forecast_source",
+  "nya_default_lead_time",
+  "nya_stock_lead_time",
+  "nya_stock_reorder_qty",
+  "nya_stock_eta",
+  "reorder_within_lead_time",
+  "recent_movement_count",
+  "actions",
+];
+
+const backorderOptions = [
+  { value: "no", label: "Do not allow" },
+  { value: "notify", label: "Allow, notify" },
+  { value: "yes", label: "Allow" },
+];
+
+const yesNoOptions = [
+  { value: "true", label: "Yes" },
+  { value: "false", label: "No" },
+];
+
+const nyPspOptions = [
+  { value: "", label: "Inherit" },
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+
+function getStoredStockColumnKeys(): string[] {
+  if (typeof window === "undefined") {
+    return defaultStockColumnKeys;
+  }
+  try {
+    const stored = window.localStorage.getItem(stockColumnStorageKey);
+    const parsed = stored ? JSON.parse(stored) : null;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultStockColumnKeys;
+  } catch {
+    return defaultStockColumnKeys;
+  }
+}
+
+function formatInlineSelectValue(value: unknown, options: Array<{ value: string; label: string }>): string {
+  const stringValue = value === null || value === undefined ? "" : String(value);
+  return options.find((option) => option.value === stringValue)?.label ?? stringValue;
+}
 
 const colourSwatches: Record<string, string> = {
   black: "#111111",
@@ -247,6 +306,12 @@ function StockPage() {
   const [stocktakeSaving, setStocktakeSaving] = useState<Record<string, boolean>>({});
   const [stocktakeMessages, setStocktakeMessages] = useState<Record<string, string>>({});
   const [stockRangeDraft, setStockRangeDraft] = useState<StockRangeFilterDraft>(() => getStockRangeFilterDraft(filters));
+  const [visibleStockColumnKeys, setVisibleStockColumnKeys] = useState<string[]>(getStoredStockColumnKeys);
+  const [columnMenuAnchor, setColumnMenuAnchor] = useState<HTMLElement | null>(null);
+  const [stockProductOverrides, setStockProductOverrides] = useState<Record<string, Record<string, unknown>>>({});
+  const [stockCellDrafts, setStockCellDrafts] = useState<Record<string, string>>({});
+  const [stockCellSaving, setStockCellSaving] = useState<Record<string, boolean>>({});
+  const [stockCellMessages, setStockCellMessages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setStockRangeDraft(getStockRangeFilterDraft(filters));
@@ -407,9 +472,189 @@ function StockPage() {
     updateFilters(emptyStockRangeFilterDraft);
   };
 
-  const unifiedRows = (rows as any[]).map((row) => {
+  const setVisibleStockColumns = (nextKeys: string[]) => {
+    const safeKeys = nextKeys.length > 0 ? nextKeys : ["sku"];
+    setVisibleStockColumnKeys(safeKeys);
+    window.localStorage.setItem(stockColumnStorageKey, JSON.stringify(safeKeys));
+  };
+
+  const toggleStockColumn = (columnKey: string) => {
+    setVisibleStockColumns(
+      visibleStockColumnKeys.includes(columnKey)
+        ? visibleStockColumnKeys.filter((key) => key !== columnKey)
+        : [...visibleStockColumnKeys, columnKey]
+    );
+  };
+
+  const isEditableStockRow = (row: any) => row.product_type !== "wsvi_group";
+
+  const handleStockProductFieldSave = async (
+    row: any,
+    cellKey: string,
+    fields: Record<string, unknown>
+  ) => {
+    if (!isEditableStockRow(row)) {
+      setStockCellMessages((previous) => ({ ...previous, [cellKey]: "WSVI grouped rows cannot be edited directly." }));
+      return;
+    }
+    const productId = Number(row.product_id);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      setStockCellMessages((previous) => ({ ...previous, [cellKey]: "Missing product ID." }));
+      return;
+    }
+
+    setStockCellSaving((previous) => ({ ...previous, [cellKey]: true }));
+    setStockCellMessages((previous) => ({ ...previous, [cellKey]: "Saving..." }));
+    try {
+      const response = await updateStockProductFields([productId], fields);
+      if (!response.success) {
+        const message = response.errors?.map((item) => `${item.product_id}: ${item.message}`).join("; ") || response.message;
+        throw new Error(message || "Product update failed.");
+      }
+      const savedProduct = response.products?.[0] ?? fields;
+      setStockProductOverrides((previous) => ({
+        ...previous,
+        [String(productId)]: {
+          ...(previous[String(productId)] ?? {}),
+          ...savedProduct,
+        },
+      }));
+      setStockCellDrafts((previous) => {
+        const next = { ...previous };
+        Object.keys(fields).forEach((fieldKey) => {
+          delete next[`${productId}:${fieldKey}`];
+        });
+        return next;
+      });
+      setStockCellMessages((previous) => ({ ...previous, [cellKey]: "Saved" }));
+    } catch (error: any) {
+      setStockCellMessages((previous) => ({ ...previous, [cellKey]: error.message || "Failed to save." }));
+    } finally {
+      setStockCellSaving((previous) => ({ ...previous, [cellKey]: false }));
+    }
+  };
+
+  const renderCellMessage = (cellKey: string) => {
+    const message = stockCellMessages[cellKey];
+    if (!message) return null;
+    return (
+      <Typography
+        variant="caption"
+        color={message === "Saved" ? "success.main" : message === "Saving..." ? "text.secondary" : "error.main"}
+        sx={{ display: "block" }}
+      >
+        {message}
+      </Typography>
+    );
+  };
+
+  const renderEditableTextCell = (row: any, fieldKey: string, inputType: "text" | "number" = "text", width = 110) => {
+    const productId = String(row.product_id);
+    const cellKey = `${productId}:${fieldKey}`;
+    const rawValue = row[fieldKey] === null || row[fieldKey] === undefined ? "" : String(row[fieldKey]);
+    const value = stockCellDrafts[cellKey] ?? rawValue;
+    if (!isEditableStockRow(row)) {
+      return rawValue || "-";
+    }
+
+    const saveIfChanged = () => {
+      if (value === rawValue) return;
+      handleStockProductFieldSave(row, cellKey, { [fieldKey]: value });
+    };
+
+    return (
+      <Box>
+        <TextField
+          size="small"
+          type={inputType}
+          value={value}
+          disabled={Boolean(stockCellSaving[cellKey])}
+          onChange={(event) => setStockCellDrafts((previous) => ({ ...previous, [cellKey]: event.target.value }))}
+          onBlur={saveIfChanged}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+          }}
+          inputProps={inputType === "number" ? { step: "any", min: 0 } : undefined}
+          sx={{ width }}
+        />
+        {renderCellMessage(cellKey)}
+      </Box>
+    );
+  };
+
+  const renderEditableSelectCell = (
+    row: any,
+    fieldKey: string,
+    options: Array<{ value: string; label: string }>,
+    toPayload?: (value: string) => unknown,
+    width = 150
+  ) => {
+    const productId = String(row.product_id);
+    const cellKey = `${productId}:${fieldKey}`;
+    const rawValue = row[fieldKey] === null || row[fieldKey] === undefined ? "" : String(row[fieldKey]);
+    if (!isEditableStockRow(row)) {
+      return formatInlineSelectValue(rawValue, options) || "-";
+    }
+
+    return (
+      <Box>
+        <TextField
+          size="small"
+          select
+          value={rawValue}
+          disabled={Boolean(stockCellSaving[cellKey])}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            handleStockProductFieldSave(row, cellKey, { [fieldKey]: toPayload ? toPayload(nextValue) : nextValue });
+          }}
+          sx={{ width }}
+        >
+          {options.map((option) => (
+            <MenuItem key={option.value || "blank"} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </TextField>
+        {renderCellMessage(cellKey)}
+      </Box>
+    );
+  };
+
+  const renderDimensionsCell = (row: any) => {
+    if (!isEditableStockRow(row)) {
+      const values = [row.length, row.width, row.height].map((value) => value ?? "-");
+      return values.join(" x ");
+    }
+    return (
+      <Stack direction="row" spacing={0.75}>
+        {renderEditableTextCell(row, "length", "number", 76)}
+        {renderEditableTextCell(row, "width", "number", 76)}
+        {renderEditableTextCell(row, "height", "number", 76)}
+      </Stack>
+    );
+  };
+
+  const stockRows = (rows as any[]).map((row) => ({
+    ...row,
+    ...(stockProductOverrides[String(row.product_id)] ?? {}),
+  }));
+
+  const unifiedRows = stockRows.map((row) => {
     return {
       ...row,
+      weight: renderEditableTextCell(row, "weight", "number"),
+      dimensions: renderDimensionsCell(row),
+      shipping_class: renderEditableTextCell(row, "shipping_class", "text", 150),
+      regular_price: renderEditableTextCell(row, "regular_price", "number"),
+      sale_price: renderEditableTextCell(row, "sale_price", "number"),
+      manage_stock: renderEditableSelectCell(row, "manage_stock", yesNoOptions, (value) => value === "true"),
+      enabled: renderEditableSelectCell(row, "enabled", yesNoOptions, (value) => value === "true"),
+      backorders: renderEditableSelectCell(row, "backorders", backorderOptions, undefined, 190),
+      ny_shippit_ppm: renderEditableTextCell(row, "ny_shippit_ppm", "number", 130),
+      ny_packaging_overhead: renderEditableTextCell(row, "ny_packaging_overhead", "number", 130),
+      ny_psp: renderEditableSelectCell(row, "ny_psp", nyPspOptions, undefined, 170),
       recent_movement_count: row.movement_count ?? 0,
       actions: (
         <Button size="small" variant="outlined" onClick={() => setSelectedSku({
@@ -424,12 +669,28 @@ function StockPage() {
       ),
     };
   });
+  const baseUnifiedColumns = columns
+    .filter((column) => !["length", "width", "height"].includes(column.key))
+    .flatMap((column) => {
+      const normalizedColumn = ["weight", "shipping_class", "regular_price", "sale_price", "manage_stock", "enabled", "backorders", "ny_shippit_ppm", "ny_packaging_overhead", "ny_psp"].includes(column.key)
+        ? { ...column, type: "node" as const }
+        : column;
+      if (column.key === "weight") {
+        return [
+          normalizedColumn,
+          { key: "dimensions", label: "Dimensions (LxWxH)", type: "node" as const },
+        ];
+      }
+      return [normalizedColumn];
+    });
   const unifiedColumns = [
-    ...columns,
+    ...baseUnifiedColumns,
     { key: "reorder_within_lead_time", label: "Needs Reorder", type: "boolean" as const },
     { key: "recent_movement_count", label: "Recent Movements", type: "number" as const },
     { key: "actions", label: "Actions", type: "node" as const },
   ];
+  const visibleUnifiedColumns = unifiedColumns.filter((column) => visibleStockColumnKeys.includes(column.key));
+  const columnSelectorOptions = unifiedColumns;
 
   return (
     <Stack spacing={2}>
@@ -595,7 +856,25 @@ function StockPage() {
                     </Stack>
                   </Grid>
                 </Grid>
-                <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}>
+                  <Button
+                    variant="outlined"
+                    onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
+                  >
+                    Columns ({visibleUnifiedColumns.length})
+                  </Button>
+                  <Menu
+                    anchorEl={columnMenuAnchor}
+                    open={Boolean(columnMenuAnchor)}
+                    onClose={() => setColumnMenuAnchor(null)}
+                  >
+                    {columnSelectorOptions.map((column) => (
+                      <MenuItem key={column.key} onClick={() => toggleStockColumn(column.key)}>
+                        <Checkbox checked={visibleStockColumnKeys.includes(column.key)} />
+                        <ListItemText primary={column.label} />
+                      </MenuItem>
+                    ))}
+                  </Menu>
                   <Button 
                     variant="outlined" 
                     disabled={selectedStockRecords.length === 0}
@@ -608,13 +887,13 @@ function StockPage() {
                     disabled={selectedStockRecords.length === 0}
                     onClick={() => setBulkUpdateModalOpen(true)}
                   >
-                    Bulk Update Reorder Fields ({selectedStockRecords.length})
+                    Bulk Update Product Fields ({selectedStockRecords.length})
                   </Button>
                 </Box>
                 <DataTablePanel
                   title="Stock Items"
                   rows={unifiedRows as any}
-                  columns={unifiedColumns}
+                  columns={visibleUnifiedColumns}
                   page={page}
                   pageSize={pageSize}
                   totalCount={totalCount}

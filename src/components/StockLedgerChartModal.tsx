@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow, FormControlLabel, Switch, TextField, MenuItem } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, Typography, Table, TableBody, TableCell, TableHead, TableRow, FormControlLabel, Switch, TextField, MenuItem, Link } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchStockLedgerChart, getStockForecastHistory } from "../api/analyticsApi";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -427,13 +427,30 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             <TableHead>
               <TableRow>
                 <TableCell>Date/Time</TableCell>
+                <TableCell>Reason</TableCell>
+                <TableCell>Woo Order</TableCell>
                 <TableCell align="right">Stock Level</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {aggregatedStockPoints.map((item, index) => (
-                <TableRow key={`${item.bucket_date}-${index}`}>
-                  <TableCell>{item.bucket_label}</TableCell>
+              {data.map((item, index) => (
+                <TableRow key={`${item.timestamp}-${index}`}>
+                  <TableCell>{item.timestamp}</TableCell>
+                  <TableCell>{item.reason || "-"}</TableCell>
+                  <TableCell>
+                    {item.order_number && item.reference_id ? (
+                      <Link
+                        href={`https://naturalyield.com.au/wp-admin/post.php?post=${item.reference_id}&action=edit`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        underline="hover"
+                      >
+                        {item.order_number}
+                      </Link>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                   <TableCell align="right">{item.stock_qty}</TableCell>
                 </TableRow>
               ))}
