@@ -151,6 +151,7 @@ function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps
   const [allocatedQty, setAllocatedQty] = useState(allocation ? String(allocation.allocated_qty) : "");
   const [status, setStatus] = useState<AllocationStatus>(allocation?.status ?? "active");
   const [etaDate, setEtaDate] = useState(allocation?.eta_date ?? "");
+  const [preorderCutoffDate, setPreorderCutoffDate] = useState(allocation?.preorder_cutoff_date ?? "");
   const [notes, setNotes] = useState(allocation?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +161,7 @@ function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps
       setAllocatedQty(String(allocation.allocated_qty));
       setStatus(allocation.status);
       setEtaDate(allocation.eta_date ?? "");
+      setPreorderCutoffDate(allocation.preorder_cutoff_date ?? "");
       setNotes(allocation.notes ?? "");
       setError(null);
     }
@@ -175,6 +177,7 @@ function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps
         allocated_qty: Number(allocatedQty),
         status,
         eta_date: etaDate || null,
+        preorder_cutoff_date: preorderCutoffDate || null,
         notes: notes.trim() || null
       });
       onClose(true);
@@ -203,6 +206,7 @@ function AllocationEditDialog({ allocation, onClose }: AllocationEditDialogProps
               ))}
             </TextField>
             <TextField type="date" label="ETA Date" value={etaDate} onChange={(event) => setEtaDate(event.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField type="date" label="Pre-order Cut-off Date" value={preorderCutoffDate} onChange={(event) => setPreorderCutoffDate(event.target.value)} helperText="Blank inherits the purchase order cutoff when available." InputLabelProps={{ shrink: true }} fullWidth />
             <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={3} fullWidth />
           </Stack>
         </DialogContent>
@@ -390,6 +394,7 @@ function PreordersPage() {
               <TableCell align="right">Consumed</TableCell>
               <TableCell align="right">Available</TableCell>
               <TableCell>ETA</TableCell>
+              <TableCell>Cut-off</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -425,6 +430,7 @@ function PreordersPage() {
                       />
                     </TableCell>
                     <TableCell>{dateLabel(allocation.eta_date)}</TableCell>
+                    <TableCell>{dateLabel(allocation.preorder_cutoff_date)}</TableCell>
                     <TableCell align="right">
                       <Button
                         size="small"
@@ -445,7 +451,7 @@ function PreordersPage() {
             })}
             {allocations.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} align="center">No preorder allocations found.</TableCell>
+                <TableCell colSpan={11} align="center">No preorder allocations found.</TableCell>
               </TableRow>
             )}
           </TableBody>

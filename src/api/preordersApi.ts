@@ -19,6 +19,7 @@ export type PreorderAllocation = {
   available_qty: number;
   status: AllocationStatus;
   eta_date: string | null;
+  preorder_cutoff_date?: string | null;
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -114,6 +115,7 @@ export type PreorderAllocationCreatePayload = {
   allocated_qty: number;
   status?: AllocationStatus;
   eta_date?: string;
+  preorder_cutoff_date?: string | null;
   notes?: string;
 };
 
@@ -121,6 +123,7 @@ export type PreorderAllocationUpdatePayload = {
   allocated_qty?: number;
   status?: AllocationStatus;
   eta_date?: string | null;
+  preorder_cutoff_date?: string | null;
   notes?: string | null;
 };
 

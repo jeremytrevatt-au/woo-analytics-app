@@ -24,6 +24,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   shipping_type: "sea",
   lead_time_days: 0,
   eta_date: null,
+  preorder_cutoff_date: null,
   supplier_currency: "AUD",
   currency_conversion_rate: 1.0,
   m3: 0,
@@ -382,6 +383,18 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               value={formData.eta_date ? formData.eta_date.split(" ")[0] : ""}
               onChange={(e) => handleChange("eta_date", e.target.value)}
               margin="normal"
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Pre-order Cut-off Date"
+              type="date"
+              value={formData.preorder_cutoff_date ? formData.preorder_cutoff_date.split(" ")[0] : ""}
+              onChange={(e) => handleChange("preorder_cutoff_date", e.target.value || null)}
+              margin="normal"
+              helperText="Blank keeps preorders open while the PO remains Draft."
               InputLabelProps={{ shrink: true }}
             />
           </Grid>

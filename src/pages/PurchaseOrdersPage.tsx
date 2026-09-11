@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse, TextField, MenuItem } from "@mui/material";
+import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse, TextField, MenuItem, Checkbox, FormControlLabel } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -56,6 +56,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const [receiveLoading, setReceiveLoading] = useState(false);
   const [receiveError, setReceiveError] = useState<string | null>(null);
   const [receiveMessage, setReceiveMessage] = useState<string | null>(null);
+  const [processPreordersOnReceipt, setProcessPreordersOnReceipt] = useState(true);
   const receiveBlockingErrors = receivePreview?.blocking_errors ?? [];
   const canBookReceiveStock = !!receivePreview && receiveBlockingErrors.length === 0;
 
@@ -159,13 +160,13 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
 
   const handleBookReceiveStock = async () => {
     if (!po.id) return;
-    const confirmed = window.confirm("Book received stock for this purchase order now? This will update WooCommerce stock and process eligible PreOrder orders.");
+    const confirmed = window.confirm(`Book received stock for this purchase order now? This will update WooCommerce stock${processPreordersOnReceipt ? " and process eligible PreOrder orders" : ""}.`);
     if (!confirmed) return;
     setReceiveLoading(true);
     setReceiveError(null);
     setReceiveMessage(null);
     try {
-      const result = await purchaseOrdersApi.receiveStock(po.id, { dry_run: false, book_stock: true, process_preorders: true });
+      const result = await purchaseOrdersApi.receiveStock(po.id, { dry_run: false, book_stock: true, process_preorders: processPreordersOnReceipt });
       setReceivePreview(result);
       setReceiveMessage(`Stock booked${result.receipt_id ? ` with receipt ${result.receipt_id}` : ""}. Processed ${result.processed_order_ids?.length ?? 0} preorder order(s).`);
       await loadSummary();
@@ -226,6 +227,16 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                 </Button>
                 {po.status === "received" && (
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={processPreordersOnReceipt}
+                          onChange={(event) => setProcessPreordersOnReceipt(event.target.checked)}
+                          disabled={receiveLoading}
+                        />
+                      }
+                      label="Move eligible PreOrder orders to Processing"
+                    />
                     <Button size="small" variant="outlined" onClick={handlePreviewReceiveStock} disabled={!po.id || receiveLoading}>
                       Preview Stock Receipt
                     </Button>
