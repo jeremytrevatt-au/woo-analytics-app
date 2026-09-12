@@ -57,6 +57,10 @@ type PaginatedResponse<T> = {
   total_count: number;
 };
 
+export type PackingOrdersResponse = PaginatedRecords & {
+  currentUser: string;
+};
+
 type OrdersRow = {
   order_date: string;
   order_status: string;
@@ -692,7 +696,7 @@ export async function getPackingOrders(
   filter: AppFilterState,
   page: number,
   pageSize: number
-): Promise<PaginatedRecords> {
+): Promise<PackingOrdersResponse> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -702,18 +706,28 @@ export async function getPackingOrders(
     filter.statuses.forEach(status => params.append("statuses", status));
   }
 
-  const response = await fetchJson<PaginatedResponse<any>>(`/api/v1/packing/orders?${params.toString()}`);
+  const response = await fetchJson<PaginatedResponse<any> & { current_user?: string }>(`/api/v1/packing/orders?${params.toString()}`);
   return {
     records: response.records,
     columns: response.columns || [],
     page: response.page,
     pageSize: response.page_size,
-    totalCount: response.total_count
+    totalCount: response.total_count,
+    currentUser: response.current_user || "packing_team_user"
   };
 }
 
-export async function markOrderPacked(orderId: number, status: string = "packed"): Promise<{ success: boolean; message: string; packed_by?: string }> {
-  return fetchJson<{ success: boolean; message: string; packed_by?: string }>("/api/v1/packing/pack", {
+export type PackingStatusUpdateResponse = {
+  success: boolean;
+  message: string;
+  order_id: number;
+  status: string;
+  packed_by: string;
+  packed_date?: string;
+};
+
+export async function markOrderPacked(orderId: number, status: string = "packed"): Promise<PackingStatusUpdateResponse> {
+  return fetchJson<PackingStatusUpdateResponse>("/api/v1/packing/pack", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"

@@ -3,15 +3,17 @@ import { useEffect, useState } from "react";
 import { Check, CheckCircleOutline, Close } from "@mui/icons-material";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import LoadStateBlock from "../components/LoadStateBlock";
-import { useDashboardData } from "../hooks/useDashboardData";
+import { usePackingOrders } from "../hooks/usePackingOrders";
 import { formatCurrency } from "../lib/format";
 import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
+import { ApiRequestError } from "../api/httpClient";
 import { listDocumentTemplates } from "../api/documentTemplatesApi";
 import type { DocumentTemplate } from "../api/documentTemplatesApi";
 import { listCrmCustomerProfileExtensions, listCrmNotes } from "../api/crmApi";
 import type { CrmCustomerProfileExtension, CrmNote } from "../api/crmApi";
 import PackingLineDetails from "../components/PackingLineDetails";
+import { groupPackingOrdersByUser } from "../lib/packing";
 
 type QueueContext = {
   duplicateFirstNameKeys: Set<string>;
@@ -25,10 +27,10 @@ type QueueGroup = {
 };
 
 function PackingPage() {
-  const [page, setPage] = useState(1);
-  const { rows, isLoading, error, refetch } = useDashboardData("packing", page, 100);
+  const { rows, currentUser, isLoading, error, refetch, updateOrderStatus } = usePackingOrders(1, 100);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-  const [packingState, setPackingState] = useState<Record<string, { status: string, user: string }>>({}); // optimistic UI updates
+  const [packingSaving, setPackingSaving] = useState<Record<number, boolean>>({});
+  const [packingActionError, setPackingActionError] = useState<string | null>(null);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [stockSaving, setStockSaving] = useState<Record<string, boolean>>({});
   const [stockMessages, setStockMessages] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
@@ -82,31 +84,32 @@ function PackingPage() {
 
   const handlePack = async (orderId: number, status: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Optimistic update
-    setPackingState(prev => ({ ...prev, [orderId]: { status, user: "You" } }));
+    const previousOrder = rows.find(order => Number(order.order_id) === Number(orderId));
+    const previousStatus = previousOrder?.status || "unpacked";
+    const previousPackedBy = previousOrder?.packed_by || "";
+    setPackingActionError(null);
+    setPackingSaving(previous => ({ ...previous, [orderId]: true }));
+    updateOrderStatus(orderId, status, currentUser || "You");
+
     try {
       const res = await markOrderPacked(orderId, status);
-      if (res.success) {
-        // Update with actual user if available
-        setPackingState(prev => ({ ...prev, [orderId]: { status, user: res.packed_by || "You" } }));
-        // Refetch to get updated list
-        refetch();
-      } else {
-        // Revert on failure
-        setPackingState(prev => {
-          const newState = { ...prev };
-          delete newState[orderId];
-          return newState;
-        });
-        alert(`Failed to mark as ${status}: ` + res.message);
-      }
+      updateOrderStatus(orderId, res.status || status, res.packed_by || currentUser || "You");
+      void refetch();
     } catch (err: any) {
-      setPackingState(prev => {
-        const newState = { ...prev };
-        delete newState[orderId];
-        return newState;
-      });
-      alert(`Failed to mark as ${status}: ` + err.message);
+      updateOrderStatus(orderId, previousStatus, previousPackedBy);
+      const responseDetail = err instanceof ApiRequestError
+        && err.responseBody
+        && typeof err.responseBody === "object"
+        && "detail" in err.responseBody
+        ? (err.responseBody as { detail?: { message?: string } }).detail
+        : null;
+      setPackingActionError(
+        responseDetail?.message
+        || (err instanceof Error ? err.message : `Failed to mark order as ${status}.`)
+      );
+      void refetch();
+    } finally {
+      setPackingSaving(previous => ({ ...previous, [orderId]: false }));
     }
   };
 
@@ -302,22 +305,22 @@ function PackingPage() {
 
   // Group orders
   const getOrderStatus = (order: any) => {
-    if (packingState[order.order_id]) return packingState[order.order_id].status;
     return order.status || 'unpacked';
   };
 
-  const preOrders = rows.filter(r => r.order_status === 'wc-pre-ordered');
+  const preOrders = rows.filter(r => r.order_status === 'wc-pre-ordered' && getOrderStatus(r) !== 'packing');
   const readyToPack = rows.filter(r => r.order_status !== 'wc-pre-ordered' && !r.has_backorders && getOrderStatus(r) === 'unpacked');
   const awaitingStock = rows.filter(r => r.order_status !== 'wc-pre-ordered' && r.has_backorders && getOrderStatus(r) === 'unpacked');
-  const currentlyPacking = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packing');
+  const currentlyPacking = rows.filter(r => getOrderStatus(r) === 'packing');
   const recentlyPacked = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packed');
+  const packingUserGroups = groupPackingOrdersByUser(currentlyPacking, currentUser);
   const readyToPackContext = buildQueueContext(readyToPack);
   const readyToPackGroups = buildQueueGroups(readyToPack, readyToPackContext);
 
   const renderOrderCard = (order: any, queueContext?: QueueContext) => {
     const isExpanded = expandedOrders[order.order_id];
     const currentStatus = getOrderStatus(order);
-    const packedBy = packingState[order.order_id] ? packingState[order.order_id].user : order.packed_by;
+    const packedBy = order.packed_by;
     const orderDocuments = getOrderDocumentTemplates(order);
     const packingFirstName = getPackingFirstName(order);
     const firstNameKey = normaliseFirstNameKey(packingFirstName);
@@ -326,6 +329,8 @@ function PackingPage() {
     const sameCustomerOrders = customerKey && queueContext ? queueContext.customerGroups.get(customerKey) || [] : [];
     const orderCrmNotes = getOrderCrmNotes(order);
     const orderCrmProfile = getOrderCrmProfile(order);
+    const canChangePackingStatus = currentStatus !== "packing"
+      || String(packedBy || "").toLowerCase() === currentUser.toLowerCase();
 
     let borderColor = 'divider';
     if (currentStatus === 'packed') borderColor = 'success.main';
@@ -384,6 +389,13 @@ function PackingPage() {
                         {template.name}
                       </Button>
                     ))}
+                    {orderCrmNotes.length > 0 && (
+                      <Chip
+                        size="small"
+                        label={`CRM notes: ${orderCrmNotes.length}`}
+                        color="warning"
+                      />
+                    )}
                   </Stack>
                   {documentTemplateError && (
                     <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
@@ -414,13 +426,6 @@ function PackingPage() {
                       label={`Same customer: ${sameCustomerOrders.length} orders`}
                       color="info"
                       variant="outlined"
-                    />
-                  )}
-                  {orderCrmNotes.length > 0 && (
-                    <Chip
-                      size="small"
-                      label={`CRM notes: ${orderCrmNotes.length}`}
-                      color="warning"
                     />
                   )}
                 </Stack>
@@ -520,8 +525,8 @@ function PackingPage() {
                         sx={{
                           display: "grid",
                           gridTemplateColumns: {
-                            xs: "96px 96px",
-                            sm: "minmax(0, 1fr) 96px 96px",
+                            xs: "120px",
+                            sm: "minmax(0, 1fr) 120px",
                           },
                           columnGap: 1,
                           rowGap: 1,
@@ -555,13 +560,12 @@ function PackingPage() {
                         {canUpdateStock && (
                           <TextField
                             size="small"
-                            label="Stock"
-                            type="number"
-                            value={reportedStockQty ?? ""}
+                            label="Stock / Adj"
+                            value={`${reportedStockQty ?? "-"} / ${adjustedStockQty ?? "-"}`}
                             inputProps={{ readOnly: true }}
                             onClick={(event) => handleStockOpen(key, event.currentTarget, reportedStockQty, event)}
                             sx={{
-                              width: 96,
+                              width: 120,
                               cursor: "pointer",
                               "& .MuiInputBase-root": {
                                 height: 34,
@@ -589,38 +593,6 @@ function PackingPage() {
                             }}
                           />
                         )}
-                        {canUpdateStock && (
-                          <TextField
-                            size="small"
-                            label="Adjusted"
-                            type="number"
-                            value={adjustedStockQty ?? ""}
-                            inputProps={{ readOnly: true }}
-                            sx={{
-                              width: 96,
-                              "& .MuiInputBase-root": {
-                                height: 34,
-                                bgcolor: "background.paper"
-                              },
-                              "& input, & .MuiOutlinedInput-input": {
-                                textAlign: "center",
-                                p: "6px 8px"
-                              },
-                              "& .MuiInputLabel-root": {
-                                bgcolor: "background.paper",
-                                border: 1,
-                                borderColor: "divider",
-                                borderRadius: 0.75,
-                                color: "text.primary",
-                                fontWeight: 700,
-                                maxWidth: "none",
-                                minWidth: "max-content",
-                                overflow: "visible",
-                                px: 0.5
-                              }
-                            }}
-                          />
-                        )}
                         {!isParentBundle && !managesStock && (
                           <Chip
                             size="small"
@@ -628,7 +600,7 @@ function PackingPage() {
                             variant="outlined"
                             color="default"
                             sx={{
-                              gridColumn: { xs: "1 / -1", sm: "2 / 4" },
+                              gridColumn: { xs: "1 / -1", sm: "2" },
                               justifySelf: "start",
                               height: 24,
                               fontSize: '0.7rem',
@@ -752,30 +724,30 @@ function PackingPage() {
           </Button>
           {currentStatus === 'unpacked' && (
             <>
-              <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)}>
+              <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
                 Mark as Packing
               </Button>
-              <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)}>
+              <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id]}>
                 Mark as Packed
               </Button>
             </>
           )}
           {currentStatus === 'packing' && (
             <>
-              <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)}>
+              <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)} disabled={!!packingSaving[order.order_id] || !canChangePackingStatus}>
                 Mark as Unpacked
               </Button>
-              <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)}>
+              <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id] || !canChangePackingStatus}>
                 Mark as Packed
               </Button>
             </>
           )}
           {currentStatus === 'packed' && (
             <>
-              <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)}>
+              <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)} disabled={!!packingSaving[order.order_id]}>
                 Mark as Unpacked
               </Button>
-              <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)}>
+              <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
                 Mark as Packing
               </Button>
             </>
@@ -825,10 +797,49 @@ function PackingPage() {
         </Typography>
       </Box>
 
-      <LoadStateBlock isLoading={isLoading} error={error} empty={!isLoading && !error && rows.length === 0} />
+      <LoadStateBlock
+        isLoading={isLoading}
+        error={rows.length === 0 ? error : null}
+        empty={!isLoading && !error && rows.length === 0}
+      />
+      {packingActionError && (
+        <Alert severity="error" onClose={() => setPackingActionError(null)}>
+          {packingActionError}
+        </Alert>
+      )}
+      {error && rows.length > 0 && (
+        <Alert severity="warning">
+          Live packing refresh failed. Existing orders remain visible while synchronization retries.
+        </Alert>
+      )}
 
-      {!isLoading && !error && (
+      {!isLoading && rows.length > 0 && (
         <>
+          {packingUserGroups.map(group => (
+            <Box
+              key={group.username}
+              sx={{
+                p: 1.25,
+                border: 2,
+                borderColor: group.isCurrentUser ? "primary.main" : "warning.main",
+                borderRadius: 2,
+                bgcolor: group.isCurrentUser ? "action.selected" : "background.default",
+              }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <Typography variant="h6" color="warning.dark">
+                  Being packed by
+                </Typography>
+                <Chip
+                  label={group.username}
+                  color={group.isCurrentUser ? "primary" : "warning"}
+                  sx={{ fontWeight: 700 }}
+                />
+              </Stack>
+              {group.orders.map(order => renderOrderCard(order))}
+            </Box>
+          ))}
+
           <Box>
             <Typography variant="h6" color="success.main" gutterBottom>
               Ready to Pack ({readyToPack.length})
@@ -857,15 +868,6 @@ function PackingPage() {
                 Pre Orders ({preOrders.length})
               </Typography>
               {preOrders.map(order => renderOrderCard(order))}
-            </Box>
-          )}
-
-          {currentlyPacking.length > 0 && (
-            <Box>
-              <Typography variant="h6" color="warning.dark" gutterBottom>
-                Currently Packing ({currentlyPacking.length})
-              </Typography>
-              {currentlyPacking.map(order => renderOrderCard(order))}
             </Box>
           )}
 
