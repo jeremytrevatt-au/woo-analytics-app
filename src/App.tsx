@@ -13,6 +13,7 @@ import PreordersPage from "./pages/PreordersPage";
 import PackingPage from "./pages/PackingPage";
 import AdminPage from "./pages/AdminPage";
 import DocumentTemplatesPage from "./pages/DocumentTemplatesPage";
+import PrintJobsPage from "./pages/PrintJobsPage";
 import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 import ReturnsPage from "./pages/ReturnsPage";
 
@@ -36,6 +37,7 @@ function App() {
               <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
               <Route path="/returns" element={<ReturnsPage />} />
               <Route path="/document-templates" element={<DocumentTemplatesPage />} />
+              <Route path="/print-jobs" element={<PrintJobsPage />} />
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/admin" element={<AdminPage />} />
             </Routes>

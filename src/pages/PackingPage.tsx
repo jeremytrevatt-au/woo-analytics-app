@@ -12,6 +12,7 @@ import { listDocumentTemplates } from "../api/documentTemplatesApi";
 import type { DocumentTemplate } from "../api/documentTemplatesApi";
 import { listCrmCustomerProfileExtensions, listCrmNotes } from "../api/crmApi";
 import type { CrmCustomerProfileExtension, CrmNote } from "../api/crmApi";
+import { createPrintJob } from "../api/printJobsApi";
 import PackingLineDetails from "../components/PackingLineDetails";
 import { groupPackingOrdersByUser } from "../lib/packing";
 
@@ -38,6 +39,8 @@ function PackingPage() {
   const [stockPopover, setStockPopover] = useState<{ key: string; anchorEl: HTMLElement } | null>(null);
   const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplate[]>([]);
   const [documentTemplateError, setDocumentTemplateError] = useState<string | null>(null);
+  const [documentPrintSaving, setDocumentPrintSaving] = useState<Record<string, boolean>>({});
+  const [documentPrintMessage, setDocumentPrintMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [crmNotes, setCrmNotes] = useState<CrmNote[]>([]);
   const [crmNotesError, setCrmNotesError] = useState<string | null>(null);
   const [crmProfiles, setCrmProfiles] = useState<CrmCustomerProfileExtension[]>([]);
@@ -145,6 +148,35 @@ function PackingPage() {
       }
       return false;
     });
+  };
+
+  const handleQueueDocumentPrint = async (order: any, template: DocumentTemplate, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const key = `${order.order_id}:${template.id}`;
+    setDocumentPrintSaving(previous => ({ ...previous, [key]: true }));
+    setDocumentPrintMessage(null);
+
+    try {
+      const queued = await createPrintJob({
+        document_url: template.google_drive_url,
+        document_name: `${template.name}-order-${order.order_id}.pdf`,
+        source_type: "google_drive_url",
+        payload: {
+          queued_from: "packing_page",
+          order_id: order.order_id,
+          template_id: template.id,
+          customer_name: order.customer_name,
+        },
+      });
+      setDocumentPrintMessage({ type: "success", text: `Queued ${template.name} as print job #${queued.id}.` });
+    } catch (error: unknown) {
+      setDocumentPrintMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : `Failed to queue ${template.name}.`,
+      });
+    } finally {
+      setDocumentPrintSaving(previous => ({ ...previous, [key]: false }));
+    }
   };
 
   const getPackingFirstName = (order: any) => {
@@ -377,17 +409,26 @@ function PackingPage() {
                       </Typography>
                     )}
                     {orderDocuments.map(template => (
-                      <Button
-                        key={template.id}
-                        size="small"
-                        variant="outlined"
-                        href={template.google_drive_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        {template.name}
-                      </Button>
+                      <Stack key={template.id} direction="row" spacing={0.5}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          href={template.google_drive_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {template.name}
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={(event) => handleQueueDocumentPrint(order, template, event)}
+                          disabled={!!documentPrintSaving[`${order.order_id}:${template.id}`]}
+                        >
+                          Print
+                        </Button>
+                      </Stack>
                     ))}
                     {orderCrmNotes.length > 0 && (
                       <Chip
@@ -401,6 +442,11 @@ function PackingPage() {
                     <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
                       {documentTemplateError}
                     </Typography>
+                  )}
+                  {documentPrintMessage && (
+                    <Alert severity={documentPrintMessage.type} sx={{ mt: 1, py: 0 }}>
+                      {documentPrintMessage.text}
+                    </Alert>
                   )}
               </Grid>
               <Grid item xs={12} sm={6}>

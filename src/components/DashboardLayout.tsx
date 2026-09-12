@@ -23,6 +23,7 @@ const navItems = [
   { label: "Purchase Orders", to: "/purchase-orders" },
   { label: "Returns", to: "/returns" },
   { label: "Document Templates", to: "/document-templates" },
+  { label: "Print Jobs", to: "/print-jobs" },
   { label: "Suppliers", to: "/suppliers" },
   { label: "Admin", to: "/admin" }
 ];

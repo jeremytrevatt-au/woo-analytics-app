@@ -81,7 +81,7 @@ function getStockTab(search: string): "items" | "shortages" | "stocktake" {
 }
 
 function getFilterBarContext(path: string, stockTab: "items" | "shortages" | "stocktake"): FilterBarContext {
-  if (path === "/purchase-orders" || path === "/returns" || path === "/document-templates" || path === "/suppliers" || path === "/admin" || path === "/preorders" || path === "/drill-down") {
+  if (path === "/purchase-orders" || path === "/returns" || path === "/document-templates" || path === "/print-jobs" || path === "/suppliers" || path === "/admin" || path === "/preorders" || path === "/drill-down") {
     return { title: "Filters", hidden: true };
   }
 
