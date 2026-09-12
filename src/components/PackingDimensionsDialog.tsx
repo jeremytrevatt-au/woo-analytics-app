@@ -13,8 +13,8 @@ import {
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { previewPackingQuote } from "../api/shippitPackingApi";
-import type { PackingQuoteParcel, PackingQuoteResponse } from "../api/shippitPackingApi";
+import { getPackingShippitOrder, previewPackingQuote, updatePackingShippitOrder } from "../api/shippitPackingApi";
+import type { PackingQuoteParcel, PackingQuoteResponse, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
 
 type ParcelDraft = {
   id: string;
@@ -60,6 +60,17 @@ function buildInitialParcels(order: any | null): ParcelDraft[] {
   ];
 }
 
+function buildParcelsFromShippitOrder(parcels: PackingShippitOrderParcel[]): ParcelDraft[] {
+  return parcels.map(parcel => ({
+    id: crypto.randomUUID(),
+    qty: numericString(parcel.qty) || "1",
+    weightGrams: numericString(parcel.weight_g),
+    lengthCm: numericString(parcel.length_cm),
+    widthCm: numericString(parcel.width_cm),
+    heightCm: numericString(parcel.height_cm),
+  }));
+}
+
 function parseParcels(parcels: ParcelDraft[]): PackingQuoteParcel[] {
   return parcels.map(parcel => ({
     qty: Number(parcel.qty),
@@ -96,16 +107,63 @@ function countQuoteItems(response: PackingQuoteResponse | null): number {
 function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const [parcels, setParcels] = useState<ParcelDraft[]>([]);
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [shippitOrder, setShippitOrder] = useState<PackingShippitOrderResponse | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "warning" | "info"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setParcels(buildInitialParcels(order));
-      setQuote(null);
-      setMessage(null);
-    }
+    if (!open) return;
+
+    let cancelled = false;
+    setParcels(buildInitialParcels(order));
+    setQuote(null);
+    setShippitOrder(null);
+    setMessage(null);
+    setLoadingExistingOrder(false);
+    setSavingOrder(false);
+
+    if (!order?.order_id) return;
+
+    setLoadingExistingOrder(true);
+    getPackingShippitOrder(Number(order.order_id))
+      .then(response => {
+        if (cancelled) return;
+        setShippitOrder(response);
+        if (response.has_shippit_order && response.parcels.length > 0) {
+          setParcels(buildParcelsFromShippitOrder(response.parcels));
+        }
+        setMessage({
+          type: response.has_shippit_order ? "info" : "warning",
+          text: response.message || (response.has_shippit_order ? "Existing Shippit order loaded." : "Shippit Order doesn't exist - check Australia Post."),
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setMessage({
+          type: "error",
+          text: error instanceof Error ? error.message : "Failed to load existing Shippit order.",
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingExistingOrder(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, order]);
+
+  const canEditShippitOrder = Boolean(shippitOrder?.has_shippit_order && shippitOrder.can_edit);
+
+  const validateParcels = (parsedParcels: PackingQuoteParcel[]) => {
+    if (hasInvalidParcel(parsedParcels)) {
+      setMessage({ type: "error", text: "Each parcel needs qty >= 1 and positive weight in grams plus length/width/height in cm." });
+      return false;
+    }
+    return true;
+  };
 
   const quoteCount = useMemo(() => countQuoteItems(quote), [quote]);
 
@@ -134,10 +192,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const handleQuote = async () => {
     if (!order?.order_id) return;
     const parsedParcels = parseParcels(parcels);
-    if (hasInvalidParcel(parsedParcels)) {
-      setMessage({ type: "error", text: "Each parcel needs qty >= 1 and positive weight/length/width/height." });
-      return;
-    }
+    if (!validateParcels(parsedParcels)) return;
 
     setLoading(true);
     setMessage(null);
@@ -154,6 +209,27 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     }
   };
 
+  const handleSaveShippitOrder = async () => {
+    if (!order?.order_id || !canEditShippitOrder) return;
+    const parsedParcels = parseParcels(parcels);
+    if (!validateParcels(parsedParcels)) return;
+
+    setSavingOrder(true);
+    setMessage(null);
+    try {
+      const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels);
+      setShippitOrder(response);
+      if (response.parcels.length > 0) {
+        setParcels(buildParcelsFromShippitOrder(response.parcels));
+      }
+      setMessage({ type: "success", text: "Existing Shippit order parcel dimensions were updated." });
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update existing Shippit order." });
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>
@@ -162,8 +238,19 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       <DialogContent dividers>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Configure the physical parcels to send to Shippit for a live outbound quote. Dimensions are centimetres; weight is grams.
+            Loads the existing Shippit order when one exists. Dimensions are centimetres; weight is grams.
           </Typography>
+
+          {loadingExistingOrder ? (
+            <Alert severity="info">Loading existing Shippit order...</Alert>
+          ) : null}
+
+          {shippitOrder?.has_shippit_order ? (
+            <Alert severity={canEditShippitOrder ? "info" : "warning"}>
+              Shippit {shippitOrder.shippit_tracking_number || "order"} is {shippitOrder.shippit_state || "unknown"}.
+              {canEditShippitOrder ? " Parcel changes can be saved." : " Parcel changes are read-only in this state."}
+            </Alert>
+          ) : null}
 
           {message ? (
             <Alert severity={message.type}>
@@ -207,7 +294,10 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
-        <Button variant="contained" onClick={handleQuote} disabled={loading || !order}>
+        <Button variant="outlined" onClick={handleSaveShippitOrder} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder}>
+          {savingOrder ? "Saving..." : "Save Shippit Order"}
+        </Button>
+        <Button variant="contained" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order || !shippitOrder?.has_shippit_order}>
           {loading ? "Requesting Quote..." : "Get Shippit Quotes"}
         </Button>
       </DialogActions>
