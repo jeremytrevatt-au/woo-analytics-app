@@ -765,7 +765,7 @@ function PackingPage() {
               setDimensionsOrder(order);
             }}
           >
-            L x W x H
+            L W H
           </Button>
           <Button
             size="small"
@@ -780,7 +780,7 @@ function PackingPage() {
           {currentStatus === 'unpacked' && (
             <>
               <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
-                Mark as Packing
+                Pack
               </Button>
               <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id]}>
                 Packed
@@ -803,7 +803,7 @@ function PackingPage() {
                 Unpack
               </Button>
               <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
-                Mark as Packing
+                Pack
               </Button>
             </>
           )}
