@@ -19,7 +19,7 @@ import type { PackingQuoteParcel, PackingQuoteResponse } from "../api/shippitPac
 type ParcelDraft = {
   id: string;
   qty: string;
-  weightKg: string;
+  weightGrams: string;
   lengthCm: string;
   widthCm: string;
   heightCm: string;
@@ -39,7 +39,7 @@ function numericString(value: unknown): string {
 function buildInitialParcels(order: any | null): ParcelDraft[] {
   const lines = Array.isArray(order?.lines) ? order.lines : [];
   const physicalLines = lines.filter((line: any) => !line.is_bundle_parent);
-  const totalWeight = physicalLines.reduce((sum: number, line: any) => {
+  const totalWeightGrams = physicalLines.reduce((sum: number, line: any) => {
     const qty = Number(line.qty || 0);
     const weight = Number(line.product_weight || 0);
     return sum + (Number.isFinite(qty) && Number.isFinite(weight) ? qty * weight : 0);
@@ -52,7 +52,7 @@ function buildInitialParcels(order: any | null): ParcelDraft[] {
     {
       id: crypto.randomUUID(),
       qty: "1",
-      weightKg: numericString(totalWeight),
+      weightGrams: numericString(totalWeightGrams),
       lengthCm: numericString(maxLength),
       widthCm: numericString(maxWidth),
       heightCm: numericString(maxHeight),
@@ -63,7 +63,7 @@ function buildInitialParcels(order: any | null): ParcelDraft[] {
 function parseParcels(parcels: ParcelDraft[]): PackingQuoteParcel[] {
   return parcels.map(parcel => ({
     qty: Number(parcel.qty),
-    weight_kg: Number(parcel.weightKg),
+    weight_kg: Number(parcel.weightGrams) / 1000,
     length_cm: Number(parcel.lengthCm),
     width_cm: Number(parcel.widthCm),
     height_cm: Number(parcel.heightCm),
@@ -119,7 +119,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       {
         id: crypto.randomUUID(),
         qty: "1",
-        weightKg: "",
+        weightGrams: "",
         lengthCm: "",
         widthCm: "",
         heightCm: "",
@@ -162,7 +162,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       <DialogContent dividers>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Configure the physical parcels to send to Shippit for a live outbound quote. Dimensions are centimetres; weight is kilograms.
+            Configure the physical parcels to send to Shippit for a live outbound quote. Dimensions are centimetres; weight is grams.
           </Typography>
 
           {message ? (
@@ -181,7 +181,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
               </Stack>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField label="Qty" type="number" value={parcel.qty} onChange={(event) => updateParcel(parcel.id, "qty", event.target.value)} inputProps={{ min: 1, step: 1 }} />
-                <TextField label="Weight kg" type="number" value={parcel.weightKg} onChange={(event) => updateParcel(parcel.id, "weightKg", event.target.value)} inputProps={{ min: 0, step: 0.01 }} />
+                <TextField label="Weight g" type="number" value={parcel.weightGrams} onChange={(event) => updateParcel(parcel.id, "weightGrams", event.target.value)} inputProps={{ min: 0, step: 1 }} />
                 <TextField label="Length cm" type="number" value={parcel.lengthCm} onChange={(event) => updateParcel(parcel.id, "lengthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
                 <TextField label="Width cm" type="number" value={parcel.widthCm} onChange={(event) => updateParcel(parcel.id, "widthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
                 <TextField label="Height cm" type="number" value={parcel.heightCm} onChange={(event) => updateParcel(parcel.id, "heightCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />

@@ -240,6 +240,12 @@ function PackingPage() {
     });
   };
 
+  const getLineWooProductAdminId = (line: any, stockOverride?: PackingStockQuantityResponse) => {
+    const parentId = Number(line.stock_target_parent_id || 0);
+    if (parentId > 0) return parentId;
+    return stockOverride?.stock_target_product_id ?? line.stock_target_product_id ?? line.product_id;
+  };
+
   const buildQueueContext = (orders: any[]): QueueContext => {
     const firstNameGroups = new Map<string, any[]>();
     const customerGroups = new Map<string, any[]>();
@@ -570,7 +576,7 @@ function PackingPage() {
                         sx={{
                           display: "grid",
                           gridTemplateColumns: {
-                            xs: "120px",
+                            xs: "minmax(0, 1fr)",
                             sm: "minmax(0, 1fr) 120px",
                           },
                           columnGap: 1,
@@ -592,7 +598,7 @@ function PackingPage() {
                                   size="small"
                                   label="Woo"
                                   component="a"
-                                  href={`https://naturalyield.com.au/wp-admin/post.php?post=${stockOverride?.stock_target_product_id ?? line.stock_target_product_id ?? line.product_id}&action=edit`}
+                                  href={`https://naturalyield.com.au/wp-admin/post.php?post=${getLineWooProductAdminId(line, stockOverride)}&action=edit`}
                                   target="_blank"
                                   clickable
                                   onClick={(e) => e.stopPropagation()}
