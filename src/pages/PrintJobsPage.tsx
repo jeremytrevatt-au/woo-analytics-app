@@ -22,7 +22,7 @@ import {
   listPrintJobs,
   listPrintPrinters,
 } from "../api/printJobsApi";
-import type { PrintJob, PrintPrinterOption } from "../api/printJobsApi";
+import type { PrintJob, PrintPrinterOption, PrintPrintersResponse } from "../api/printJobsApi";
 
 const SOURCE_OPTIONS = [
   { value: "pdf_url", label: "PDF or Shippit Label URL" },
@@ -47,6 +47,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 function PrintJobsPage() {
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [printers, setPrinters] = useState<PrintPrinterOption[]>([]);
+  const [printerReport, setPrinterReport] = useState<PrintPrintersResponse | null>(null);
   const [stationId, setStationId] = useState("");
   const [printerName, setPrinterName] = useState("");
   const [sourceType, setSourceType] = useState("google_drive_url");
@@ -77,6 +78,7 @@ function PrintJobsPage() {
   const loadPrinters = async () => {
     try {
       const response = await listPrintPrinters();
+      setPrinterReport(response);
       setPrinters(response.printers);
       setStationId(response.default_station_id);
       setPrinterName(response.default_printer_name);
@@ -144,6 +146,16 @@ function PrintJobsPage() {
           Queue Test Print
         </Typography>
         <Stack spacing={2}>
+          {printerReport?.is_reported ? (
+            <Alert severity="info">
+              Printers last reported by station {printerReport.station_id || stationId}
+              {printerReport.last_seen_at ? ` at ${printerReport.last_seen_at}` : ""}.
+            </Alert>
+          ) : (
+            <Alert severity="warning">
+              No live printer report has been received for this station yet. Start the print agent on the printer workstation to populate this list.
+            </Alert>
+          )}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <FormControl sx={{ minWidth: 260 }}>
               <InputLabel>Source Type</InputLabel>
@@ -171,6 +183,9 @@ function PrintJobsPage() {
                 ))}
               </Select>
             </FormControl>
+            <Button variant="outlined" onClick={loadPrinters}>
+              Refresh Printers
+            </Button>
           </Stack>
           <TextField
             label="Document URL"

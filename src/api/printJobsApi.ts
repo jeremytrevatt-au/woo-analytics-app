@@ -24,8 +24,11 @@ export type PrintPrinterOption = {
 
 export type PrintPrintersResponse = {
   default_station_id: string;
+  station_id?: string;
   default_printer_name: string;
   printers: PrintPrinterOption[];
+  last_seen_at?: string | null;
+  is_reported?: boolean;
 };
 
 export type PrintJobCreatePayload = {
