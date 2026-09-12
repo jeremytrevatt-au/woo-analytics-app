@@ -126,3 +126,13 @@ export async function probeShippitReturnsEndpoints(params: { orderId?: number; t
     body: JSON.stringify({ order_id: params.orderId, tracking_number: params.trackingNumber || undefined }),
   });
 }
+
+export async function previewShippitReturnQuote(payload: { orderId: number; lines?: Array<{ order_item_id: number; qty: number }> }): Promise<ShippitReturnsProbeResult> {
+  return fetchJson<ShippitReturnsProbeResult>("/api/v1/shippit/returns/quote", {
+    method: "POST",
+    body: JSON.stringify({
+      order_id: payload.orderId,
+      lines: payload.lines ?? [],
+    }),
+  });
+}

@@ -24,10 +24,12 @@ import {
   createReturn,
   getReturnableOrderItems,
   listReturns,
+  previewShippitReturnQuote,
   probeShippitReturnsEndpoints,
   ReturnableOrderResponse,
   ReturnCase,
   ReturnStatus,
+  ShippitReturnsProbeResult,
   ShippitReturnsProbeResponse,
   updateReturn,
 } from "../api/returnsApi";
@@ -40,6 +42,13 @@ const RETURN_STATUS_OPTIONS: Array<{ value: ReturnStatus | "all"; label: string 
   { value: "closed", label: "Closed" },
   { value: "cancelled", label: "Cancelled" },
 ];
+
+type QuoteRow = {
+  courierType: string;
+  serviceLevel: string;
+  price: number;
+  estimatedTransitTime: string;
+};
 
 function ReturnsPage() {
   const [returns, setReturns] = useState<ReturnCase[]>([]);
@@ -58,6 +67,8 @@ function ReturnsPage() {
   const [probeTrackingNumber, setProbeTrackingNumber] = useState("");
   const [probeResult, setProbeResult] = useState<ShippitReturnsProbeResponse | null>(null);
   const [probingShippit, setProbingShippit] = useState(false);
+  const [quotePreview, setQuotePreview] = useState<ShippitReturnsProbeResult | null>(null);
+  const [previewingQuote, setPreviewingQuote] = useState(false);
 
   const loadReturns = async () => {
     setLoading(true);
@@ -167,6 +178,39 @@ function ReturnsPage() {
     }
   };
 
+  const selectedReturnLines = () => {
+    return returnableOrder?.items
+      .map(item => ({
+        order_item_id: item.order_item_id,
+        qty: Number(returnLineQty[item.order_item_id] || 0),
+      }))
+      .filter(line => Number.isFinite(line.qty) && line.qty > 0) ?? [];
+  };
+
+  const handlePreviewQuote = async () => {
+    const numericOrderId = Number(orderId);
+    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
+      setMessage({ type: "error", text: "Enter a valid WooCommerce order ID first." });
+      return;
+    }
+
+    setPreviewingQuote(true);
+    setMessage(null);
+    try {
+      const response = await previewShippitReturnQuote({
+        orderId: numericOrderId,
+        lines: selectedReturnLines(),
+      });
+      setQuotePreview(response);
+      setMessage({ type: "success", text: "Return quote preview loaded." });
+    } catch (error: any) {
+      setQuotePreview(null);
+      setMessage({ type: "error", text: error.message || "Failed to preview return quote." });
+    } finally {
+      setPreviewingQuote(false);
+    }
+  };
+
   const handleStatusChange = async (returnCase: ReturnCase, status: ReturnStatus) => {
     setSaving(true);
     setMessage(null);
@@ -231,6 +275,9 @@ function ReturnsPage() {
             <Button variant="outlined" onClick={handleLoadReturnableItems} disabled={loadingReturnableItems || saving}>
               {loadingReturnableItems ? "Loading Items..." : "Load Returnable Items"}
             </Button>
+            <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving}>
+              {previewingQuote ? "Loading Quote..." : "Preview Return Quote"}
+            </Button>
             {returnableOrder ? (
               <Typography variant="body2" color="text.secondary">
                 Order #{returnableOrder.order.number}: {returnableOrder.items.length} physical item rows
@@ -275,6 +322,42 @@ function ReturnsPage() {
                 ))}
               </TableBody>
             </Table>
+          ) : null}
+          {quotePreview ? (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Quote Preview
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Courier</TableCell>
+                    <TableCell>Service</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    <TableCell>Transit</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {extractQuoteRows(quotePreview).map((quote, index) => (
+                    <TableRow key={`${quote.courierType}-${quote.serviceLevel}-${index}`}>
+                      <TableCell>{quote.courierType}</TableCell>
+                      <TableCell>{quote.serviceLevel}</TableCell>
+                      <TableCell align="right">${quote.price.toFixed(2)}</TableCell>
+                      <TableCell>{quote.estimatedTransitTime || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                  {extractQuoteRows(quotePreview).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4}>
+                        <Typography variant="body2" color="text.secondary">
+                          No successful quote rows returned.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </Box>
           ) : null}
           <TextField
             label="Notes"
@@ -427,3 +510,43 @@ function ReturnsPage() {
 }
 
 export default ReturnsPage;
+
+function extractQuoteRows(result: ShippitReturnsProbeResult): QuoteRow[] {
+  const body = result.body;
+  if (!body || typeof body !== "object" || !("response" in body)) {
+    return [];
+  }
+
+  const response = (body as { response?: unknown }).response;
+  if (!Array.isArray(response)) {
+    return [];
+  }
+
+  const rows: QuoteRow[] = [];
+  response.forEach(serviceResult => {
+    if (!serviceResult || typeof serviceResult !== "object") {
+      return;
+    }
+    const service = serviceResult as { success?: unknown; courier_type?: unknown; service_level?: unknown; quotes?: unknown };
+    if (service.success !== true || !Array.isArray(service.quotes)) {
+      return;
+    }
+    service.quotes.forEach(quote => {
+      if (!quote || typeof quote !== "object") {
+        return;
+      }
+      const quoteData = quote as { price?: unknown; estimated_transit_time?: unknown };
+      const price = Number(quoteData.price);
+      if (!Number.isFinite(price)) {
+        return;
+      }
+      rows.push({
+        courierType: String(service.courier_type ?? ""),
+        serviceLevel: String(service.service_level ?? ""),
+        price,
+        estimatedTransitTime: String(quoteData.estimated_transit_time ?? ""),
+      });
+    });
+  });
+  return rows.sort((left, right) => left.price - right.price);
+}
