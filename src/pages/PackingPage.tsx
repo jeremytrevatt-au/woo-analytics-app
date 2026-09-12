@@ -462,9 +462,6 @@ function PackingPage() {
                   {currentStatus === 'packed' && (
                     <Chip size="small" icon={<CheckCircleOutline />} label={`Packed by ${packedBy || 'You'}`} color="success" />
                   )}
-                  {currentStatus === 'packing' && (
-                    <Chip size="small" label={`Being Packed by ${packedBy || 'You'}`} color="warning" />
-                  )}
                   {currentStatus === 'unpacked' && packedBy && (
                     <Chip size="small" label={`Unpacked by ${packedBy}`} variant="outlined" />
                   )}
@@ -768,7 +765,7 @@ function PackingPage() {
               setDimensionsOrder(order);
             }}
           >
-            Packing Dimensions
+            L x W x H
           </Button>
           <Button
             size="small"
@@ -778,7 +775,7 @@ function PackingPage() {
               setCrmOrder(order);
             }}
           >
-            Customer CRM
+            CRM
           </Button>
           {currentStatus === 'unpacked' && (
             <>
@@ -786,24 +783,24 @@ function PackingPage() {
                 Mark as Packing
               </Button>
               <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id]}>
-                Mark as Packed
+                Packed
               </Button>
             </>
           )}
           {currentStatus === 'packing' && (
             <>
               <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)} disabled={!!packingSaving[order.order_id] || !canChangePackingStatus}>
-                Mark as Unpacked
+                Unpack
               </Button>
               <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id] || !canChangePackingStatus}>
-                Mark as Packed
+                Packed
               </Button>
             </>
           )}
           {currentStatus === 'packed' && (
             <>
               <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)} disabled={!!packingSaving[order.order_id]}>
-                Mark as Unpacked
+                Unpack
               </Button>
               <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
                 Mark as Packing
