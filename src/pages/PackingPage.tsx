@@ -13,6 +13,7 @@ import type { DocumentTemplate } from "../api/documentTemplatesApi";
 import { listCrmCustomerProfileExtensions, listCrmNotes } from "../api/crmApi";
 import type { CrmCustomerProfileExtension, CrmNote } from "../api/crmApi";
 import { createPrintJob } from "../api/printJobsApi";
+import PackingDimensionsDialog from "../components/PackingDimensionsDialog";
 import PackingLineDetails from "../components/PackingLineDetails";
 import { groupPackingOrdersByUser } from "../lib/packing";
 
@@ -46,6 +47,7 @@ function PackingPage() {
   const [crmProfiles, setCrmProfiles] = useState<CrmCustomerProfileExtension[]>([]);
   const [crmProfilesError, setCrmProfilesError] = useState<string | null>(null);
   const [crmOrder, setCrmOrder] = useState<any | null>(null);
+  const [dimensionsOrder, setDimensionsOrder] = useState<any | null>(null);
 
   useEffect(() => {
     listDocumentTemplates({ enabled: "true" })
@@ -763,6 +765,16 @@ function PackingPage() {
             variant="outlined"
             onClick={(event) => {
               event.stopPropagation();
+              setDimensionsOrder(order);
+            }}
+          >
+            Packing Dimensions
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={(event) => {
+              event.stopPropagation();
               setCrmOrder(order);
             }}
           >
@@ -946,6 +958,11 @@ function PackingPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+      <PackingDimensionsDialog
+        open={!!dimensionsOrder}
+        order={dimensionsOrder}
+        onClose={() => setDimensionsOrder(null)}
+      />
     </Stack>
   );
 }
