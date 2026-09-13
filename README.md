@@ -393,3 +393,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Mobile Stocktake needs a custom list/card layout because table columns cannot make the product identity row span the full available width.
 4. Understood next steps (remaining TODOs):
    1. Deploy the app revision after the service revision and verify the Stocktake tab is reachable and attributes/colour chips render on mobile.
+
+## 2026-09-13 20:54 UTC
+
+1. TODOs completed:
+   1. Updated the Packing dimensions dialog to load an existing Shippit order before showing parcel edit actions.
+   2. Added save support for editable Shippit order parcel dimensions.
+   3. Added the no-Shippit-order notice: `Shippit Order doesn't exist - check Australia Post.`
+   4. Deployed frontend revision `woo-analytics-app-00147-85q` and invalidated the CDN cache.
+2. Git build reference:
+   1. App commit: `6ec71aef1903bf3e64e696f91060e88bb17eebcd`.
+3. New understandings/learnings:
+   1. The default packing flow should edit Shippit's existing order when it exists, rather than creating a new quote-first workflow.
+4. Understood next steps (remaining TODOs):
+   1. Test a Shippit order and an Australia Post order from the Packing page to confirm the two user paths are clearly separated.
