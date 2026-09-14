@@ -114,18 +114,19 @@ function extractQuoteOptions(response: PackingQuoteResponse | null): QuoteOption
       const price = Number(quoteData.price);
       if (!courierType && !serviceLevel) return;
       if (quoteData.success === false || carrierData.success === false) return;
+      if (!Number.isFinite(price) || price <= 0) return;
       options.push({
         id: `${courierType || "courier"}-${serviceLevel || "service"}-${carrierIndex}-${quoteIndex}`,
         label: String(carrierData.courier_name || quoteData.courier_name || courierType || serviceLevel),
         courier_type: courierType || null,
         service_level: serviceLevel || null,
-        price: Number.isFinite(price) ? price : null,
+        price,
         estimated_transit_time: typeof quoteData.estimated_transit_time === "string" ? quoteData.estimated_transit_time : null,
         raw: { carrier: carrierData, quote: quoteData },
       });
     });
   });
-  return options;
+  return options.sort((left, right) => Number(left.price) - Number(right.price));
 }
 
 function formatPrice(price: number | null | undefined): string {
@@ -356,7 +357,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                 </Stack>
                 {quoteOptions.length > 0 ? (
                   <Stack spacing={1.5}>
-                    {quoteOptions.map(option => (
+                    {quoteOptions.map((option, index) => (
                       <Card
                         key={option.id}
                         variant="outlined"
@@ -373,6 +374,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                                 {option.estimated_transit_time ? ` - ${option.estimated_transit_time}` : ""}
                               </Typography>
                             </Box>
+                            {index === 0 ? <Chip label="Cheapest" color="success" size="small" /> : null}
                             <Chip label={formatPrice(option.price)} color="primary" variant="outlined" />
                           </Stack>
                         </CardContent>
