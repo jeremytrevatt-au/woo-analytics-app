@@ -3,18 +3,23 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   IconButton,
+  Radio,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { getPackingShippitOrder, previewPackingQuote, updatePackingShippitOrder } from "../api/shippitPackingApi";
-import type { PackingQuoteParcel, PackingQuoteResponse, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
+import type { PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
 
 type ParcelDraft = {
   id: string;
@@ -31,33 +36,15 @@ type Props = {
   onClose: () => void;
 };
 
+type QuoteOption = PackingQuoteSelection & {
+  id: string;
+  label: string;
+  raw: unknown;
+};
+
 function numericString(value: unknown): string {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) && numberValue > 0 ? String(numberValue) : "";
-}
-
-function buildInitialParcels(order: any | null): ParcelDraft[] {
-  const lines = Array.isArray(order?.lines) ? order.lines : [];
-  const physicalLines = lines.filter((line: any) => !line.is_bundle_parent);
-  const totalWeightGrams = physicalLines.reduce((sum: number, line: any) => {
-    const qty = Number(line.qty || 0);
-    const weight = Number(line.product_weight || 0);
-    return sum + (Number.isFinite(qty) && Number.isFinite(weight) ? qty * weight : 0);
-  }, 0);
-  const maxLength = Math.max(0, ...physicalLines.map((line: any) => Number(line.product_length || 0)));
-  const maxWidth = Math.max(0, ...physicalLines.map((line: any) => Number(line.product_width || 0)));
-  const maxHeight = Math.max(0, ...physicalLines.map((line: any) => Number(line.product_height || 0)));
-
-  return [
-    {
-      id: crypto.randomUUID(),
-      qty: "1",
-      weightGrams: numericString(totalWeightGrams),
-      lengthCm: numericString(maxLength),
-      widthCm: numericString(maxWidth),
-      heightCm: numericString(maxHeight),
-    },
-  ];
 }
 
 function buildParcelsFromShippitOrder(parcels: PackingShippitOrderParcel[]): ParcelDraft[] {
@@ -104,6 +91,47 @@ function countQuoteItems(response: PackingQuoteResponse | null): number {
   return 0;
 }
 
+function extractQuoteOptions(response: PackingQuoteResponse | null): QuoteOption[] {
+  const body = response?.body as { response?: unknown; quotes?: unknown } | unknown[] | null | undefined;
+  const carriers = Array.isArray(body)
+    ? body
+    : body && typeof body === "object" && Array.isArray((body as { response?: unknown }).response)
+      ? (body as { response: unknown[] }).response
+      : body && typeof body === "object" && Array.isArray((body as { quotes?: unknown }).quotes)
+        ? (body as { quotes: unknown[] }).quotes
+        : [];
+
+  const options: QuoteOption[] = [];
+  carriers.forEach((carrier, carrierIndex) => {
+    if (!carrier || typeof carrier !== "object") return;
+    const carrierData = carrier as Record<string, unknown>;
+    const quoteRows = Array.isArray(carrierData.quotes) ? carrierData.quotes : [carrierData];
+    quoteRows.forEach((quoteRow, quoteIndex) => {
+      if (!quoteRow || typeof quoteRow !== "object") return;
+      const quoteData = quoteRow as Record<string, unknown>;
+      const courierType = String(carrierData.courier_type || quoteData.courier_type || "");
+      const serviceLevel = String(carrierData.service_level || quoteData.service_level || "");
+      const price = Number(quoteData.price);
+      if (!courierType && !serviceLevel) return;
+      if (quoteData.success === false || carrierData.success === false) return;
+      options.push({
+        id: `${courierType || "courier"}-${serviceLevel || "service"}-${carrierIndex}-${quoteIndex}`,
+        label: String(carrierData.courier_name || quoteData.courier_name || courierType || serviceLevel),
+        courier_type: courierType || null,
+        service_level: serviceLevel || null,
+        price: Number.isFinite(price) ? price : null,
+        estimated_transit_time: typeof quoteData.estimated_transit_time === "string" ? quoteData.estimated_transit_time : null,
+        raw: { carrier: carrierData, quote: quoteData },
+      });
+    });
+  });
+  return options;
+}
+
+function formatPrice(price: number | null | undefined): string {
+  return typeof price === "number" && Number.isFinite(price) ? `$${price.toFixed(2)}` : "Price not returned";
+}
+
 function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const [parcels, setParcels] = useState<ParcelDraft[]>([]);
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
@@ -112,17 +140,21 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
 
     let cancelled = false;
-    setParcels(buildInitialParcels(order));
+    setParcels([]);
     setQuote(null);
     setShippitOrder(null);
     setMessage(null);
     setLoadingExistingOrder(false);
     setSavingOrder(false);
+    setSelectedQuoteId(null);
+    setDebugOpen(false);
 
     if (!order?.order_id) return;
 
@@ -131,8 +163,10 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       .then(response => {
         if (cancelled) return;
         setShippitOrder(response);
-        if (response.has_shippit_order && response.parcels.length > 0) {
+        if (response.has_shippit_order && Array.isArray(response.parcels) && response.parcels.length > 0) {
           setParcels(buildParcelsFromShippitOrder(response.parcels));
+        } else {
+          setParcels([]);
         }
         setMessage({
           type: response.has_shippit_order ? "info" : "warning",
@@ -156,6 +190,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   }, [open, order]);
 
   const canEditShippitOrder = Boolean(shippitOrder?.has_shippit_order && shippitOrder.can_edit);
+  const hasShippitOrder = Boolean(shippitOrder?.has_shippit_order);
 
   const validateParcels = (parsedParcels: PackingQuoteParcel[]) => {
     if (hasInvalidParcel(parsedParcels)) {
@@ -166,6 +201,8 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   };
 
   const quoteCount = useMemo(() => countQuoteItems(quote), [quote]);
+  const quoteOptions = useMemo(() => extractQuoteOptions(quote), [quote]);
+  const selectedQuote = quoteOptions.find(option => option.id === selectedQuoteId) ?? null;
 
   const updateParcel = (id: string, field: keyof Omit<ParcelDraft, "id">, value: string) => {
     setParcels(previous => previous.map(parcel => parcel.id === id ? { ...parcel, [field]: value } : parcel));
@@ -200,7 +237,9 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     try {
       const response = await previewPackingQuote(Number(order.order_id), parsedParcels);
       setQuote(response);
-      const responseQuoteCount = countQuoteItems(response);
+      const options = extractQuoteOptions(response);
+      setSelectedQuoteId(options[0]?.id ?? null);
+      const responseQuoteCount = options.length || countQuoteItems(response);
       setMessage({ type: "success", text: `Shippit returned ${responseQuoteCount || "one or more"} quote response(s).` });
     } catch (error: unknown) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to retrieve Shippit quote." });
@@ -217,9 +256,9 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     setSavingOrder(true);
     setMessage(null);
     try {
-      const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels);
+      const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels, null);
       setShippitOrder(response);
-      if (response.parcels.length > 0) {
+      if (Array.isArray(response.parcels) && response.parcels.length > 0) {
         setParcels(buildParcelsFromShippitOrder(response.parcels));
       }
       setMessage({ type: "success", text: "Existing Shippit order parcel dimensions were updated." });
@@ -230,78 +269,150 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     }
   };
 
+  const handleSubmitSelectedQuote = async () => {
+    if (!order?.order_id || !canEditShippitOrder || !selectedQuote) return;
+    const parsedParcels = parseParcels(parcels);
+    if (!validateParcels(parsedParcels)) return;
+
+    setSavingOrder(true);
+    setMessage(null);
+    try {
+      const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels, selectedQuote);
+      setShippitOrder(response);
+      if (Array.isArray(response.parcels) && response.parcels.length > 0) {
+        setParcels(buildParcelsFromShippitOrder(response.parcels));
+      }
+      setMessage({ type: "success", text: `Selected quote submitted to Shippit: ${selectedQuote.label}.` });
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to submit selected quote to Shippit." });
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>
-        Packing Dimensions{order?.order_id ? ` - Order #${order.order_id}` : ""}
-      </DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          <Typography variant="body2" color="text.secondary">
-            Loads the existing Shippit order when one exists. Dimensions are centimetres; weight is grams.
-          </Typography>
+    <>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+        <DialogTitle>
+          Packing Dimensions{order?.order_id ? ` - Order #${order.order_id}` : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Loads the existing Shippit order when one exists. Dimensions are centimetres; weight is grams.
+            </Typography>
 
-          {loadingExistingOrder ? (
-            <Alert severity="info">Loading existing Shippit order...</Alert>
-          ) : null}
+            {loadingExistingOrder ? (
+              <Alert severity="info">Loading existing Shippit order before showing parcel dimensions...</Alert>
+            ) : null}
 
-          {shippitOrder?.has_shippit_order ? (
-            <Alert severity={canEditShippitOrder ? "info" : "warning"}>
-              Shippit {shippitOrder.shippit_tracking_number || "order"} is {shippitOrder.shippit_state || "unknown"}.
-              {canEditShippitOrder ? " Parcel changes can be saved." : " Parcel changes are read-only in this state."}
-            </Alert>
-          ) : null}
+            {shippitOrder?.has_shippit_order ? (
+              <Alert severity={canEditShippitOrder ? "info" : "warning"}>
+                Shippit {shippitOrder.shippit_tracking_number || "order"} is {shippitOrder.shippit_state || "unknown"}.
+                {shippitOrder.courier_allocation ? ` Current courier: ${shippitOrder.courier_allocation}.` : ""}
+                {canEditShippitOrder ? " Parcel and quote changes can be saved." : " Parcel changes are read-only in this state."}
+              </Alert>
+            ) : null}
 
-          {message ? (
-            <Alert severity={message.type}>
-              {message.text}
-            </Alert>
-          ) : null}
+            {message ? (
+              <Alert severity={message.type}>
+                {message.text}
+              </Alert>
+            ) : null}
 
-          {parcels.map((parcel, index) => (
-            <Box key={parcel.id} sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2">Parcel {index + 1}</Typography>
-                <IconButton aria-label="Remove parcel" onClick={() => removeParcel(parcel.id)} disabled={parcels.length === 1}>
-                  <DeleteIcon />
-                </IconButton>
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField label="Qty" type="number" value={parcel.qty} onChange={(event) => updateParcel(parcel.id, "qty", event.target.value)} inputProps={{ min: 1, step: 1 }} />
-                <TextField label="Weight g" type="number" value={parcel.weightGrams} onChange={(event) => updateParcel(parcel.id, "weightGrams", event.target.value)} inputProps={{ min: 0, step: 1 }} />
-                <TextField label="Length cm" type="number" value={parcel.lengthCm} onChange={(event) => updateParcel(parcel.id, "lengthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
-                <TextField label="Width cm" type="number" value={parcel.widthCm} onChange={(event) => updateParcel(parcel.id, "widthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
-                <TextField label="Height cm" type="number" value={parcel.heightCm} onChange={(event) => updateParcel(parcel.id, "heightCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
-              </Stack>
-            </Box>
-          ))}
+            {!loadingExistingOrder && hasShippitOrder ? (
+              <>
+                {parcels.map((parcel, index) => (
+                  <Box key={parcel.id} sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">Parcel {index + 1}</Typography>
+                      <IconButton aria-label="Remove parcel" onClick={() => removeParcel(parcel.id)} disabled={parcels.length === 1}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Stack>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                      <TextField label="Qty" type="number" value={parcel.qty} onChange={(event) => updateParcel(parcel.id, "qty", event.target.value)} inputProps={{ min: 1, step: 1 }} />
+                      <TextField label="Weight g" type="number" value={parcel.weightGrams} onChange={(event) => updateParcel(parcel.id, "weightGrams", event.target.value)} inputProps={{ min: 0, step: 1 }} />
+                      <TextField label="Length cm" type="number" value={parcel.lengthCm} onChange={(event) => updateParcel(parcel.id, "lengthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
+                      <TextField label="Width cm" type="number" value={parcel.widthCm} onChange={(event) => updateParcel(parcel.id, "widthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
+                      <TextField label="Height cm" type="number" value={parcel.heightCm} onChange={(event) => updateParcel(parcel.id, "heightCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
+                    </Stack>
+                  </Box>
+                ))}
 
-          <Button variant="outlined" onClick={addParcel}>
-            Add Parcel
-          </Button>
+                <Button variant="outlined" onClick={addParcel}>
+                  Add Parcel
+                </Button>
+              </>
+            ) : null}
 
-          {quote ? (
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Shippit Response{quoteCount ? ` (${quoteCount} quote item${quoteCount === 1 ? "" : "s"})` : ""}
-              </Typography>
-              <Box component="pre" sx={{ p: 2, bgcolor: "grey.100", borderRadius: 1, overflow: "auto", fontSize: 12, maxHeight: 360 }}>
-                {JSON.stringify(quote.body, null, 2)}
+            {quote ? (
+              <Box>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <Typography variant="subtitle2">
+                    Shippit Quotes{quoteOptions.length ? ` (${quoteOptions.length})` : quoteCount ? ` (${quoteCount})` : ""}
+                  </Typography>
+                  <Button size="small" onClick={() => setDebugOpen(true)}>Debug JSON</Button>
+                </Stack>
+                {quoteOptions.length > 0 ? (
+                  <Stack spacing={1.5}>
+                    {quoteOptions.map(option => (
+                      <Card
+                        key={option.id}
+                        variant="outlined"
+                        sx={{ cursor: "pointer", borderColor: selectedQuoteId === option.id ? "primary.main" : "divider" }}
+                        onClick={() => setSelectedQuoteId(option.id)}
+                      >
+                        <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+                          <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Radio checked={selectedQuoteId === option.id} onChange={() => setSelectedQuoteId(option.id)} />
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="subtitle2">{option.label}</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {option.service_level || "Service level not returned"}
+                                {option.estimated_transit_time ? ` - ${option.estimated_transit_time}` : ""}
+                              </Typography>
+                            </Box>
+                            <Chip label={formatPrice(option.price)} color="primary" variant="outlined" />
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Alert severity="warning">No selectable Shippit quote options were returned. Use Debug JSON for the raw response.</Alert>
+                )}
               </Box>
-            </Box>
-          ) : null}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-        <Button variant="outlined" onClick={handleSaveShippitOrder} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder}>
-          {savingOrder ? "Saving..." : "Save Shippit Order"}
-        </Button>
-        <Button variant="contained" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order || !shippitOrder?.has_shippit_order}>
-          {loading ? "Requesting Quote..." : "Get Shippit Quotes"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Close</Button>
+          <Button variant="outlined" onClick={handleSaveShippitOrder} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder}>
+            {savingOrder ? "Saving..." : "Save Parcels"}
+          </Button>
+          <Button variant="outlined" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order || !hasShippitOrder}>
+            {loading ? "Requesting Quote..." : "Get Shippit Quotes"}
+          </Button>
+          <Button variant="contained" onClick={handleSubmitSelectedQuote} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder || !selectedQuote}>
+            {savingOrder ? "Submitting..." : "Submit Selected Quote"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={debugOpen} onClose={() => setDebugOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Shippit Quote Debug JSON</DialogTitle>
+        <DialogContent dividers>
+          <Box component="pre" sx={{ p: 2, bgcolor: "grey.100", borderRadius: 1, overflow: "auto", fontSize: 12, maxHeight: 520 }}>
+            {JSON.stringify(quote?.body, null, 2)}
+          </Box>
+        </DialogContent>
+        <Divider />
+        <DialogActions>
+          <Button onClick={() => setDebugOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
 

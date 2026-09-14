@@ -17,6 +17,13 @@ export type PackingQuoteResponse = {
   body: unknown;
 };
 
+export type PackingQuoteSelection = {
+  courier_type?: string | null;
+  service_level?: string | null;
+  price?: number | null;
+  estimated_transit_time?: string | null;
+};
+
 export type PackingShippitOrderParcel = {
   source_index?: number;
   qty: number;
@@ -33,6 +40,9 @@ export type PackingShippitOrderResponse = {
   shippit_tracking_number?: string | null;
   tracking_source?: string | null;
   shippit_state?: string | null;
+  courier_type?: string | null;
+  courier_allocation?: string | null;
+  courier_name?: string | null;
   sync_status?: string;
   is_shippit_shipping?: boolean;
   is_shippit_live_quote?: boolean;
@@ -60,9 +70,13 @@ export async function getPackingShippitOrder(orderId: number): Promise<PackingSh
   return fetchJson<PackingShippitOrderResponse>(`/api/v1/shippit/packing/order/${orderId}`);
 }
 
-export async function updatePackingShippitOrder(orderId: number, parcels: PackingQuoteParcel[]): Promise<PackingShippitOrderResponse> {
+export async function updatePackingShippitOrder(
+  orderId: number,
+  parcels: PackingQuoteParcel[],
+  quoteSelection?: PackingQuoteSelection | null,
+): Promise<PackingShippitOrderResponse> {
   return fetchJson<PackingShippitOrderResponse>(`/api/v1/shippit/packing/order/${orderId}`, {
     method: "PUT",
-    body: JSON.stringify({ parcels }),
+    body: JSON.stringify({ parcels, quote_selection: quoteSelection ?? undefined }),
   });
 }
