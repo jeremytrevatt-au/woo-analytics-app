@@ -16,6 +16,7 @@ import PackingDimensionsDialog from "../components/PackingDimensionsDialog";
 import PackingDocumentsDialog from "../components/PackingDocumentsDialog";
 import PackingLineDetails from "../components/PackingLineDetails";
 import PackingOrderFooter from "../components/PackingOrderFooter";
+import PackingStockDisplay from "../components/PackingStockDisplay";
 import { groupPackingOrdersByUser } from "../lib/packing";
 
 type QueueContext = {
@@ -596,42 +597,12 @@ function PackingPage() {
                           />
                         </Box>
                         {canUpdateStock && (
-                          <TextField
-                            size="small"
-                            label="Stock / Adj"
-                            value={`${reportedStockQty ?? "-"} / ${adjustedStockQty ?? "-"}`}
-                            inputProps={{ readOnly: true }}
-                            onClick={(event) => handleStockOpen(key, event.currentTarget, reportedStockQty, event)}
-                            sx={{
-                              width: 120,
-                              gridColumn: { xs: "1 / -1", sm: "2" },
-                              justifySelf: "start",
-                              cursor: "pointer",
-                              "& .MuiInputBase-root": {
-                                height: 34,
-                                bgcolor: stockFieldColor.bgcolor,
-                                color: stockFieldColor.color,
-                                cursor: "pointer"
-                              },
-                              "& input, & .MuiOutlinedInput-input": {
-                                cursor: "pointer",
-                                textAlign: "left",
-                                fontVariantNumeric: "tabular-nums",
-                                p: "6px 8px"
-                              },
-                              "& .MuiInputLabel-root": {
-                                bgcolor: "background.paper",
-                                border: 1,
-                                borderColor: "divider",
-                                borderRadius: 0.75,
-                                color: "text.primary",
-                                fontWeight: 700,
-                                maxWidth: "none",
-                                minWidth: "max-content",
-                                overflow: "visible",
-                                px: 0.5
-                              }
-                            }}
+                          <PackingStockDisplay
+                            reportedStockQty={reportedStockQty}
+                            adjustedStockQty={adjustedStockQty}
+                            backgroundColor={stockFieldColor.bgcolor}
+                            color={stockFieldColor.color}
+                            onOpen={(anchorEl, event) => handleStockOpen(key, anchorEl, reportedStockQty, event)}
                           />
                         )}
                         {!isParentBundle && !managesStock && (
