@@ -36,6 +36,7 @@ import {
   ShippitReturnsProbeResponse,
   updateReturn,
 } from "../api/returnsApi";
+import { ApiRequestError } from "../api/httpClient";
 
 const RETURN_STATUS_OPTIONS: Array<{ value: ReturnStatus | "all"; label: string }> = [
   { value: "all", label: "All" },
@@ -193,6 +194,30 @@ function ReturnsPage() {
       .filter(line => Number.isInteger(line.qty) && line.qty > 0) ?? [];
   };
 
+  const handleSelectAllReturnableQty = () => {
+    if (!returnableOrder) {
+      return;
+    }
+
+    const allQty: Record<number, string> = {};
+    returnableOrder.items.forEach(item => {
+      allQty[item.order_item_id] = String(Math.floor(item.returnable_qty));
+    });
+    setReturnLineQty(allQty);
+  };
+
+  const handleClearReturnQty = () => {
+    if (!returnableOrder) {
+      return;
+    }
+
+    const emptyQty: Record<number, string> = {};
+    returnableOrder.items.forEach(item => {
+      emptyQty[item.order_item_id] = "";
+    });
+    setReturnLineQty(emptyQty);
+  };
+
   const handleCreateShippitReturn = async () => {
     const numericOrderId = Number(orderId);
     if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
@@ -221,7 +246,7 @@ function ReturnsPage() {
       });
     } catch (error: any) {
       setShippitReturn(null);
-      setMessage({ type: "error", text: error.message || "Failed to create Shippit return." });
+      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to create Shippit return.") });
     } finally {
       setCreatingShippitReturn(false);
     }
@@ -247,7 +272,7 @@ function ReturnsPage() {
           : "Shippit return status refreshed. Label URL is not ready yet.",
       });
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "Failed to poll Shippit return." });
+      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to poll Shippit return.") });
     } finally {
       setPollingShippitReturn(false);
     }
@@ -342,6 +367,12 @@ function ReturnsPage() {
           <Stack direction="row" spacing={2} alignItems="center">
             <Button variant="outlined" onClick={handleLoadReturnableItems} disabled={loadingReturnableItems || saving}>
               {loadingReturnableItems ? "Loading Items..." : "Load Returnable Items"}
+            </Button>
+            <Button variant="outlined" onClick={handleSelectAllReturnableQty} disabled={!returnableOrder || saving}>
+              Select All Returnable Qty
+            </Button>
+            <Button variant="outlined" onClick={handleClearReturnQty} disabled={!returnableOrder || saving}>
+              Clear Qty
             </Button>
             <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving}>
               {previewingQuote ? "Loading Quote..." : "Preview Return Quote"}
@@ -642,4 +673,28 @@ function extractQuoteRows(result: ShippitReturnsProbeResult): QuoteRow[] {
     });
   });
   return rows.sort((left, right) => left.price - right.price);
+}
+
+function shippitErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiRequestError)) {
+    return error instanceof Error ? error.message : fallback;
+  }
+
+  const detail = readObject((error.responseBody as { detail?: unknown } | null)?.detail);
+  const result = readObject(detail?.result);
+  const body = readObject(result?.body);
+  const errors = Array.isArray(body?.errors) ? body.errors : [];
+  const firstError = readObject(errors[0]);
+  const shippitMessage = typeof firstError?.message === "string" ? firstError.message : "";
+  const shippitCode = typeof firstError?.code === "string" ? firstError.code : "";
+
+  if (shippitMessage) {
+    return shippitCode ? `Shippit error ${shippitCode}: ${shippitMessage}` : `Shippit error: ${shippitMessage}`;
+  }
+
+  return error.message || fallback;
+}
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

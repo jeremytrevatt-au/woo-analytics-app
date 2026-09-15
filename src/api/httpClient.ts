@@ -87,6 +87,10 @@ function buildErrorMessage(status: number, url: string, parsedBody: unknown, tex
     if (typeof detail === "string") {
       return `API request failed (${status}) ${url}: ${detail}`;
     }
+    const shippitMessage = extractShippitNestedError(detail);
+    if (shippitMessage) {
+      return `API request failed (${status}) ${url}: ${shippitMessage}`;
+    }
     if (detail && typeof detail === "object" && "message" in detail) {
       const message = String((detail as { message?: unknown }).message ?? textBody);
       return `API request failed (${status}) ${url}: ${message}`;
@@ -94,6 +98,36 @@ function buildErrorMessage(status: number, url: string, parsedBody: unknown, tex
   }
 
   return `API request failed (${status}) ${url}: ${textBody}`;
+}
+
+function extractShippitNestedError(detail: unknown): string | null {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail) || !("result" in detail)) {
+    return null;
+  }
+
+  const result = (detail as { result?: unknown }).result;
+  if (!result || typeof result !== "object" || Array.isArray(result) || !("body" in result)) {
+    return null;
+  }
+
+  const body = (result as { body?: unknown }).body;
+  if (!body || typeof body !== "object" || Array.isArray(body) || !("errors" in body)) {
+    return null;
+  }
+
+  const errors = (body as { errors?: unknown }).errors;
+  if (!Array.isArray(errors) || !errors[0] || typeof errors[0] !== "object" || Array.isArray(errors[0])) {
+    return null;
+  }
+
+  const firstError = errors[0] as { message?: unknown; code?: unknown };
+  const message = typeof firstError.message === "string" ? firstError.message : "";
+  const code = typeof firstError.code === "string" ? firstError.code : "";
+  if (!message) {
+    return null;
+  }
+
+  return code ? `Shippit error ${code}: ${message}` : `Shippit error: ${message}`;
 }
 
 function mirrorDebugEvent(baseUrl: string, event: ApiDebugEvent): void {
