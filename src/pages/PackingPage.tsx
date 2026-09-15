@@ -1,10 +1,9 @@
-import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, CardActions, Button, Collapse, Divider, TextField, IconButton, Popover, Dialog, DialogContent, DialogTitle } from "@mui/material";
+import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, Button, Collapse, Divider, TextField, IconButton, Popover, Dialog, DialogContent, DialogTitle, Tooltip } from "@mui/material";
 import { useEffect, useState } from "react";
-import { Check, CheckCircleOutline, Close } from "@mui/icons-material";
+import { Check, CheckCircleOutline, Close, PrintOutlined } from "@mui/icons-material";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { usePackingOrders } from "../hooks/usePackingOrders";
-import { formatCurrency } from "../lib/format";
 import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
 import { ApiRequestError } from "../api/httpClient";
@@ -14,7 +13,9 @@ import { listCrmCustomerProfileExtensions, listCrmNotes } from "../api/crmApi";
 import type { CrmCustomerProfileExtension, CrmNote } from "../api/crmApi";
 import { createPrintJob } from "../api/printJobsApi";
 import PackingDimensionsDialog from "../components/PackingDimensionsDialog";
+import PackingDocumentsDialog from "../components/PackingDocumentsDialog";
 import PackingLineDetails from "../components/PackingLineDetails";
+import PackingOrderFooter from "../components/PackingOrderFooter";
 import { groupPackingOrdersByUser } from "../lib/packing";
 
 type QueueContext = {
@@ -48,6 +49,7 @@ function PackingPage() {
   const [crmProfilesError, setCrmProfilesError] = useState<string | null>(null);
   const [crmOrder, setCrmOrder] = useState<any | null>(null);
   const [dimensionsOrder, setDimensionsOrder] = useState<any | null>(null);
+  const [documentOrder, setDocumentOrder] = useState<any | null>(null);
 
   useEffect(() => {
     listDocumentTemplates({ enabled: "true" })
@@ -384,17 +386,36 @@ function PackingPage() {
                   <Typography variant="subtitle1" fontWeight="bold">
                     Order #{order.order_id}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
+                  <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="body2" color="text.secondary">
+                      {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
+                    </Typography>
                     {order.is_first_order && (
-                      <Chip 
-                        size="small" 
-                        label="1st Order" 
-                        color="secondary" 
-                        sx={{ ml: 1, height: '20px', fontSize: '0.7rem' }} 
+                      <Chip
+                        size="small"
+                        label="1st Order"
+                        color="secondary"
+                        sx={{ height: '20px', fontSize: '0.7rem' }}
                       />
                     )}
-                  </Typography>
+                    {orderDocuments.length > 0 && (
+                      <Tooltip title={`Print documents (${orderDocuments.length})`}>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          aria-label={`Print documents for order ${order.order_id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDocumentPrintMessage(null);
+                            setDocumentOrder(order);
+                          }}
+                          sx={{ width: 28, height: 28 }}
+                        >
+                          <PrintOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
                   {hasDuplicateFirstName && (
                     <Alert severity="warning" sx={{ mt: 1, py: 0, '& .MuiAlert-message': { py: 0.5 } }}>
                       Warning! There is more than one {packingFirstName} in this queue!
@@ -411,33 +432,6 @@ function PackingPage() {
                       onClick={(e) => e.stopPropagation()}
                       sx={{ cursor: 'pointer' }}
                     />
-                    {orderDocuments.length > 0 && (
-                      <Typography variant="caption" fontWeight={700}>
-                        Documents:
-                      </Typography>
-                    )}
-                    {orderDocuments.map(template => (
-                      <Stack key={template.id} direction="row" spacing={0.5}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          href={template.google_drive_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {template.name}
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={(event) => handleQueueDocumentPrint(order, template, event)}
-                          disabled={!!documentPrintSaving[`${order.order_id}:${template.id}`]}
-                        >
-                          Print
-                        </Button>
-                      </Stack>
-                    ))}
                     {orderCrmNotes.length > 0 && (
                       <Chip
                         size="small"
@@ -451,20 +445,9 @@ function PackingPage() {
                       {documentTemplateError}
                     </Typography>
                   )}
-                  {documentPrintMessage && (
-                    <Alert severity={documentPrintMessage.type} sx={{ mt: 1, py: 0 }}>
-                      {documentPrintMessage.text}
-                    </Alert>
-                  )}
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
-                  <Chip size="small" label={`Sub: ${formatCurrency(order.order_total - (order.shipping_total || 0))}`} variant="outlined" />
-                  <Chip size="small" label={`Ship: ${formatCurrency(order.shipping_total || 0)}`} variant="outlined" />
-                  <Chip size="small" label={`Tot: ${formatCurrency(order.order_total)}`} variant="outlined" color="primary" />
-                  {order.courier_allocation && (
-                    <Chip size="small" label={order.courier_allocation} color="primary" variant="outlined" />
-                  )}
                   {currentStatus === 'packed' && (
                     <Chip size="small" icon={<CheckCircleOutline />} label={`Packed by ${packedBy || 'You'}`} color="success" />
                   )}
@@ -562,13 +545,9 @@ function PackingPage() {
                   pb: 1, 
                   borderBottom: idx < order.lines.length - 1 ? '1px dashed' : 'none', 
                   borderColor: 'divider',
-                  ml: isChildItem ? 4 : 0,
-                  pl: isChildItem ? 1 : 0,
-                  borderLeft: isChildItem ? '2px solid' : 'none',
-                  borderLeftColor: 'primary.light',
                   bgcolor: isParentBundle ? 'action.hover' : 'transparent',
                   borderRadius: isParentBundle ? 1 : 0,
-                  p: isParentBundle ? 1 : 0
+                  py: isParentBundle ? 1 : 0,
                 }}>
                   <Grid container spacing={1} alignItems="center">
                     <Grid item xs={12}>
@@ -584,7 +563,15 @@ function PackingPage() {
                           alignItems: "start",
                         }}
                       >
-                        <Box sx={{ minWidth: 0, gridColumn: { xs: "1 / -1", sm: "auto" } }}>
+                        <Box
+                          sx={{
+                            minWidth: 0,
+                            gridColumn: { xs: "1 / -1", sm: "1" },
+                            pl: isChildItem ? 4 : isParentBundle ? 1 : 0,
+                            borderLeft: isChildItem ? "2px solid" : "none",
+                            borderLeftColor: "primary.light",
+                          }}
+                        >
                           <PackingLineDetails
                             description={line.product_name || line.category || ""}
                             quantity={line.qty}
@@ -617,6 +604,8 @@ function PackingPage() {
                             onClick={(event) => handleStockOpen(key, event.currentTarget, reportedStockQty, event)}
                             sx={{
                               width: 120,
+                              gridColumn: { xs: "1 / -1", sm: "2" },
+                              justifySelf: "start",
                               cursor: "pointer",
                               "& .MuiInputBase-root": {
                                 height: 34,
@@ -762,58 +751,24 @@ function PackingPage() {
         </Collapse>
 
         <Divider />
-        <CardActions sx={{ justifyContent: 'flex-end' }}>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={(event) => {
-              event.stopPropagation();
-              setDimensionsOrder(order);
-            }}
-          >
-            L W H
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={(event) => {
-              event.stopPropagation();
-              setCrmOrder(order);
-            }}
-          >
-            CRM
-          </Button>
-          {currentStatus === 'unpacked' && (
-            <>
-              <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
-                Pack
-              </Button>
-              <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id]}>
-                Packed
-              </Button>
-            </>
-          )}
-          {currentStatus === 'packing' && (
-            <>
-              <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)} disabled={!!packingSaving[order.order_id] || !canChangePackingStatus}>
-                Unpack
-              </Button>
-              <Button size="small" variant="contained" color="success" onClick={(e) => handlePack(order.order_id, 'packed', e)} disabled={!!packingSaving[order.order_id] || !canChangePackingStatus}>
-                Packed
-              </Button>
-            </>
-          )}
-          {currentStatus === 'packed' && (
-            <>
-              <Button size="small" variant="outlined" color="inherit" onClick={(e) => handlePack(order.order_id, 'unpacked', e)} disabled={!!packingSaving[order.order_id]}>
-                Unpack
-              </Button>
-              <Button size="small" variant="outlined" color="warning" onClick={(e) => handlePack(order.order_id, 'packing', e)} disabled={!!packingSaving[order.order_id]}>
-                Pack
-              </Button>
-            </>
-          )}
-        </CardActions>
+        <PackingOrderFooter
+          subtotal={Number(order.order_total || 0) - Number(order.shipping_total || 0)}
+          shipping={Number(order.shipping_total || 0)}
+          total={Number(order.order_total || 0)}
+          shippingMethod={String(order.courier_allocation || order.shipping_method || "Not recorded")}
+          currentStatus={currentStatus}
+          isSaving={!!packingSaving[order.order_id]}
+          canChangePackingStatus={canChangePackingStatus}
+          onDimensions={(event) => {
+            event.stopPropagation();
+            setDimensionsOrder(order);
+          }}
+          onCrm={(event) => {
+            event.stopPropagation();
+            setCrmOrder(order);
+          }}
+          onStatusChange={(status, event) => handlePack(order.order_id, status, event)}
+        />
       </Card>
     );
   };
@@ -961,6 +916,14 @@ function PackingPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+      <PackingDocumentsDialog
+        order={documentOrder}
+        templates={documentOrder ? getOrderDocumentTemplates(documentOrder) : []}
+        printSaving={documentPrintSaving}
+        printMessage={documentPrintMessage}
+        onClose={() => setDocumentOrder(null)}
+        onPrint={handleQueueDocumentPrint}
+      />
       <PackingDimensionsDialog
         open={!!dimensionsOrder}
         order={dimensionsOrder}

@@ -5,6 +5,7 @@ build/
 playwright-report/
 test-results/
 coverage/
+tmp/
 
 # Local environment
 .env
