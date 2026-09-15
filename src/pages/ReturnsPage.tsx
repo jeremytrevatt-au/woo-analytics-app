@@ -22,6 +22,8 @@ import {
 } from "@mui/material";
 import {
   createReturn,
+  createShippitReturnOrder,
+  getShippitReturnOrder,
   getReturnableOrderItems,
   listReturns,
   previewShippitReturnQuote,
@@ -29,6 +31,7 @@ import {
   ReturnableOrderResponse,
   ReturnCase,
   ReturnStatus,
+  ShippitReturnOrderResponse,
   ShippitReturnsProbeResult,
   ShippitReturnsProbeResponse,
   updateReturn,
@@ -69,6 +72,9 @@ function ReturnsPage() {
   const [probingShippit, setProbingShippit] = useState(false);
   const [quotePreview, setQuotePreview] = useState<ShippitReturnsProbeResult | null>(null);
   const [previewingQuote, setPreviewingQuote] = useState(false);
+  const [shippitReturn, setShippitReturn] = useState<ShippitReturnOrderResponse | null>(null);
+  const [creatingShippitReturn, setCreatingShippitReturn] = useState(false);
+  const [pollingShippitReturn, setPollingShippitReturn] = useState(false);
 
   const loadReturns = async () => {
     setLoading(true);
@@ -182,9 +188,69 @@ function ReturnsPage() {
     return returnableOrder?.items
       .map(item => ({
         order_item_id: item.order_item_id,
-        qty: Number(returnLineQty[item.order_item_id] || 0),
+        qty: Math.floor(Number(returnLineQty[item.order_item_id] || 0)),
       }))
-      .filter(line => Number.isFinite(line.qty) && line.qty > 0) ?? [];
+      .filter(line => Number.isInteger(line.qty) && line.qty > 0) ?? [];
+  };
+
+  const handleCreateShippitReturn = async () => {
+    const numericOrderId = Number(orderId);
+    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
+      setMessage({ type: "error", text: "Enter a valid WooCommerce order ID first." });
+      return;
+    }
+
+    const lines = selectedReturnLines();
+    if (lines.length === 0) {
+      setMessage({ type: "error", text: "Enter at least one return quantity before creating a Shippit return." });
+      return;
+    }
+
+    setCreatingShippitReturn(true);
+    setMessage(null);
+    try {
+      const response = await createShippitReturnOrder({ orderId: numericOrderId, lines });
+      setShippitReturn(response);
+      const returnId = response.return.return_order_id;
+      const labelReady = Boolean(response.return.label_url);
+      setMessage({
+        type: "success",
+        text: labelReady
+          ? `Shippit return ${returnId} created and label is ready.`
+          : `Shippit return ${returnId} created. Poll status until the label URL is ready.`,
+      });
+    } catch (error: any) {
+      setShippitReturn(null);
+      setMessage({ type: "error", text: error.message || "Failed to create Shippit return." });
+    } finally {
+      setCreatingShippitReturn(false);
+    }
+  };
+
+  const handlePollShippitReturn = async () => {
+    const numericOrderId = Number(orderId);
+    const returnOrderId = shippitReturn?.return.return_order_id;
+    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0 || !returnOrderId) {
+      setMessage({ type: "error", text: "Create a Shippit return before polling its status." });
+      return;
+    }
+
+    setPollingShippitReturn(true);
+    setMessage(null);
+    try {
+      const response = await getShippitReturnOrder(numericOrderId, returnOrderId);
+      setShippitReturn(response);
+      setMessage({
+        type: "success",
+        text: response.return.label_url
+          ? "Shippit return label is ready."
+          : "Shippit return status refreshed. Label URL is not ready yet.",
+      });
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.message || "Failed to poll Shippit return." });
+    } finally {
+      setPollingShippitReturn(false);
+    }
   };
 
   const handlePreviewQuote = async () => {
@@ -253,6 +319,8 @@ function ReturnsPage() {
                 setOrderId(event.target.value);
                 setReturnableOrder(null);
                 setReturnLineQty({});
+                setShippitReturn(null);
+                setQuotePreview(null);
               }}
               type="number"
               inputProps={{ min: 1 }}
@@ -277,6 +345,9 @@ function ReturnsPage() {
             </Button>
             <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving}>
               {previewingQuote ? "Loading Quote..." : "Preview Return Quote"}
+            </Button>
+            <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn || saving || !returnableOrder}>
+              {creatingShippitReturn ? "Creating Shippit Return..." : "Create Shippit Return"}
             </Button>
             {returnableOrder ? (
               <Typography variant="body2" color="text.secondary">
@@ -359,6 +430,28 @@ function ReturnsPage() {
               </Table>
             </Box>
           ) : null}
+          {shippitReturn ? (
+            <Alert severity={shippitReturn.return.label_url ? "success" : "info"}>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2">
+                  Shippit Return {shippitReturn.return.return_order_id}
+                </Typography>
+                <Typography variant="body2">
+                  Tracking: {shippitReturn.return.tracking_number || "-"}; State: {shippitReturn.return.state || "-"}; Label: {shippitReturn.return.label_url ? "Ready" : "Not ready"}
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <Button size="small" variant="outlined" onClick={handlePollShippitReturn} disabled={pollingShippitReturn}>
+                    {pollingShippitReturn ? "Polling..." : "Poll Label / Status"}
+                  </Button>
+                  {shippitReturn.return.label_url ? (
+                    <Button size="small" variant="contained" href={shippitReturn.return.label_url} target="_blank" rel="noopener noreferrer">
+                      Open Return Label
+                    </Button>
+                  ) : null}
+                </Stack>
+              </Stack>
+            </Alert>
+          ) : null}
           <TextField
             label="Notes"
             value={notes}
@@ -371,8 +464,8 @@ function ReturnsPage() {
               control={<Checkbox checked={refundExpected} onChange={(event) => setRefundExpected(event.target.checked)} />}
               label="Refund may be required"
             />
-            <Button variant="contained" onClick={handleCreate} disabled={saving}>
-              Create Return
+            <Button variant="outlined" onClick={handleCreate} disabled={saving}>
+              Create Internal Return Case
             </Button>
           </Stack>
         </Stack>
