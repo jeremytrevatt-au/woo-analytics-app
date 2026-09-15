@@ -615,7 +615,8 @@ function PackingPage() {
                               },
                               "& input, & .MuiOutlinedInput-input": {
                                 cursor: "pointer",
-                                textAlign: "center",
+                                textAlign: "left",
+                                fontVariantNumeric: "tabular-nums",
                                 p: "6px 8px"
                               },
                               "& .MuiInputLabel-root": {
