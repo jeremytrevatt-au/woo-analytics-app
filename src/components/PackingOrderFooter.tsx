@@ -29,36 +29,33 @@ export default function PackingOrderFooter({
   return (
     <CardActions
       sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) minmax(0, 1fr)" },
-        gap: 1.5,
-        alignItems: "end",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 1,
         px: 2,
         py: 1.5,
       }}
     >
-      <Stack spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-          <Chip size="small" label={`Subtotal: ${formatCurrency(subtotal)}`} variant="outlined" />
-          <Chip size="small" label={`Shipping: ${formatCurrency(shipping)}`} variant="outlined" />
-          <Chip size="small" label={`Total: ${formatCurrency(total)}`} variant="outlined" color="primary" />
-        </Stack>
-        <Typography variant="body2" color="text.secondary">
-          Shipping method: <Box component="span" color="text.primary" fontWeight={700}>{shippingMethod || "Not recorded"}</Box>
-        </Typography>
-        <Button size="small" variant="outlined" onClick={onDimensions}>
-          L W H
-        </Button>
+      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+        <Chip size="small" label={`Subtotal: ${formatCurrency(subtotal)}`} variant="outlined" />
+        <Chip size="small" label={`Shipping: ${formatCurrency(shipping)}`} variant="outlined" />
+        <Chip size="small" label={`Total: ${formatCurrency(total)}`} variant="outlined" color="primary" />
       </Stack>
-
+      <Typography variant="body2" color="text.secondary">
+        Shipping method: <Box component="span" color="text.primary" fontWeight={700}>{shippingMethod || "Not recorded"}</Box>
+      </Typography>
       <Stack
         direction="row"
         spacing={1}
         flexWrap="wrap"
         useFlexGap
-        justifyContent={{ xs: "flex-start", md: "flex-end" }}
+        justifyContent="flex-start"
         alignItems="center"
       >
+        <Button size="small" variant="outlined" onClick={onDimensions}>
+          L W H
+        </Button>
         <Button size="small" variant="outlined" onClick={onCrm}>
           CRM
         </Button>

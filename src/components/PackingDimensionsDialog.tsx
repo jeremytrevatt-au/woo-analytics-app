@@ -12,7 +12,6 @@ import {
   DialogTitle,
   Divider,
   IconButton,
-  Radio,
   Stack,
   TextField,
   Typography,
@@ -41,6 +40,17 @@ type QuoteOption = PackingQuoteSelection & {
   label: string;
   raw: unknown;
 };
+
+function createBlankParcel(): ParcelDraft {
+  return {
+    id: crypto.randomUUID(),
+    qty: "1",
+    weightGrams: "",
+    lengthCm: "",
+    widthCm: "",
+    heightCm: "",
+  };
+}
 
 function numericString(value: unknown): string {
   const numberValue = Number(value);
@@ -167,7 +177,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
         if (response.has_shippit_order && Array.isArray(response.parcels) && response.parcels.length > 0) {
           setParcels(buildParcelsFromShippitOrder(response.parcels));
         } else {
-          setParcels([]);
+          setParcels([createBlankParcel()]);
         }
         setMessage({
           type: response.has_shippit_order ? "info" : "warning",
@@ -210,17 +220,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   };
 
   const addParcel = () => {
-    setParcels(previous => [
-      ...previous,
-      {
-        id: crypto.randomUUID(),
-        qty: "1",
-        weightGrams: "",
-        lengthCm: "",
-        widthCm: "",
-        heightCm: "",
-      },
-    ]);
+    setParcels(previous => [...previous, createBlankParcel()]);
   };
 
   const removeParcel = (id: string) => {
@@ -300,7 +300,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
         <DialogContent dividers>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              Loads the existing Shippit order when one exists. Dimensions are centimetres; weight is grams.
+              Loads parcels from an existing Shippit order when available. Quotes can also be generated for Australia Post orders and previously cancelled Shippit orders. Dimensions are centimetres; weight is grams.
             </Typography>
 
             {loadingExistingOrder ? (
@@ -321,7 +321,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
               </Alert>
             ) : null}
 
-            {!loadingExistingOrder && hasShippitOrder ? (
+            {!loadingExistingOrder ? (
               <>
                 {parcels.map((parcel, index) => (
                   <Box key={parcel.id} sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
@@ -363,20 +363,38 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                         variant="outlined"
                         sx={{ cursor: "pointer", borderColor: selectedQuoteId === option.id ? "primary.main" : "divider" }}
                         onClick={() => setSelectedQuoteId(option.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedQuoteId(option.id);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selectedQuoteId === option.id}
+                        aria-label={`Select ${option.label} quote for ${formatPrice(option.price)}`}
                       >
                         <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                          <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Radio checked={selectedQuoteId === option.id} onChange={() => setSelectedQuoteId(option.id)} />
-                            <Box sx={{ flex: 1 }}>
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "minmax(0, 1fr) auto" },
+                              gap: 1,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Box sx={{ minWidth: 0 }}>
                               <Typography variant="subtitle2">{option.label}</Typography>
                               <Typography variant="body2" color="text.secondary">
                                 {option.service_level || "Service level not returned"}
                                 {option.estimated_transit_time ? ` - ${option.estimated_transit_time}` : ""}
                               </Typography>
                             </Box>
-                            {index === 0 ? <Chip label="Cheapest" color="success" size="small" /> : null}
-                            <Chip label={formatPrice(option.price)} color="primary" variant="outlined" />
-                          </Stack>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                              {index === 0 ? <Chip label="Cheapest" color="success" size="small" /> : null}
+                              <Chip label={formatPrice(option.price)} color="primary" variant="outlined" />
+                            </Stack>
+                          </Box>
                         </CardContent>
                       </Card>
                     ))}
@@ -393,7 +411,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
           <Button variant="outlined" onClick={handleSaveShippitOrder} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder}>
             {savingOrder ? "Saving..." : "Save Parcels"}
           </Button>
-          <Button variant="outlined" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order || !hasShippitOrder}>
+          <Button variant="outlined" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order}>
             {loading ? "Requesting Quote..." : "Get Shippit Quotes"}
           </Button>
           <Button variant="contained" onClick={handleSubmitSelectedQuote} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder || !selectedQuote}>

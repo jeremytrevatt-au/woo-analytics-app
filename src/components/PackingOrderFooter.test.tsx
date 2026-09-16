@@ -5,7 +5,7 @@ import PackingOrderFooter from "./PackingOrderFooter";
 describe("PackingOrderFooter", () => {
   afterEach(cleanup);
 
-  it("renders totals and the selected shipping method in the left column", () => {
+  it("renders totals and shipping method in a single left-aligned footer", () => {
     const view = render(
       <PackingOrderFooter
         subtotal={100}
@@ -25,7 +25,9 @@ describe("PackingOrderFooter", () => {
     expect(view.getByText("Shipping: $13")).toBeInTheDocument();
     expect(view.getByText("Total: $113")).toBeInTheDocument();
     expect(view.getByText("Australia Post Parcel Post")).toBeInTheDocument();
-    expect(view.getByRole("button", { name: "L W H" })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "L W H" }).parentElement).toBe(
+      view.getByRole("button", { name: "CRM" }).parentElement,
+    );
   });
 
   it("keeps CRM and packing actions functional", () => {
