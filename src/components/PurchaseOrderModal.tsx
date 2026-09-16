@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider } from "@mui/material";
+import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
-import ProductSearchAutocomplete from "./ProductSearchAutocomplete";
+import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
 import { ProductSearchResult } from "../api/productsApi";
+import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 
 type Props = {
   open: boolean;
@@ -132,6 +133,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
   const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
   const [lineProductError, setLineProductError] = useState<string | null>(null);
+  const [lineFilter, setLineFilter] = useState("");
 
   useEffect(() => {
     suppliersApi.getAll().then(setSuppliers).catch(console.error);
@@ -146,6 +148,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     } else {
       setFormData(defaultPo);
     }
+    setLineFilter("");
+    setActiveRowIndex(null);
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
@@ -221,6 +225,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
 
     const newLines = [...(formData.lines || []), { 
       product_id: product.id, 
+      parent_product_id: product.parent_id || 0,
+      edit_product_id: product.edit_product_id || product.parent_id || product.id,
       wsvi_group_id: wsviGroupId,
       supplier_sku: "",
       sku: product.sku || "", 
@@ -233,6 +239,14 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     }];
     setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
     setLineProductError(null);
+  };
+
+  const handleExistingProduct = (lineIndex: number, product: ProductSearchResult) => {
+    setActiveRowIndex(lineIndex);
+    setLineProductError(`${product.sku || product.name} is already on this purchase order. Existing row ${lineIndex + 1} has been highlighted.`);
+    requestAnimationFrame(() => {
+      document.getElementById(`po-line-${lineIndex}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
   };
 
   const handleRemoveLine = (index: number) => {
@@ -305,6 +319,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   const handleDragEnd = () => {
     setDraggedRowIndex(null);
   };
+
+  const visibleLineEntries = filterPurchaseOrderLines(formData.lines || [], lineFilter);
 
   return (
       <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '98%', maxWidth: 'none' } }}>
@@ -647,11 +663,11 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               </Box>
               
               <Box sx={{ mb: 2 }}>
-                <ProductSearchAutocomplete
-                  value={null}
-                  onChange={handleAddProductFromSearch}
-                  label="Search to Add Product..."
-                  size="medium"
+                <PurchaseOrderProductSearch
+                  lines={formData.lines || []}
+                  onAdd={handleAddProductFromSearch}
+                  onExisting={handleExistingProduct}
+                  onFilterChange={setLineFilter}
                   isOptionDisabled={isVariableParentProduct}
                   formatOptionLabel={formatPoProductSearchLabel}
                 />
@@ -683,10 +699,13 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                       </TableRow>
                       </TableHead>
                   <TableBody>
-                    {(formData.lines || []).map((line, index) => (
+                    {visibleLineEntries.map(({ line, originalIndex: index }) => {
+                      const editUrl = wooProductEditUrl(line.edit_product_id || line.parent_product_id || (line.product_id > 0 ? line.product_id : null));
+                      return (
                         <TableRow 
                           key={index}
-                          draggable
+                          id={`po-line-${index}`}
+                          draggable={!lineFilter}
                           onDragStart={(e) => handleDragStart(e, index)}
                           onDragOver={(e) => handleDragOver(e, index)}
                           onDrop={(e) => handleDrop(e, index)}
@@ -711,16 +730,24 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                           />
                         </TableCell>
                         <TableCell>
-                          <TextField
-                            size="small"
-                            fullWidth
-                            multiline
-                            minRows={1}
-                            maxRows={6}
-                            value={line.sku || ""}
-                            onChange={(e) => handleLineChange(index, "sku", e.target.value)}
-                            sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
-                          />
+                          <Box>
+                            {editUrl && line.sku ? (
+                              <Link href={editUrl} target="_blank" rel="noopener noreferrer" variant="body2">
+                                {line.sku}
+                              </Link>
+                            ) : null}
+                            <TextField
+                              size="small"
+                              fullWidth
+                              multiline
+                              minRows={1}
+                              maxRows={6}
+                              aria-label={`Edit SKU for row ${index + 1}`}
+                              value={line.sku || ""}
+                              onChange={(e) => handleLineChange(index, "sku", e.target.value)}
+                              sx={{ mt: editUrl && line.sku ? 0.5 : 0, '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
+                            />
+                          </Box>
                         </TableCell>
                         <TableCell>
                           <TextField
@@ -781,10 +808,10 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                           />
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          <IconButton size="small" onClick={() => handleMoveLineUp(index)} disabled={index === 0}>
+                          <IconButton size="small" onClick={() => handleMoveLineUp(index)} disabled={Boolean(lineFilter) || index === 0}>
                             <ArrowUpwardIcon fontSize="small" />
                           </IconButton>
-                          <IconButton size="small" onClick={() => handleMoveLineDown(index)} disabled={index === (formData.lines || []).length - 1}>
+                          <IconButton size="small" onClick={() => handleMoveLineDown(index)} disabled={Boolean(lineFilter) || index === (formData.lines || []).length - 1}>
                             <ArrowDownwardIcon fontSize="small" />
                           </IconButton>
                           <IconButton size="small" onClick={() => handleRemoveLine(index)} color="error">
@@ -792,15 +819,23 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                           </IconButton>
                         </TableCell>
                     </TableRow>
-                  ))}
-                  {(!formData.lines || formData.lines.length === 0) && (
+                      );
+                    })}
+                  {visibleLineEntries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">No lines added.</TableCell>
+                      <TableCell colSpan={9} align="center">
+                        {lineFilter ? "No existing PO lines match this search." : "No lines added."}
+                      </TableCell>
                     </TableRow>
-                    )}
+                  )}
                   </TableBody>
                 </Table>
               </TableContainer>
+              {lineFilter && (
+                <Typography variant="caption" color="text.secondary">
+                  Showing {visibleLineEntries.length} of {(formData.lines || []).length} PO lines. Reordering is disabled while filtering.
+                </Typography>
+              )}
               </Box>
             </Grid>
           </Grid>

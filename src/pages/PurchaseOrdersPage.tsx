@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse, TextField, MenuItem, Checkbox, FormControlLabel } from "@mui/material";
+import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -11,6 +11,7 @@ import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
+import { wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
 
@@ -289,7 +290,17 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     <TableBody>
                       {receivePreview.lines.map((line) => (
                         <TableRow key={line.po_line_id}>
-                          <TableCell>{line.sku}</TableCell>
+                          <TableCell>
+                            {wooProductEditUrl(line.stock_target_product_id) ? (
+                              <Link
+                                href={wooProductEditUrl(line.stock_target_product_id) || undefined}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {line.sku}
+                              </Link>
+                            ) : line.sku}
+                          </TableCell>
                           <TableCell>{line.stock_target_type || "-"}</TableCell>
                           <TableCell>{line.wsvi_group_name || line.wsvi_group_id || "-"}</TableCell>
                           <TableCell align="right">{qty(line.received_qty)}</TableCell>
@@ -329,7 +340,15 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     return (
                       <TableRow key={idx}>
                         <TableCell component="th" scope="row">
-                          {line.sku || "N/A"}
+                          {wooProductEditUrl(line.edit_product_id || line.parent_product_id || line.product_id) && line.sku ? (
+                            <Link
+                              href={wooProductEditUrl(line.edit_product_id || line.parent_product_id || line.product_id) || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {line.sku}
+                            </Link>
+                          ) : line.sku || "N/A"}
                         </TableCell>
                         <TableCell>{line.product_name}</TableCell>
                         <TableCell align="right">{qty(line.qty)}</TableCell>
