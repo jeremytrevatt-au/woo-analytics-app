@@ -2,6 +2,7 @@ import { Box } from "@mui/material";
 import { Route, Routes } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
 import FiltersProvider from "./components/FiltersProvider";
+import { ProductIndexProvider } from "./components/ProductIndexProvider";
 import CustomersPage from "./pages/CustomersPage";
 import DrillDownPage from "./pages/DrillDownPage";
 import RevenuePage from "./pages/RevenuePage";
@@ -22,27 +23,29 @@ import SuppliersPage from "./pages/SuppliersPage";
 function App() {
   return (
     <FiltersProvider>
-      <Box sx={{ minHeight: "100vh" }}>
-        <DashboardLayout>
-            <Routes>
-              <Route path="/" element={<OverviewPage />} />
-              <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/customers" element={<CustomersPage />} />
-              <Route path="/drill-down" element={<DrillDownPage />} />
-              <Route path="/stock" element={<StockPage />} />
-              <Route path="/revenue" element={<RevenuePage />} />
-              <Route path="/backorders" element={<BackordersPage />} />
-              <Route path="/preorders" element={<PreordersPage />} />
-              <Route path="/packing" element={<PackingPage />} />
-              <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
-              <Route path="/returns" element={<ReturnsPage />} />
-              <Route path="/document-templates" element={<DocumentTemplatesPage />} />
-              <Route path="/print-jobs" element={<PrintJobsPage />} />
-              <Route path="/suppliers" element={<SuppliersPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-            </Routes>
-        </DashboardLayout>
-      </Box>
+      <ProductIndexProvider>
+        <Box sx={{ minHeight: "100vh" }}>
+          <DashboardLayout>
+              <Routes>
+                <Route path="/" element={<OverviewPage />} />
+                <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/customers" element={<CustomersPage />} />
+                <Route path="/drill-down" element={<DrillDownPage />} />
+                <Route path="/stock" element={<StockPage />} />
+                <Route path="/revenue" element={<RevenuePage />} />
+                <Route path="/backorders" element={<BackordersPage />} />
+                <Route path="/preorders" element={<PreordersPage />} />
+                <Route path="/packing" element={<PackingPage />} />
+                <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+                <Route path="/returns" element={<ReturnsPage />} />
+                <Route path="/document-templates" element={<DocumentTemplatesPage />} />
+                <Route path="/print-jobs" element={<PrintJobsPage />} />
+                <Route path="/suppliers" element={<SuppliersPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+              </Routes>
+          </DashboardLayout>
+        </Box>
+      </ProductIndexProvider>
     </FiltersProvider>
   );
 }

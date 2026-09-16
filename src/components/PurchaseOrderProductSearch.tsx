@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Autocomplete, Box, Button, CircularProgress, Stack, TextField, Typography } from "@mui/material";
 import type { ProductSearchResult } from "../api/productsApi";
-import { productsApi } from "../api/productsApi";
 import type { PurchaseOrderLine } from "../api/purchaseOrdersApi";
 import { findExistingProductLine, searchProductIndex } from "../lib/purchaseOrderProductSearch";
+import { useProductIndex } from "./ProductIndexProvider";
 
 type Props = {
   lines: readonly PurchaseOrderLine[];
@@ -26,34 +26,12 @@ export default function PurchaseOrderProductSearch({
   isOptionDisabled,
   formatOptionLabel,
 }: Props) {
-  const [productIndex, setProductIndex] = useState<ProductSearchResult[]>([]);
+  const { products: productIndex, loading, error: loadError } = useProductIndex();
   const [inputValue, setInputValue] = useState("");
   const [acceptedProduct, setAcceptedProduct] = useState<ProductSearchResult | null>(null);
   const [highlightedProduct, setHighlightedProduct] = useState<ProductSearchResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    productsApi.getIndex()
-      .then((products) => {
-        if (!active) return;
-        setProductIndex(products);
-        setLoadError(null);
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setLoadError(error instanceof Error ? error.message : "Failed to load the product index.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const options = useMemo(
     () => searchProductIndex(productIndex, inputValue),

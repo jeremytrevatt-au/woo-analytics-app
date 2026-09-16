@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProductSearchResult } from "../api/productsApi";
 import type { PurchaseOrderLine } from "../api/purchaseOrdersApi";
+import { ProductIndexProvider } from "./ProductIndexProvider";
 import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
 
 const products: ProductSearchResult[] = [
@@ -32,12 +33,14 @@ describe("PurchaseOrderProductSearch", () => {
     const onAdd = vi.fn();
     const onFilterChange = vi.fn();
     const view = render(
-      <PurchaseOrderProductSearch
-        lines={[]}
-        onAdd={onAdd}
-        onExisting={vi.fn()}
-        onFilterChange={onFilterChange}
-      />,
+      <ProductIndexProvider>
+        <PurchaseOrderProductSearch
+          lines={[]}
+          onAdd={onAdd}
+          onExisting={vi.fn()}
+          onFilterChange={onFilterChange}
+        />
+      </ProductIndexProvider>,
     );
 
     const input = await view.findByLabelText("Search SKU or Product Name");
@@ -63,12 +66,14 @@ describe("PurchaseOrderProductSearch", () => {
     const onAdd = vi.fn();
     const onExisting = vi.fn();
     const view = render(
-      <PurchaseOrderProductSearch
-        lines={[existingLine]}
-        onAdd={onAdd}
-        onExisting={onExisting}
-        onFilterChange={vi.fn()}
-      />,
+      <ProductIndexProvider>
+        <PurchaseOrderProductSearch
+          lines={[existingLine]}
+          onAdd={onAdd}
+          onExisting={onExisting}
+          onFilterChange={vi.fn()}
+        />
+      </ProductIndexProvider>,
     );
 
     const input = await view.findByLabelText("Search SKU or Product Name");

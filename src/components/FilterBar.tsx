@@ -158,10 +158,7 @@ function getFilterBarContext(path: string, stockTab: "items" | "shortages" | "st
     return {
       title: "Stocktake Filters",
       showStockStatus: true,
-      showSearch: true,
       showCategory: true,
-      showSkuFilters: true,
-      searchLabel: "Search product or SKU",
     };
   }
 
@@ -171,10 +168,7 @@ function getFilterBarContext(path: string, stockTab: "items" | "shortages" | "st
       showDateRange: true,
       showOrderStatus: true,
       showStockStatus: true,
-      showSearch: true,
       showCategory: true,
-      showSkuFilters: true,
-      searchLabel: "Search order, product, SKU",
     };
   }
 
@@ -185,10 +179,7 @@ function getFilterBarContext(path: string, stockTab: "items" | "shortages" | "st
       showGranularity: true,
       showCompare: true,
       showStockStatus: true,
-      showSearch: true,
       showCategory: true,
-      showSkuFilters: true,
-      searchLabel: "Search product or SKU",
     };
   }
 

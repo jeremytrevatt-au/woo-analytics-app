@@ -11,11 +11,14 @@ import { useStockLedger } from "../hooks/useStockLedger";
 import StockLedgerChartModal from "../components/StockLedgerChartModal";
 import BulkUpdateModal from "../components/BulkUpdateModal";
 import AddToPOModal from "../components/AddToPOModal";
+import StockProductSearch from "../components/StockProductSearch";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { getStocktakeRecords, updateStockProductFields, updateStockQuantity } from "../api/analyticsApi";
+import type { ProductSearchResult } from "../api/productsApi";
 import { useFilters } from "../hooks/useFilters";
 import type { AppFilterState } from "../types/analytics";
 import { getVisibleStockColumns } from "../lib/stockColumns";
+import { filterCurrentStockRows } from "../lib/stockProductSearch";
 
 type StockRangeFilterDraft = Pick<
   AppFilterState,
@@ -313,6 +316,51 @@ function StockPage() {
   const [stockCellDrafts, setStockCellDrafts] = useState<Record<string, string>>({});
   const [stockCellSaving, setStockCellSaving] = useState<Record<string, boolean>>({});
   const [stockCellMessages, setStockCellMessages] = useState<Record<string, string>>({});
+  const [stockProductQuery, setStockProductQuery] = useState(filters.searchText);
+  const [confirmedStockProductQuery, setConfirmedStockProductQuery] = useState(filters.searchText);
+
+  useEffect(() => {
+    if (filters.skuStartsWith || filters.skuContains || filters.skuEndsWith) {
+      updateFilters({
+        skuStartsWith: "",
+        skuContains: "",
+        skuEndsWith: "",
+      });
+    }
+  }, [filters.skuContains, filters.skuEndsWith, filters.skuStartsWith, updateFilters]);
+
+  const handleLocalStockProductQuery = (query: string) => {
+    setStockProductQuery(query);
+    setSelectedStockRecords([]);
+    if (confirmedStockProductQuery && query !== confirmedStockProductQuery) {
+      setConfirmedStockProductQuery("");
+      updateFilter("searchText", "");
+    }
+  };
+
+  const handleConfirmStockProduct = (product: ProductSearchResult) => {
+    const query = product.sku || product.name;
+    setStockProductQuery(query);
+    setConfirmedStockProductQuery(query);
+    updateFilters({
+      searchText: query,
+      skuStartsWith: "",
+      skuContains: "",
+      skuEndsWith: "",
+    });
+  };
+
+  const handleClearStockProduct = () => {
+    setStockProductQuery("");
+    setConfirmedStockProductQuery("");
+    setSelectedStockRecords([]);
+    updateFilters({
+      searchText: "",
+      skuStartsWith: "",
+      skuContains: "",
+      skuEndsWith: "",
+    });
+  };
 
   useEffect(() => {
     setStockRangeDraft(getStockRangeFilterDraft(filters));
@@ -641,8 +689,13 @@ function StockPage() {
     ...row,
     ...(stockProductOverrides[String(row.product_id)] ?? {}),
   }));
+  const filteredStockRows = filterCurrentStockRows(stockRows, stockProductQuery);
+  const filteredShortageRows = filterCurrentStockRows(stockShortages.records, stockProductQuery);
+  const filteredStocktakeRows = filterCurrentStockRows(stocktakeRows, stockProductQuery);
+  const activeLoadedRowCount = activeTab === 0 ? stockRows.length : activeTab === 1 ? stockShortages.records.length : stocktakeRows.length;
+  const activeFilteredRowCount = activeTab === 0 ? filteredStockRows.length : activeTab === 1 ? filteredShortageRows.length : filteredStocktakeRows.length;
 
-  const unifiedRows = stockRows.map((row) => {
+  const unifiedRows = filteredStockRows.map((row) => {
     return {
       ...row,
       weight: renderEditableTextCell(row, "weight", "number"),
@@ -716,6 +769,21 @@ function StockPage() {
         </Tabs>
       </Box>
 
+      <Box sx={{ mb: 2 }}>
+        <StockProductSearch
+          initialQuery={filters.searchText}
+          onLocalQueryChange={handleLocalStockProductQuery}
+          onConfirm={handleConfirmStockProduct}
+          onClear={handleClearStockProduct}
+        />
+        {stockProductQuery && (
+          <Typography variant="caption" color="text.secondary">
+            Showing {activeFilteredRowCount} of {activeLoadedRowCount} rows loaded in this tab.
+            {confirmedStockProductQuery ? " The confirmed product search is also applied to the complete result set." : ""}
+          </Typography>
+        )}
+      </Box>
+
       {activeTab === 0 && (
         <>
           <LoadStateBlock isLoading={isLoading} error={error} empty={!isLoading && !error && rows.length === 0} />
@@ -743,15 +811,6 @@ function StockPage() {
                       <MenuItem value={365}>Last 365 Days</MenuItem>
                       <MenuItem value="dynamic">Dynamic</MenuItem>
                     </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Movement Search"
-                      value={ledgerSearch}
-                      onChange={(e) => setLedgerSearch(e.target.value)}
-                      size="small"
-                    />
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <TextField
@@ -917,7 +976,7 @@ function StockPage() {
           {!stockShortages.isLoading && !stockShortages.error && stockShortages.records.length > 0 ? (
             <DataTablePanel
               title="Stock Shortages & Affected Orders"
-              rows={stockShortages.records}
+              rows={filteredShortageRows}
               columns={stockShortages.columns}
               page={stockShortages.page}
               pageSize={stockShortages.pageSize}
@@ -961,7 +1020,7 @@ function StockPage() {
           <LoadStateBlock isLoading={stocktakeLoading} error={stocktakeError} empty={!stocktakeLoading && !stocktakeError && stocktakeRows.length === 0} />
           {!stocktakeLoading && !stocktakeError && isMobile ? (
             <Stack spacing={1}>
-              {stocktakeRows.map((row: any) => (
+              {filteredStocktakeRows.map((row: any) => (
                 <Card key={String(row.product_id)} variant="outlined">
                   <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
                     <Box sx={{ mb: 1 }}>
@@ -1027,7 +1086,7 @@ function StockPage() {
           {!stocktakeLoading && !stocktakeError && !isMobile ? (
             <DataTablePanel
               title="Stocktake"
-              rows={stocktakeRows.map((row: any) => {
+              rows={filteredStocktakeRows.map((row: any) => {
                 const displayRow = {
                   ...row,
                   product_name: renderStocktakeProductCell(row),
