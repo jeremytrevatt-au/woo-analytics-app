@@ -550,20 +550,20 @@ function PackingPage() {
                   borderRadius: isParentBundle ? 1 : 0,
                   py: isParentBundle ? 1 : 0,
                 }}>
-                  <Grid container spacing={1} alignItems="center">
-                    <Grid item xs={12}>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: {
-                            xs: "minmax(0, 1fr)",
-                            sm: "minmax(0, 1fr) 120px",
-                          },
-                          columnGap: 1,
-                          rowGap: 1,
-                          alignItems: "start",
-                        }}
-                      >
+                  <Box sx={{ width: "100%" }}>
+                  <Box
+                    sx={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "minmax(0, 1fr)",
+                        sm: "minmax(0, 1fr) 120px",
+                      },
+                      columnGap: 1,
+                      rowGap: 1,
+                      alignItems: "start",
+                    }}
+                  >
                         <Box
                           sx={{
                             minWidth: 0,
@@ -714,8 +714,7 @@ function PackingPage() {
                           </Box>
                         </Popover>
                       )}
-                    </Grid>
-                  </Grid>
+                  </Box>
                 </Box>
               );
             })}
