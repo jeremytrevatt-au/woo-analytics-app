@@ -3,11 +3,27 @@ import { Dialog, DialogTitle, DialogContent, IconButton, Box, CircularProgress, 
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchStockLedgerChart, getStockForecastHistory } from "../api/analyticsApi";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { StockForecastHistoryResponse } from "../types/analytics";
+import {
+  StockForecastHistoryResponse,
+  StockMovementChartResponse,
+  StockMovementChartRecord,
+} from "../types/analytics";
 import { resolveStockAnalysisDateRange } from "../lib/stockAnalysis";
+import {
+  filterStockMovements,
+  StockMovementFilter,
+  summarizeStockMovements,
+} from "../lib/stockMovements";
 
 type LookbackMode = number | "dynamic";
 type AnalysisAggregation = "day" | "week" | "month";
+
+function movementReasonToFilter(reason?: string | null): StockMovementFilter {
+  if (reason === "order_placed") return "orders_out";
+  if (reason === "order_restocked" || reason === "order_refunded") return "returns_restocks";
+  if (reason === "manual_edit") return "manual_adjustments";
+  return "all";
+}
 
 interface Props {
   sku: string | null;
@@ -94,6 +110,7 @@ function bucketLabel(date: Date, aggregation: AnalysisAggregation): string {
 function aggregateStockLevels(points: Array<any>, aggregation: AnalysisAggregation): Array<any> {
   const buckets = new Map<string, any>();
   [...points]
+    .filter((point) => point.source === "live_ledger" && point.stock_qty !== null)
     .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
     .forEach((point) => {
       const start = bucketStart(point.dateObj, aggregation);
@@ -106,6 +123,26 @@ function aggregateStockLevels(points: Array<any>, aggregation: AnalysisAggregati
         stock_qty: Number(point.stock_qty ?? point.new_stock_level ?? 0),
       });
     });
+  return Array.from(buckets.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+}
+
+function aggregateMovementPoints(points: Array<any>, aggregation: AnalysisAggregation): Array<any> {
+  const buckets = new Map<string, any>();
+  points.forEach((point) => {
+    const start = bucketStart(point.dateObj, aggregation);
+    const key = bucketKey(point.dateObj, aggregation);
+    const existing = buckets.get(key) ?? {
+      bucket_date: key,
+      bucket_label: bucketLabel(start, aggregation),
+      dateObj: start,
+      stock_in_qty: 0,
+      stock_out_qty: 0,
+    };
+    const change = Number(point.change_amount || 0);
+    if (change > 0) existing.stock_in_qty += change;
+    if (change < 0) existing.stock_out_qty += change;
+    buckets.set(key, existing);
+  });
   return Array.from(buckets.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 }
 
@@ -176,15 +213,15 @@ function buildStockLevelForecast(points: Array<any>, averageDailyUsage: number, 
   return projected;
 }
 
-function mergeChartPoints(stockPoints: Array<any>, usagePoints: Array<any>): Array<any> {
+function mergeChartPoints(stockPoints: Array<any>, movementPoints: Array<any>): Array<any> {
   const byBucket = new Map<string, any>();
-  usagePoints.forEach((point) => {
+  movementPoints.forEach((point) => {
     byBucket.set(point.bucket_date, {
       bucket_date: point.bucket_date,
-      bucket_label: point.movement_date_label,
+      bucket_label: point.bucket_label,
       dateObj: point.dateObj,
-      historical_usage_qty: Number(point.forecast_usage_qty || 0),
-      excluded_usage_qty: Number(point.excluded_qty || 0),
+      stock_in_qty: Number(point.stock_in_qty || 0),
+      stock_out_qty: Number(point.stock_out_qty || 0),
       stock_qty: null,
       projected_stock_qty: null,
     });
@@ -194,8 +231,8 @@ function mergeChartPoints(stockPoints: Array<any>, usagePoints: Array<any>): Arr
       bucket_date: point.bucket_date,
       bucket_label: point.bucket_label,
       dateObj: point.dateObj,
-      historical_usage_qty: 0,
-      excluded_usage_qty: 0,
+      stock_in_qty: 0,
+      stock_out_qty: 0,
       stock_qty: null,
       projected_stock_qty: null,
     };
@@ -210,25 +247,28 @@ function mergeChartPoints(stockPoints: Array<any>, usagePoints: Array<any>): Arr
   return Array.from(byBucket.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 }
 
-export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, movementReason = "order_placed", onClose }: Props) {
-  const [data, setData] = useState<any[]>([]);
+export default function StockLedgerChartModal({ sku, productName, productId, wsviGroupId, canonicalProductKey, lookbackDays = 365, startDate, endDate, movementReason = "all", onClose }: Props) {
+  const [data, setData] = useState<Array<StockMovementChartRecord & { dateObj: Date; timestamp_label: string }>>([]);
+  const [movementSummary, setMovementSummary] = useState<StockMovementChartResponse["summary"] | null>(null);
   const [forecastHistory, setForecastHistory] = useState<StockForecastHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showHistoricalUsage, setShowHistoricalUsage] = useState(true);
-  const [showExcludedUsage, setShowExcludedUsage] = useState(false);
+  const [showStockIn, setShowStockIn] = useState(true);
+  const [showStockOut, setShowStockOut] = useState(true);
   const [showActualStockLevel, setShowActualStockLevel] = useState(true);
   const [showProjectedStockLevel, setShowProjectedStockLevel] = useState(true);
   const [aggregation, setAggregation] = useState<AnalysisAggregation>("day");
   const [localLookbackDays, setLocalLookbackDays] = useState<LookbackMode>(lookbackDays);
-  const [localMovementReason, setLocalMovementReason] = useState<string>(movementReason || "order_placed");
+  const [movementFilter, setMovementFilter] = useState<StockMovementFilter>(
+    movementReasonToFilter(movementReason),
+  );
 
   useEffect(() => {
     setLocalLookbackDays(lookbackDays);
   }, [lookbackDays]);
 
   useEffect(() => {
-    setLocalMovementReason(movementReason || "order_placed");
+    setMovementFilter(movementReasonToFilter(movementReason));
   }, [movementReason]);
 
   useEffect(() => {
@@ -249,9 +289,9 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             sku,
             productId,
             wsviGroupId,
+            canonicalProductKey,
             startDate: analysisRange.startDate,
             endDate: analysisRange.endDate,
-            reason: localMovementReason,
           }),
           getStockForecastHistory(
             apiLookbackDays,
@@ -263,15 +303,16 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
         ]);
         if (isMounted) {
           // Parse dates for the chart
-          const formatted = ledgerResult.map((item) => {
-            let dateObj = new Date(item.timestamp.replace(' ', 'T'));
+          const formatted = ledgerResult.records.map((item) => {
+            const dateObj = new Date(item.timestamp.replace(' ', 'T'));
             return {
               ...item,
-              timestamp: dateObj.toLocaleString("en-AU"),
+              timestamp_label: dateObj.toLocaleString("en-AU"),
               dateObj,
             };
           });
           setData(formatted);
+          setMovementSummary(ledgerResult.summary);
           setForecastHistory(forecastResult);
         }
       } catch (err: any) {
@@ -282,7 +323,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
     };
     load();
     return () => { isMounted = false; };
-  }, [sku, productId, wsviGroupId, canonicalProductKey, localLookbackDays, localMovementReason, startDate, endDate]);
+  }, [sku, productId, wsviGroupId, canonicalProductKey, localLookbackDays, startDate, endDate]);
 
   const rawForecastPoints = forecastHistory?.points.map((point) => ({
     ...point,
@@ -294,15 +335,19 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
   const effectiveLookbackDays = localLookbackDays === "dynamic"
     ? chooseDynamicLookback(rawForecastPoints)
     : localLookbackDays;
+  const filteredMovements = filterStockMovements(data, movementFilter);
+  const filteredMovementSummary = summarizeStockMovements(filteredMovements);
+  const aggregatedMovementPoints = aggregateMovementPoints(filteredMovements, aggregation);
   const aggregatedStockPoints = aggregateStockLevels(data, aggregation);
   const averageDailyUsage = calculateAverageDailyUsage(rawForecastPoints, effectiveLookbackDays);
   const stockLevelChartPoints = buildStockLevelForecast(aggregatedStockPoints, averageDailyUsage, aggregation);
   const forecastPoints = addRollingAverage(aggregateUsagePoints(rawForecastPoints, aggregation), effectiveLookbackDays);
-  const unifiedChartPoints = mergeChartPoints(stockLevelChartPoints, forecastPoints);
+  const unifiedChartPoints = mergeChartPoints(stockLevelChartPoints, aggregatedMovementPoints);
   const includedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.forecast_usage_qty || 0), 0);
   const excludedUsageQty = forecastPoints.reduce((total, point) => total + Number(point.excluded_qty || 0), 0);
-  const firstLedgerDate = data[0]?.timestamp ?? "-";
-  const lastLedgerDate = data[data.length - 1]?.timestamp ?? "-";
+  const liveLedgerPoints = data.filter((point) => point.source === "live_ledger");
+  const firstLedgerDate = liveLedgerPoints[0]?.timestamp_label ?? "-";
+  const lastLedgerDate = liveLedgerPoints[liveLedgerPoints.length - 1]?.timestamp_label ?? "-";
   const firstForecastDate = forecastPoints[0]?.movement_date_label ?? "-";
   const lastForecastDate = forecastPoints[forecastPoints.length - 1]?.movement_date_label ?? "-";
 
@@ -358,25 +403,25 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
           <TextField
             select
             size="small"
-            label="Movement Reason"
-            value={localMovementReason}
-            onChange={(event) => setLocalMovementReason(event.target.value)}
+            label="Movement Type"
+            value={movementFilter}
+            onChange={(event) => setMovementFilter(event.target.value as StockMovementFilter)}
           >
-            <MenuItem value="order_placed">Order Placed</MenuItem>
-            <MenuItem value="manual_edit">Manual Edit</MenuItem>
-            <MenuItem value="order_restocked">Order Restocked</MenuItem>
-            <MenuItem value="order_refunded">Order Refunded</MenuItem>
             <MenuItem value="all">All Movements</MenuItem>
+            <MenuItem value="orders_out">Orders Out</MenuItem>
+            <MenuItem value="stock_arrivals">Stock Arrivals</MenuItem>
+            <MenuItem value="returns_restocks">Returns / Restocks</MenuItem>
+            <MenuItem value="manual_adjustments">Manual Adjustments</MenuItem>
           </TextField>
         </Box>
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
           <FormControlLabel
-            control={<Switch size="small" checked={showHistoricalUsage} onChange={(event) => setShowHistoricalUsage(event.target.checked)} />}
-            label="Historical Usage"
+            control={<Switch size="small" checked={showStockIn} onChange={(event) => setShowStockIn(event.target.checked)} />}
+            label="Stock In"
           />
           <FormControlLabel
-            control={<Switch size="small" checked={showExcludedUsage} onChange={(event) => setShowExcludedUsage(event.target.checked)} />}
-            label="Excluded Usage"
+            control={<Switch size="small" checked={showStockOut} onChange={(event) => setShowStockOut(event.target.checked)} />}
+            label="Stock Out"
           />
           <FormControlLabel
             control={<Switch size="small" checked={showActualStockLevel} onChange={(event) => setShowActualStockLevel(event.target.checked)} />}
@@ -387,7 +432,17 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             label="Projected Stock Level"
           />
         </Box>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, mb: 2 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" }, gap: 2, mb: 2 }}>
+          <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary">Filtered Movements</Typography>
+            <Typography variant="h6">{filteredMovementSummary.movementCount}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              In +{filteredMovementSummary.stockInQty} | Out -{filteredMovementSummary.stockOutQty}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block">
+              Loaded {movementSummary?.total_movements ?? 0}: ledger {movementSummary?.by_source.live_ledger ?? 0}, historical orders {movementSummary?.by_source.historical_orders ?? 0}
+            </Typography>
+          </Box>
           <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
             <Typography variant="caption" color="text.secondary">Live Ledger Points</Typography>
             <Typography variant="h6">{aggregatedStockPoints.length}</Typography>
@@ -402,7 +457,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
           </Box>
         </Box>
 
-        <Typography variant="subtitle2" gutterBottom>Historical Usage, Stock Level & Forecast</Typography>
+        <Typography variant="subtitle2" gutterBottom>Stock Movements, Level & Forecast</Typography>
         <Box sx={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isLoading ? (
             <CircularProgress />
@@ -422,13 +477,13 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
                   height={60} 
                 />
                 <YAxis yAxisId="stock" />
-                <YAxis yAxisId="usage" orientation="right" />
+                <YAxis yAxisId="movement" orientation="right" />
                 <Tooltip />
-                {showHistoricalUsage ? (
-                  <Bar yAxisId="usage" dataKey="historical_usage_qty" fill="#9fceb0" name="Historical Usage" />
+                {showStockIn ? (
+                  <Bar yAxisId="movement" dataKey="stock_in_qty" fill="#2e7d32" name="Stock In" />
                 ) : null}
-                {showExcludedUsage ? (
-                  <Bar yAxisId="usage" dataKey="excluded_usage_qty" fill="#ed6c02" name="Excluded Usage" />
+                {showStockOut ? (
+                  <Bar yAxisId="movement" dataKey="stock_out_qty" fill="#d32f2f" name="Stock Out" />
                 ) : null}
                 {showActualStockLevel ? (
                   <Line yAxisId="stock" type="stepAfter" dataKey="stock_qty" stroke="#1976d2" strokeWidth={2} dot={{ r: 3 }} name="Actual Stock Level" />
@@ -440,21 +495,24 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
             </ResponsiveContainer>
           )}
         </Box>
-        <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>Live Ledger Detail</Typography>
+        <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>Movement Detail</Typography>
         <Box sx={{ maxHeight: 260, overflow: "auto", mb: 2 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
                 <TableCell>Date/Time</TableCell>
+                <TableCell>Source</TableCell>
                 <TableCell>Reason</TableCell>
                 <TableCell>Woo Order</TableCell>
+                <TableCell align="right">Movement</TableCell>
                 <TableCell align="right">Stock Level</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {data.map((item, index) => (
+              {filteredMovements.map((item, index) => (
                 <TableRow key={`${item.timestamp}-${index}`}>
-                  <TableCell>{item.timestamp}</TableCell>
+                  <TableCell>{item.timestamp_label}</TableCell>
+                  <TableCell>{item.source === "live_ledger" ? "Live ledger" : "Historical order"}</TableCell>
                   <TableCell>{item.reason || "-"}</TableCell>
                   <TableCell>
                     {item.order_number && item.reference_id ? (
@@ -470,7 +528,10 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
                       "-"
                     )}
                   </TableCell>
-                  <TableCell align="right">{item.stock_qty}</TableCell>
+                  <TableCell align="right">
+                    {item.change_amount > 0 ? `+${item.change_amount}` : item.change_amount}
+                  </TableCell>
+                  <TableCell align="right">{item.stock_qty ?? "-"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

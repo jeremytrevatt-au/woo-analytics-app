@@ -21,6 +21,35 @@ export interface StockLedgerResponse {
   total_pages: number;
 }
 
+export type StockMovementCategory =
+  | "orders_out"
+  | "stock_arrivals"
+  | "returns_restocks"
+  | "manual_adjustments";
+
+export type StockMovementChartRecord = {
+  timestamp: string;
+  stock_qty: number | null;
+  change_amount: number;
+  reason: string;
+  reference_id: number;
+  order_number: string | null;
+  source: "live_ledger" | "historical_orders";
+  movement_category: StockMovementCategory;
+  sku: string | null;
+};
+
+export type StockMovementChartResponse = {
+  records: StockMovementChartRecord[];
+  summary: {
+    total_movements: number;
+    stock_in_qty: number;
+    stock_out_qty: number;
+    by_source: Record<string, number>;
+    by_category: Record<string, number>;
+  };
+};
+
 export type AppFilterState = {
   dateRange: "custom" | "today" | "this_week" | "last_week" | "mtd" | "last_month" | "qtd" | "ytd" | "last_year" | "last_3_months" | "last_6_months" | "last_12_months" | "all_time";
   compareEnabled: boolean;

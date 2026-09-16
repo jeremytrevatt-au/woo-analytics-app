@@ -25,12 +25,12 @@ function StockHistoryForecastPanel({ sku, productName, productId, wsviGroupId, c
     setIsLoading(true);
     setError(null);
     Promise.all([
-      fetchStockLedgerChart({ sku, productId, wsviGroupId }),
+      fetchStockLedgerChart({ sku, productId, wsviGroupId, canonicalProductKey }),
       getStockForecastHistory(lookbackDays, canonicalProductKey, sku),
     ])
       .then(([ledgerResult, forecastResult]) => {
         if (!isMounted) return;
-        setStockHistory(ledgerResult.map((item) => ({
+        setStockHistory(ledgerResult.records.map((item) => ({
           ...item,
           timestamp_label: new Date(item.timestamp.replace(" ", "T")).toLocaleDateString("en-AU"),
         })));
