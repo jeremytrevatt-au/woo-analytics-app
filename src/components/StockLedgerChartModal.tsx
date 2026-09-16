@@ -4,6 +4,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { fetchStockLedgerChart, getStockForecastHistory } from "../api/analyticsApi";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StockForecastHistoryResponse } from "../types/analytics";
+import { resolveStockAnalysisDateRange } from "../lib/stockAnalysis";
 
 type LookbackMode = number | "dynamic";
 type AnalysisAggregation = "day" | "week" | "month";
@@ -238,9 +239,27 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
       setError(null);
       try {
         const apiLookbackDays = localLookbackDays === "dynamic" ? 365 : localLookbackDays;
+        const analysisRange = resolveStockAnalysisDateRange(
+          apiLookbackDays,
+          startDate,
+          endDate,
+        );
         const [ledgerResult, forecastResult] = await Promise.all([
-          fetchStockLedgerChart({ sku, productId, wsviGroupId, startDate, endDate, reason: localMovementReason }),
-          getStockForecastHistory(apiLookbackDays, canonicalProductKey, sku, startDate, endDate)
+          fetchStockLedgerChart({
+            sku,
+            productId,
+            wsviGroupId,
+            startDate: analysisRange.startDate,
+            endDate: analysisRange.endDate,
+            reason: localMovementReason,
+          }),
+          getStockForecastHistory(
+            apiLookbackDays,
+            canonicalProductKey,
+            sku,
+            analysisRange.startDate,
+            analysisRange.endDate,
+          )
         ]);
         if (isMounted) {
           // Parse dates for the chart

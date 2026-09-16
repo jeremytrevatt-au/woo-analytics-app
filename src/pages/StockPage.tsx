@@ -1167,8 +1167,6 @@ function StockPage() {
         wsviGroupId={selectedSku?.wsviGroupId || null}
         canonicalProductKey={selectedSku?.canonicalProductKey || null}
         lookbackDays={lookbackDays}
-        startDate={filters.startDate}
-        endDate={filters.endDate}
         movementReason={ledgerReason}
         onClose={() => setSelectedSku(null)}
       />
