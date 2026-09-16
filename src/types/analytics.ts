@@ -34,7 +34,7 @@ export type StockMovementChartRecord = {
   reason: string;
   reference_id: number;
   order_number: string | null;
-  source: "live_ledger" | "historical_orders";
+  source: "live_ledger" | "historical_orders" | "purchase_order_receipts";
   movement_category: StockMovementCategory;
   sku: string | null;
 };

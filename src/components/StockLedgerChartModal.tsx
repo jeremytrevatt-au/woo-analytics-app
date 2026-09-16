@@ -110,7 +110,7 @@ function bucketLabel(date: Date, aggregation: AnalysisAggregation): string {
 function aggregateStockLevels(points: Array<any>, aggregation: AnalysisAggregation): Array<any> {
   const buckets = new Map<string, any>();
   [...points]
-    .filter((point) => point.source === "live_ledger" && point.stock_qty !== null)
+    .filter((point) => point.source !== "historical_orders" && point.stock_qty !== null)
     .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
     .forEach((point) => {
       const start = bucketStart(point.dateObj, aggregation);
@@ -440,7 +440,7 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
               In +{filteredMovementSummary.stockInQty} | Out -{filteredMovementSummary.stockOutQty}
             </Typography>
             <Typography variant="caption" color="text.secondary" display="block">
-              Loaded {movementSummary?.total_movements ?? 0}: ledger {movementSummary?.by_source.live_ledger ?? 0}, historical orders {movementSummary?.by_source.historical_orders ?? 0}
+              Loaded {movementSummary?.total_movements ?? 0}: ledger {movementSummary?.by_source.live_ledger ?? 0}, PO receipts {movementSummary?.by_source.purchase_order_receipts ?? 0}, historical orders {movementSummary?.by_source.historical_orders ?? 0}
             </Typography>
           </Box>
           <Box sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
@@ -512,7 +512,13 @@ export default function StockLedgerChartModal({ sku, productName, productId, wsv
               {filteredMovements.map((item, index) => (
                 <TableRow key={`${item.timestamp}-${index}`}>
                   <TableCell>{item.timestamp_label}</TableCell>
-                  <TableCell>{item.source === "live_ledger" ? "Live ledger" : "Historical order"}</TableCell>
+                  <TableCell>
+                    {item.source === "live_ledger"
+                      ? "Live ledger"
+                      : item.source === "purchase_order_receipts"
+                        ? "PO receipt"
+                        : "Historical order"}
+                  </TableCell>
                   <TableCell>{item.reason || "-"}</TableCell>
                   <TableCell>
                     {item.order_number && item.reference_id ? (
