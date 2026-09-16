@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material"
 import { getStocktakeRecords, updateStockProductFields, updateStockQuantity } from "../api/analyticsApi";
 import { useFilters } from "../hooks/useFilters";
 import type { AppFilterState } from "../types/analytics";
+import { getVisibleStockColumns } from "../lib/stockColumns";
 
 type StockRangeFilterDraft = Pick<
   AppFilterState,
@@ -683,14 +684,13 @@ function StockPage() {
       }
       return [normalizedColumn];
     });
-  const unifiedColumns = [
+  const configurableUnifiedColumns = [
     ...baseUnifiedColumns,
     { key: "reorder_within_lead_time", label: "Needs Reorder", type: "boolean" as const },
     { key: "recent_movement_count", label: "Recent Movements", type: "number" as const },
-    { key: "actions", label: "Actions", type: "node" as const },
   ];
-  const visibleUnifiedColumns = unifiedColumns.filter((column) => visibleStockColumnKeys.includes(column.key));
-  const columnSelectorOptions = unifiedColumns;
+  const visibleUnifiedColumns = getVisibleStockColumns(configurableUnifiedColumns, visibleStockColumnKeys);
+  const columnSelectorOptions = configurableUnifiedColumns;
 
   return (
     <Stack spacing={2}>
@@ -861,7 +861,7 @@ function StockPage() {
                     variant="outlined"
                     onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
                   >
-                    Columns ({visibleUnifiedColumns.length})
+                    Columns ({visibleUnifiedColumns.length - 1})
                   </Button>
                   <Menu
                     anchorEl={columnMenuAnchor}
