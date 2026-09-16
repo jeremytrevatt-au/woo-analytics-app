@@ -7,7 +7,7 @@ import { useProductIndex } from "./ProductIndexProvider";
 type Props = {
   initialQuery?: string;
   onLocalQueryChange: (query: string) => void;
-  onConfirm: (product: ProductSearchResult) => void;
+  onConfirm: (query: string) => void;
   onClear: () => void;
 };
 
@@ -65,9 +65,10 @@ export default function StockProductSearch({
   };
 
   const confirmSelection = () => {
-    if (!acceptedProduct) return;
-    onConfirm(acceptedProduct);
-    setStatusMessage(`Searching all stock records for ${acceptedProduct.sku || acceptedProduct.name}.`);
+    const query = acceptedProduct ? localFilterValue(acceptedProduct) : inputValue.trim();
+    if (!query) return;
+    onConfirm(query);
+    setStatusMessage(`Searching all stock records for ${query}.`);
   };
 
   const handleKeyDown = (event: MuiKeyboardEvent) => {
@@ -80,17 +81,11 @@ export default function StockProductSearch({
       return;
     }
 
-    if (event.key === "Enter" && acceptedProduct) {
+    if (event.key === "Enter" && inputValue.trim()) {
       event.preventDefault();
       event.defaultMuiPrevented = true;
       confirmSelection();
       return;
-    }
-
-    if (event.key === "Enter" && productToAccept) {
-      event.preventDefault();
-      event.defaultMuiPrevented = true;
-      acceptSuggestion(productToAccept);
     }
   };
 
@@ -137,7 +132,7 @@ export default function StockProductSearch({
               {...params}
               label="Search SKU or Product Name"
               error={Boolean(error)}
-              helperText={error || statusMessage || "Typing filters this tab's loaded rows. Tab accepts; Enter searches all stock records."}
+              helperText={error || statusMessage || "Enter searches the partial term. Tab accepts a suggestion, then Enter searches that exact item."}
               InputProps={{
                 ...params.InputProps,
                 endAdornment: (
@@ -153,7 +148,7 @@ export default function StockProductSearch({
         <Button
           variant="contained"
           onClick={confirmSelection}
-          disabled={!acceptedProduct}
+          disabled={!inputValue.trim()}
           sx={{ minWidth: 160, mt: { sm: 1 } }}
         >
           Search All Stock

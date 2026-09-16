@@ -51,6 +51,27 @@ describe("StockProductSearch", () => {
     expect(onLocalQueryChange).toHaveBeenCalledWith("PLAN-BLUE");
 
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(onConfirm).toHaveBeenCalledWith(products[0]);
+    expect(onConfirm).toHaveBeenCalledWith("PLAN-BLUE");
+  });
+
+  it("submits a partial SKU without requiring a suggestion selection", async () => {
+    productsApiMock.getIndex.mockResolvedValue(products);
+    const onConfirm = vi.fn();
+    const view = render(
+      <ProductIndexProvider>
+        <StockProductSearch
+          onLocalQueryChange={vi.fn()}
+          onConfirm={onConfirm}
+          onClear={vi.fn()}
+        />
+      </ProductIndexProvider>,
+    );
+
+    const input = await view.findByLabelText("Search SKU or Product Name");
+    fireEvent.change(input, { target: { value: "PLAN-" } });
+    await view.findByText("[PLAN-BLUE] Blue Planter");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onConfirm).toHaveBeenCalledWith("PLAN-");
   });
 });

@@ -14,7 +14,6 @@ import AddToPOModal from "../components/AddToPOModal";
 import StockProductSearch from "../components/StockProductSearch";
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { getStocktakeRecords, updateStockProductFields, updateStockQuantity } from "../api/analyticsApi";
-import type { ProductSearchResult } from "../api/productsApi";
 import { useFilters } from "../hooks/useFilters";
 import type { AppFilterState } from "../types/analytics";
 import { getVisibleStockColumns } from "../lib/stockColumns";
@@ -338,8 +337,7 @@ function StockPage() {
     }
   };
 
-  const handleConfirmStockProduct = (product: ProductSearchResult) => {
-    const query = product.sku || product.name;
+  const handleConfirmStockProduct = (query: string) => {
     setStockProductQuery(query);
     setConfirmedStockProductQuery(query);
     updateFilters({
