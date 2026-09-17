@@ -407,3 +407,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. The default packing flow should edit Shippit's existing order when it exists, rather than creating a new quote-first workflow.
 4. Understood next steps (remaining TODOs):
    1. Test a Shippit order and an Australia Post order from the Packing page to confirm the two user paths are clearly separated.
+
+## 2026-09-17 04:16 UTC
+
+1. TODOs completed:
+   1. Seeded Packing Dimensions parcel rows from WooCommerce product dimensions when no existing Shippit order is available.
+   2. Kept manual parcel entry available when WooCommerce product dimensions are missing.
+   3. Avoided duplicate parcel rows for bundle child lines when the bundle parent has usable dimensions.
+   4. Deployed frontend revision `woo-analytics-app-00165-h9q` and invalidated the CDN cache.
+2. Git build reference:
+   1. App commit: `18104eee0d5cde2713b7a82a80ed18936808e748`.
+3. New understandings/learnings:
+   1. Non-Shippit packing orders still need quote-ready seed dimensions, otherwise the dialog opens with blank parcel rows and cannot request Shippit quotes.
+4. Understood next steps (remaining TODOs):
+   1. Test an Australia Post order on the Packing page to confirm seeded dimensions are accurate before requesting Shippit quotes.
