@@ -9,7 +9,9 @@ type Props = {
   currentStatus: string;
   isSaving: boolean;
   canChangePackingStatus: boolean;
+  canFulfill: boolean;
   onDimensions: (event: React.MouseEvent) => void;
+  onFulfillment: (event: React.MouseEvent) => void;
   onCrm: (event: React.MouseEvent) => void;
   onStatusChange: (status: "unpacked" | "packing" | "packed", event: React.MouseEvent) => void;
 };
@@ -22,7 +24,9 @@ export default function PackingOrderFooter({
   currentStatus,
   isSaving,
   canChangePackingStatus,
+  canFulfill,
   onDimensions,
+  onFulfillment,
   onCrm,
   onStatusChange,
 }: Props) {
@@ -55,6 +59,9 @@ export default function PackingOrderFooter({
       >
         <Button size="small" variant="outlined" onClick={onDimensions}>
           L W H
+        </Button>
+        <Button size="small" variant="outlined" color="success" onClick={onFulfillment} disabled={!canFulfill || isSaving}>
+          Partial fulfillment
         </Button>
         <Button size="small" variant="outlined" onClick={onCrm}>
           CRM

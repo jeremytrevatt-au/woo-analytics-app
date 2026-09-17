@@ -17,7 +17,9 @@ import PackingDocumentsDialog from "../components/PackingDocumentsDialog";
 import PackingLineDetails from "../components/PackingLineDetails";
 import PackingOrderFooter from "../components/PackingOrderFooter";
 import PackingStockDisplay from "../components/PackingStockDisplay";
+import FulfillmentShipmentDialog from "../components/FulfillmentShipmentDialog";
 import { groupPackingOrdersByUser } from "../lib/packing";
+import { wordpressAdminUrl } from "../config/wordpress";
 
 type QueueContext = {
   duplicateFirstNameKeys: Set<string>;
@@ -51,6 +53,7 @@ function PackingPage() {
   const [crmOrder, setCrmOrder] = useState<any | null>(null);
   const [dimensionsOrder, setDimensionsOrder] = useState<any | null>(null);
   const [documentOrder, setDocumentOrder] = useState<any | null>(null);
+  const [fulfillmentOrders, setFulfillmentOrders] = useState<any[]>([]);
 
   useEffect(() => {
     listDocumentTemplates({ enabled: "true" })
@@ -396,7 +399,7 @@ function PackingPage() {
                         size="small"
                         color="primary"
                         component="a"
-                        href={`https://naturalyield.com.au/wp-admin/admin.php?page=wc-orders&action=edit&id=${order.order_id}`}
+                        href={wordpressAdminUrl(`admin.php?page=wc-orders&action=edit&id=${order.order_id}`) || undefined}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Open WooCommerce order ${order.order_id}`}
@@ -611,7 +614,7 @@ function PackingPage() {
                                   size="small"
                                   label="Woo"
                                   component="a"
-                                  href={`https://naturalyield.com.au/wp-admin/post.php?post=${getLineWooProductAdminId(line, stockOverride)}&action=edit`}
+                                  href={wordpressAdminUrl(`post.php?post=${getLineWooProductAdminId(line, stockOverride)}&action=edit`) || undefined}
                                   target="_blank"
                                   clickable
                                   onClick={(e) => e.stopPropagation()}
@@ -755,9 +758,14 @@ function PackingPage() {
           currentStatus={currentStatus}
           isSaving={!!packingSaving[order.order_id]}
           canChangePackingStatus={canChangePackingStatus}
+          canFulfill={currentStatus !== "packed" && canChangePackingStatus}
           onDimensions={(event) => {
             event.stopPropagation();
             setDimensionsOrder(order);
+          }}
+          onFulfillment={(event) => {
+            event.stopPropagation();
+            setFulfillmentOrders([order]);
           }}
           onCrm={(event) => {
             event.stopPropagation();
@@ -792,6 +800,15 @@ function PackingPage() {
           <Alert severity="info" sx={{ mb: 1 }}>
             Same customer group: {firstOrder.customer_name} has {group.orders.length} orders in Ready to Pack ({orderIds})
           </Alert>
+          <Button
+            size="small"
+            variant="contained"
+            color="info"
+            sx={{ mb: 1 }}
+            onClick={() => setFulfillmentOrders(group.orders)}
+          >
+            Combine orders into one shipment
+          </Button>
           {group.orders.map(order => renderOrderCard(order, readyToPackContext))}
         </Box>
       );
@@ -924,6 +941,12 @@ function PackingPage() {
         open={!!dimensionsOrder}
         order={dimensionsOrder}
         onClose={() => setDimensionsOrder(null)}
+      />
+      <FulfillmentShipmentDialog
+        open={fulfillmentOrders.length > 0}
+        orders={fulfillmentOrders}
+        onClose={() => setFulfillmentOrders([])}
+        onCompleted={() => void refetch()}
       />
     </Stack>
   );

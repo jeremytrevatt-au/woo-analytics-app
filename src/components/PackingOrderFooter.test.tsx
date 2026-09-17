@@ -15,7 +15,9 @@ describe("PackingOrderFooter", () => {
         currentStatus="unpacked"
         isSaving={false}
         canChangePackingStatus
+        canFulfill
         onDimensions={vi.fn()}
+        onFulfillment={vi.fn()}
         onCrm={vi.fn()}
         onStatusChange={vi.fn()}
       />,
@@ -32,6 +34,7 @@ describe("PackingOrderFooter", () => {
 
   it("keeps CRM and packing actions functional", () => {
     const onCrm = vi.fn();
+    const onFulfillment = vi.fn();
     const onStatusChange = vi.fn();
     const view = render(
       <PackingOrderFooter
@@ -42,16 +45,20 @@ describe("PackingOrderFooter", () => {
         currentStatus="packing"
         isSaving={false}
         canChangePackingStatus
+        canFulfill
         onDimensions={vi.fn()}
+        onFulfillment={onFulfillment}
         onCrm={onCrm}
         onStatusChange={onStatusChange}
       />,
     );
 
     fireEvent.click(view.getByRole("button", { name: "CRM" }));
+    fireEvent.click(view.getByRole("button", { name: "Partial fulfillment" }));
     fireEvent.click(view.getByRole("button", { name: "Packed" }));
 
     expect(onCrm).toHaveBeenCalledOnce();
+    expect(onFulfillment).toHaveBeenCalledOnce();
     expect(onStatusChange).toHaveBeenCalledWith("packed", expect.anything());
   });
 });
