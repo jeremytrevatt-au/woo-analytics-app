@@ -353,6 +353,9 @@ function PackingPage() {
 
   // Group orders
   const getOrderStatus = (order: any) => {
+    if (order.fulfillment?.remaining_quantity === 0 && order.fulfillment?.operation_tracking) {
+      return "packed";
+    }
     return order.status || 'unpacked';
   };
 
