@@ -1,0 +1,15 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VITE_ANALYTICS_API_BASE_URL=https://woo-analytics-service-staging-kfnxalgclq-ts.a.run.app
+      - --tag
+      - australia-southeast1-docker.pkg.dev/natural-yield-analytics-stg/woo-analytics-staging/woo-analytics-app:${_GIT_REF}
+      - .
+images:
+  - australia-southeast1-docker.pkg.dev/natural-yield-analytics-stg/woo-analytics-staging/woo-analytics-app:${_GIT_REF}
+substitutions:
+  _GIT_REF: unknown
+options:
+  logging: CLOUD_LOGGING_ONLY
