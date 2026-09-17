@@ -1,4 +1,5 @@
 import { fetchJson } from "./httpClient";
+import type { PackingQuoteResponse, PackingQuoteSelection } from "./shippitPackingApi";
 
 export type FulfillmentLine = {
   order_id: number;
@@ -66,11 +67,23 @@ export async function previewFulfillment(orderIds: number[]): Promise<Fulfillmen
   });
 }
 
+export async function quoteFulfillment(payload: {
+  order_ids: number[];
+  items: Array<{ order_id: number; order_item_id: number; quantity: number }>;
+  parcels: FulfillmentParcel[];
+}): Promise<PackingQuoteResponse> {
+  return fetchJson<PackingQuoteResponse>("/api/v1/packing/fulfillment/quote", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function createFulfillment(payload: {
   operation_id: string;
   order_ids: number[];
   items: Array<{ order_id: number; order_item_id: number; quantity: number }>;
   parcels: FulfillmentParcel[];
+  quote_selection?: PackingQuoteSelection | null;
   cancel_existing_shipments: boolean;
   notify_customer: boolean;
 }): Promise<FulfillmentOperation> {

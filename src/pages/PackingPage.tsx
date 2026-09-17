@@ -18,6 +18,7 @@ import PackingLineDetails from "../components/PackingLineDetails";
 import PackingOrderFooter from "../components/PackingOrderFooter";
 import PackingStockDisplay from "../components/PackingStockDisplay";
 import FulfillmentShipmentDialog from "../components/FulfillmentShipmentDialog";
+import CombinedShipmentDialog from "../components/CombinedShipmentDialog";
 import { groupPackingOrdersByUser } from "../lib/packing";
 import { wordpressAdminUrl } from "../config/wordpress";
 
@@ -54,6 +55,7 @@ function PackingPage() {
   const [dimensionsOrder, setDimensionsOrder] = useState<any | null>(null);
   const [documentOrder, setDocumentOrder] = useState<any | null>(null);
   const [fulfillmentOrders, setFulfillmentOrders] = useState<any[]>([]);
+  const [combinedOrders, setCombinedOrders] = useState<any[]>([]);
 
   useEffect(() => {
     listDocumentTemplates({ enabled: "true" })
@@ -758,7 +760,9 @@ function PackingPage() {
           currentStatus={currentStatus}
           isSaving={!!packingSaving[order.order_id]}
           canChangePackingStatus={canChangePackingStatus}
-          canFulfill={currentStatus !== "packed" && canChangePackingStatus}
+          canFulfill={Boolean(order.fulfillment?.can_fulfill) && currentStatus !== "packed" && canChangePackingStatus}
+          fulfillmentTracking={order.fulfillment?.operation_tracking || null}
+          fulfillmentRemaining={order.fulfillment?.remaining_quantity ?? null}
           onDimensions={(event) => {
             event.stopPropagation();
             setDimensionsOrder(order);
@@ -785,6 +789,12 @@ function PackingPage() {
 
       const firstOrder = group.orders[0];
       const orderIds = group.orders.map(order => `#${order.order_id}`).join(", ");
+      const completedCombined = group.orders
+        .map(order => order.fulfillment)
+        .find(fulfillment => fulfillment?.operation_mode === "combined"
+          && ["completed", "fulfillment_pending"].includes(fulfillment?.operation_status));
+      const canCombine = !completedCombined
+        && group.orders.every(order => Boolean(order.fulfillment?.can_fulfill));
       return (
         <Box
           key={group.key}
@@ -800,15 +810,22 @@ function PackingPage() {
           <Alert severity="info" sx={{ mb: 1 }}>
             Same customer group: {firstOrder.customer_name} has {group.orders.length} orders in Ready to Pack ({orderIds})
           </Alert>
-          <Button
-            size="small"
-            variant="contained"
-            color="info"
-            sx={{ mb: 1 }}
-            onClick={() => setFulfillmentOrders(group.orders)}
-          >
-            Combine orders into one shipment
-          </Button>
+          {completedCombined ? (
+            <Alert severity="success" sx={{ mb: 1 }}>
+              Combined shipment {completedCombined.operation_tracking || completedCombined.operation_id}
+            </Alert>
+          ) : (
+            <Button
+              size="small"
+              variant="contained"
+              color="info"
+              sx={{ mb: 1 }}
+              onClick={() => setCombinedOrders(group.orders)}
+              disabled={!canCombine}
+            >
+              Combine orders into one shipment
+            </Button>
+          )}
           {group.orders.map(order => renderOrderCard(order, readyToPackContext))}
         </Box>
       );
@@ -946,6 +963,12 @@ function PackingPage() {
         open={fulfillmentOrders.length > 0}
         orders={fulfillmentOrders}
         onClose={() => setFulfillmentOrders([])}
+        onCompleted={() => void refetch()}
+      />
+      <CombinedShipmentDialog
+        open={combinedOrders.length > 1}
+        orders={combinedOrders}
+        onClose={() => setCombinedOrders([])}
         onCompleted={() => void refetch()}
       />
     </Stack>

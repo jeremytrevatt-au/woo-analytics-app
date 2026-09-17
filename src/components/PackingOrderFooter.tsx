@@ -10,6 +10,8 @@ type Props = {
   isSaving: boolean;
   canChangePackingStatus: boolean;
   canFulfill: boolean;
+  fulfillmentTracking?: string | null;
+  fulfillmentRemaining?: number | null;
   onDimensions: (event: React.MouseEvent) => void;
   onFulfillment: (event: React.MouseEvent) => void;
   onCrm: (event: React.MouseEvent) => void;
@@ -25,6 +27,8 @@ export default function PackingOrderFooter({
   isSaving,
   canChangePackingStatus,
   canFulfill,
+  fulfillmentTracking,
+  fulfillmentRemaining,
   onDimensions,
   onFulfillment,
   onCrm,
@@ -45,6 +49,9 @@ export default function PackingOrderFooter({
         <Chip size="small" label={`Subtotal: ${formatCurrency(subtotal)}`} variant="outlined" />
         <Chip size="small" label={`Shipping: ${formatCurrency(shipping)}`} variant="outlined" />
         <Chip size="small" label={`Total: ${formatCurrency(total)}`} variant="outlined" color="primary" />
+        {fulfillmentTracking && (
+          <Chip size="small" label={`Fulfilled: ${fulfillmentTracking}`} color="success" />
+        )}
       </Stack>
       <Typography variant="body2" color="text.secondary">
         Shipping method: <Box component="span" color="text.primary" fontWeight={700}>{shippingMethod || "Not recorded"}</Box>
@@ -61,7 +68,7 @@ export default function PackingOrderFooter({
           L W H
         </Button>
         <Button size="small" variant="outlined" color="success" onClick={onFulfillment} disabled={!canFulfill || isSaving}>
-          Partial fulfillment
+          {fulfillmentRemaining === 0 ? "Fulfilled" : "Partial fulfillment"}
         </Button>
         <Button size="small" variant="outlined" onClick={onCrm}>
           CRM
