@@ -51,6 +51,100 @@ describe("PackingDimensionsDialog", () => {
     ));
   });
 
+  it("seeds Australia Post parcels from WooCommerce product dimensions", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 103,
+      has_shippit_order: false,
+      can_edit: false,
+      shipping_methods: [{ name: "Australia Post Parcel Post" }],
+      parcels: [],
+      message: "Shippit Order doesn't exist - check Australia Post.",
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 25,
+      body: { response: [] },
+    });
+
+    const view = render(
+      <PackingDimensionsDialog
+        open
+        order={{
+          order_id: 103,
+          lines: [
+            {
+              order_item_id: 1,
+              qty: 2,
+              product_weight: 260,
+              product_length: 30,
+              product_width: 20,
+              product_height: 10,
+            },
+          ],
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByDisplayValue("260")).toBeInTheDocument());
+    expect(view.getByDisplayValue("30")).toBeInTheDocument();
+    expect(view.getByDisplayValue("20")).toBeInTheDocument();
+    expect(view.getByDisplayValue("10")).toBeInTheDocument();
+
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+
+    await waitFor(() => expect(apiMocks.previewPackingQuote).toHaveBeenCalledWith(
+      103,
+      [{ qty: 2, weight_kg: 0.26, length_cm: 30, width_cm: 20, height_cm: 10 }],
+    ));
+  });
+
+  it("does not duplicate bundle child dimensions when the bundle parent has dimensions", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 104,
+      has_shippit_order: false,
+      can_edit: false,
+      parcels: [],
+    });
+
+    const view = render(
+      <PackingDimensionsDialog
+        open
+        order={{
+          order_id: 104,
+          lines: [
+            {
+              order_item_id: 10,
+              qty: 1,
+              product_weight: 1500,
+              product_length: 55,
+              product_width: 31.5,
+              product_height: 29,
+              is_bundle_parent: true,
+              bundle_cart_key: "bundle-1",
+            },
+            {
+              order_item_id: 11,
+              qty: 1,
+              product_weight: 260,
+              product_length: 30,
+              product_width: 20,
+              product_height: 10,
+              bundled_by: "bundle-1",
+            },
+          ],
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByDisplayValue("1500")).toBeInTheDocument());
+    expect(view.queryByDisplayValue("260")).not.toBeInTheDocument();
+  });
+
   it("quotes a cancelled Shippit order using selectable cards without radio controls", async () => {
     apiMocks.getPackingShippitOrder.mockResolvedValue({
       order_id: 102,

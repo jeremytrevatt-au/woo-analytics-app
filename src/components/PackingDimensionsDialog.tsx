@@ -68,6 +68,43 @@ function buildParcelsFromShippitOrder(parcels: PackingShippitOrderParcel[]): Par
   }));
 }
 
+function positiveNumber(value: unknown): number {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : 0;
+}
+
+function hasValidProductDimensions(line: any): boolean {
+  return positiveNumber(line?.product_weight) > 0
+    && positiveNumber(line?.product_length) > 0
+    && positiveNumber(line?.product_width) > 0
+    && positiveNumber(line?.product_height) > 0;
+}
+
+function buildParcelsFromOrderLines(order: any): ParcelDraft[] {
+  const lines = Array.isArray(order?.lines) ? order.lines : [];
+  const dimensionedBundleParentKeys = new Set(
+    lines
+      .filter((line: any) => Boolean(line?.is_bundle_parent) && hasValidProductDimensions(line))
+      .map((line: any) => String(line.bundle_cart_key || line.order_item_id || ""))
+      .filter(Boolean),
+  );
+
+  return lines
+    .filter((line: any) => {
+      if (!hasValidProductDimensions(line)) return false;
+      if (line?.bundled_by && dimensionedBundleParentKeys.has(String(line.bundled_by))) return false;
+      return true;
+    })
+    .map((line: any) => ({
+      id: crypto.randomUUID(),
+      qty: numericString(Math.max(1, Math.floor(Number(line.qty || 1)))) || "1",
+      weightGrams: numericString(line.product_weight),
+      lengthCm: numericString(line.product_length),
+      widthCm: numericString(line.product_width),
+      heightCm: numericString(line.product_height),
+    }));
+}
+
 function parseParcels(parcels: ParcelDraft[]): PackingQuoteParcel[] {
   return parcels.map(parcel => ({
     qty: Number(parcel.qty),
@@ -176,13 +213,20 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
         setShippitOrder(response);
         if (response.has_shippit_order && Array.isArray(response.parcels) && response.parcels.length > 0) {
           setParcels(buildParcelsFromShippitOrder(response.parcels));
+          setMessage({
+            type: "info",
+            text: response.message || "Existing Shippit order loaded.",
+          });
         } else {
-          setParcels([createBlankParcel()]);
+          const productParcels = buildParcelsFromOrderLines(order);
+          setParcels(productParcels.length > 0 ? productParcels : [createBlankParcel()]);
+          setMessage({
+            type: productParcels.length > 0 ? "info" : "warning",
+            text: productParcels.length > 0
+              ? `No existing Shippit order found. Seeded ${productParcels.length} parcel(s) from WooCommerce product dimensions; check before quoting.`
+              : response.message || "No existing Shippit order found, and WooCommerce product dimensions are missing. Enter parcel dimensions manually before quoting.",
+          });
         }
-        setMessage({
-          type: response.has_shippit_order ? "info" : "warning",
-          text: response.message || (response.has_shippit_order ? "Existing Shippit order loaded." : "Shippit Order doesn't exist - check Australia Post."),
-        });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
