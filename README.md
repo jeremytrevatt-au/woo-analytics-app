@@ -421,3 +421,15 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Non-Shippit packing orders still need quote-ready seed dimensions, otherwise the dialog opens with blank parcel rows and cannot request Shippit quotes.
 4. Understood next steps (remaining TODOs):
    1. Test an Australia Post order on the Packing page to confirm seeded dimensions are accurate before requesting Shippit quotes.
+
+## 2026-09-17 07:12 UTC
+
+1. TODOs completed:
+   1. Defined a separate staging app deployment using the staging analytics API base URL.
+2. Git build reference:
+   1. App commit: pending.
+3. New understandings/learnings:
+   1. The frontend selects its analytics backend at build time; the WordPress plugin environment assertion does not route frontend requests.
+4. Understood next steps (remaining TODOs):
+   1. Commit and deploy `woo-analytics-app-staging`.
+   2. Verify all API requests and responses in the existing debug panel against the staging backend.
