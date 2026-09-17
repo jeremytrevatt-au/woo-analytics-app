@@ -422,14 +422,15 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Test an Australia Post order on the Packing page to confirm seeded dimensions are accurate before requesting Shippit quotes.
 
-## 2026-09-17 07:12 UTC
+## 2026-09-17 08:32 UTC
 
 1. TODOs completed:
    1. Defined a separate staging app deployment using the staging analytics API base URL.
+   2. Added an explicit Docker staging build so Vite embeds the staging service URL.
+   3. Deployed and verified the staging app, API debug panel, request/response capture, CORS, and Cloud Logging mirroring.
 2. Git build reference:
-   1. App commit: pending.
+   1. Deployed app commit: `99e421c56e11a4aa084bc8715c888e72718b416b`.
 3. New understandings/learnings:
    1. The frontend selects its analytics backend at build time; the WordPress plugin environment assertion does not route frontend requests.
 4. Understood next steps (remaining TODOs):
-   1. Commit and deploy `woo-analytics-app-staging`.
-   2. Verify all API requests and responses in the existing debug panel against the staging backend.
+   1. No remaining Staging Analytics Isolation app TODOs.
