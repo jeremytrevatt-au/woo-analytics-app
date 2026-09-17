@@ -1,6 +1,6 @@
 import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, Button, Collapse, Divider, TextField, IconButton, Popover, Dialog, DialogContent, DialogTitle, Tooltip } from "@mui/material";
 import { useEffect, useState } from "react";
-import { Check, CheckCircleOutline, Close, PrintOutlined } from "@mui/icons-material";
+import { Check, CheckCircleOutline, Close, OpenInNew, PrintOutlined } from "@mui/icons-material";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { usePackingOrders } from "../hooks/usePackingOrders";
@@ -372,6 +372,9 @@ function PackingPage() {
     const sameCustomerOrders = customerKey && queueContext ? queueContext.customerGroups.get(customerKey) || [] : [];
     const orderCrmNotes = getOrderCrmNotes(order);
     const orderCrmProfile = getOrderCrmProfile(order);
+    const hasCrmProfileSignals = ((orderCrmProfile?.flags ?? []).length > 0)
+      || ((orderCrmProfile?.tags ?? []).length > 0)
+      || Boolean(orderCrmProfile?.preferred_handling_notes);
     const canChangePackingStatus = currentStatus !== "packing"
       || String(packedBy || "").toLowerCase() === currentUser.toLowerCase();
 
@@ -384,9 +387,26 @@ function PackingPage() {
           <CardContent sx={{ pb: 1 }}>
             <Grid container spacing={1} alignItems="center">
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    Order #{order.order_id}
-                  </Typography>
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      Order #{order.order_id}
+                    </Typography>
+                    <Tooltip title="Open WooCommerce order">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        component="a"
+                        href={`https://naturalyield.com.au/wp-admin/admin.php?page=wc-orders&action=edit&id=${order.order_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open WooCommerce order ${order.order_id}`}
+                        onClick={(event) => event.stopPropagation()}
+                        sx={{ width: 28, height: 28 }}
+                      >
+                        <OpenInNew fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                   <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
                     <Typography variant="body2" color="text.secondary">
                       {new Date(order.order_date).toLocaleDateString("en-AU")} • {order.customer_name}
@@ -423,16 +443,6 @@ function PackingPage() {
                     </Alert>
                   )}
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
-                    <Chip
-                      size="small"
-                      label="Woo"
-                      component="a"
-                      href={`https://naturalyield.com.au/wp-admin/admin.php?page=wc-orders&action=edit&id=${order.order_id}`}
-                      target="_blank"
-                      clickable
-                      onClick={(e) => e.stopPropagation()}
-                      sx={{ cursor: 'pointer' }}
-                    />
                     {orderCrmNotes.length > 0 && (
                       <Chip
                         size="small"
@@ -441,6 +451,33 @@ function PackingPage() {
                       />
                     )}
                   </Stack>
+                  {orderCrmNotes.length > 0 && (
+                    <Stack spacing={0.75} sx={{ mt: 1 }}>
+                      {orderCrmNotes.map(note => (
+                        <Alert
+                          key={`crm-header-note:${note.id}`}
+                          severity="warning"
+                          sx={{ py: 0.5, '& .MuiAlert-message': { width: '100%' } }}
+                        >
+                          <Stack spacing={0.25}>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography variant="caption" fontWeight={700}>
+                                CRM note
+                              </Typography>
+                              {note.reminder_date ? (
+                                <Typography variant="caption" color="text.secondary">
+                                  Reminder {new Date(note.reminder_date).toLocaleDateString("en-AU")}
+                                </Typography>
+                              ) : null}
+                            </Stack>
+                            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                              {note.note_content}
+                            </Typography>
+                          </Stack>
+                        </Alert>
+                      ))}
+                    </Stack>
+                  )}
                   {documentTemplateError && (
                     <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.5 }}>
                       {documentTemplateError}
@@ -482,7 +519,7 @@ function PackingPage() {
                 {crmProfilesError}
               </Typography>
             )}
-            {orderCrmNotes.length > 0 && (
+            {hasCrmProfileSignals && (
               <Box sx={{ mb: 1.5 }}>
                 <Typography variant="subtitle2" fontWeight="bold" sx={{ display: 'block', mb: 0.75 }}>
                   CRM
@@ -508,18 +545,6 @@ function PackingPage() {
                       </Typography>
                     </Alert>
                   )}
-                  {orderCrmNotes.map(note => (
-                    <Alert key={note.id} severity="warning" sx={{ py: 0 }}>
-                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {note.note_content}
-                      </Typography>
-                      {note.reminder_date ? (
-                        <Typography variant="caption" color="text.secondary">
-                          Reminder {new Date(note.reminder_date).toLocaleDateString("en-AU")}
-                        </Typography>
-                      ) : null}
-                    </Alert>
-                  ))}
                 </Stack>
               </Box>
             )}
