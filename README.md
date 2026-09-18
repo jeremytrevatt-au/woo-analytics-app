@@ -434,3 +434,20 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. The frontend selects its analytics backend at build time; the WordPress plugin environment assertion does not route frontend requests.
 4. Understood next steps (remaining TODOs):
    1. No remaining Staging Analytics Isolation app TODOs.
+
+## 2026-09-18 02:10 UTC
+
+1. TODOs completed:
+   1. Made the saved return case the required source for Shippit return creation.
+   2. Replaced side-effecting label polling with a read-only status refresh.
+   3. Added an explicit confirmation dialog for approving a return and generating its label.
+   4. Added focused UI coverage for case-first creation, read-only refresh, and confirmed label generation.
+2. Git build reference:
+   1. Returns UI commit: `c1832d940844be52e1ed2309b54a1af3b5637e73`.
+   2. Deployed staging revision: `woo-analytics-app-staging-00007-tnw`.
+3. New understandings/learnings:
+   1. Shippit label generation is a business action, not a polling operation, and requires explicit operator intent.
+   2. Quantity inputs must be frozen after saving the authoritative case so the shipment cannot diverge from the recorded return.
+4. Understood next steps (remaining TODOs):
+   1. Complete Product Owner acceptance testing in the staging Returns page.
+   2. Keep production unchanged until acceptance is complete.
