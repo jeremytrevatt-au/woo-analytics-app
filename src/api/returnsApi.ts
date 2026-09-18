@@ -26,6 +26,12 @@ export type ReturnCase = {
   refund_expected: boolean | number;
   refund_reference: string;
   notes: string;
+  shippit_operation_id?: string | null;
+  shippit_create_state?: string;
+  shippit_return_order_id?: string;
+  shippit_tracking_number?: string;
+  shippit_state?: string;
+  shippit_label_url?: string;
   created_at: string;
   updated_at: string;
   lines: ReturnLine[];
@@ -103,6 +109,8 @@ export type ShippitReturnRecord = {
 
 export type ShippitReturnOrderResponse = {
   order_id: number;
+  return_id?: number;
+  idempotent_replay?: boolean;
   return: ShippitReturnRecord;
   result?: ShippitReturnsProbeResult;
 };
@@ -163,15 +171,22 @@ export async function previewShippitReturnQuote(payload: { orderId: number; line
   });
 }
 
-export async function createShippitReturnOrder(payload: { orderId: number; lines: Array<{ order_item_id: number; qty: number }> }): Promise<ShippitReturnOrderResponse> {
+export async function createShippitReturnOrder(payload: { orderId: number; returnId: number; operationId: string }): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/create`, {
     method: "POST",
     body: JSON.stringify({
-      lines: payload.lines,
+      return_id: payload.returnId,
+      operation_id: payload.operationId,
     }),
   });
 }
 
 export async function getShippitReturnOrder(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}`);
+}
+
+export async function generateShippitReturnLabel(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
+  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}/label`, {
+    method: "POST",
+  });
 }
