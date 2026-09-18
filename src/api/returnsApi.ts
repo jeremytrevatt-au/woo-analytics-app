@@ -148,6 +148,7 @@ export type ShippitReturnOrderResponse = {
   order_id: number;
   return_id?: number;
   idempotent_replay?: boolean;
+  creation_mode?: "book_immediately";
   return: ShippitReturnRecord;
   result?: ShippitReturnsProbeResult;
 };
@@ -232,8 +233,6 @@ export async function getShippitReturnOrder(orderId: number, returnOrderId: stri
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}`);
 }
 
-export async function generateShippitReturnLabel(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
-  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}/label`, {
-    method: "POST",
-  });
+export async function fetchShippitReturnLabel(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
+  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}/label`);
 }

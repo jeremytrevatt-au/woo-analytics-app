@@ -27,7 +27,7 @@ import {
 import {
   createReturn,
   createShippitReturnOrder,
-  generateShippitReturnLabel,
+  fetchShippitReturnLabel,
   getShippitReturnOrder,
   getReturnableOrderItems,
   listReturns,
@@ -84,8 +84,8 @@ function ReturnsPage() {
   const [shippitReturn, setShippitReturn] = useState<ShippitReturnOrderResponse | null>(null);
   const [creatingShippitReturn, setCreatingShippitReturn] = useState(false);
   const [pollingShippitReturn, setPollingShippitReturn] = useState(false);
-  const [confirmingLabel, setConfirmingLabel] = useState(false);
-  const [generatingLabel, setGeneratingLabel] = useState(false);
+  const [confirmingCreate, setConfirmingCreate] = useState(false);
+  const [fetchingLabel, setFetchingLabel] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteRow | null>(null);
   const [expandedReturnId, setExpandedReturnId] = useState<number | null>(null);
 
@@ -261,9 +261,10 @@ function ReturnsPage() {
       setMessage({
         type: "success",
         text: labelReady
-          ? `Shippit return ${returnId} created and label is ready.`
-          : `Shippit return ${returnId} created. Refresh status, or explicitly approve it to generate the label.`,
+          ? `Shippit return ${returnId} created and booked; its label link is ready.`
+          : `Shippit return ${returnId} created and booked. Fetch its existing label when required.`,
       });
+      setConfirmingCreate(false);
     } catch (error: any) {
       setShippitReturn(null);
       setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to create Shippit return.") });
@@ -288,8 +289,8 @@ function ReturnsPage() {
       setMessage({
         type: "success",
         text: response.return.label_url
-          ? "Shippit return status refreshed; its label is ready."
-          : "Shippit return status refreshed without approving or generating a label.",
+          ? "Shippit return status refreshed; its label link is available."
+          : "Shippit return status refreshed. This read-only action does not retrieve the label.",
       });
     } catch (error: any) {
       setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to poll Shippit return.") });
@@ -298,25 +299,24 @@ function ReturnsPage() {
     }
   };
 
-  const handleGenerateLabel = async () => {
+  const handleFetchLabel = async () => {
     const numericOrderId = Number(orderId);
     const returnOrderId = shippitReturn?.return.return_order_id;
     if (!Number.isInteger(numericOrderId) || numericOrderId <= 0 || !returnOrderId) {
-      setMessage({ type: "error", text: "Create a Shippit return before generating its label." });
+      setMessage({ type: "error", text: "Create a Shippit return before retrieving its label." });
       return;
     }
 
-    setGeneratingLabel(true);
+    setFetchingLabel(true);
     setMessage(null);
     try {
-      const response = await generateShippitReturnLabel(numericOrderId, returnOrderId);
+      const response = await fetchShippitReturnLabel(numericOrderId, returnOrderId);
       setShippitReturn(response);
-      setConfirmingLabel(false);
-      setMessage({ type: "success", text: "Return approved in Shippit and label generated." });
+      setMessage({ type: "success", text: "Existing Shippit return label retrieved." });
     } catch (error: any) {
-      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to approve the return and generate its label.") });
+      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to retrieve the existing return label.") });
     } finally {
-      setGeneratingLabel(false);
+      setFetchingLabel(false);
     }
   };
 
@@ -422,8 +422,8 @@ function ReturnsPage() {
             <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving}>
               {previewingQuote ? "Loading Quote..." : "Preview Return Quote"}
             </Button>
-            <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn || saving || !activeReturnCase || !selectedQuote}>
-              {creatingShippitReturn ? "Creating Shippit Return..." : "Create Shippit Return"}
+            <Button variant="contained" color="secondary" onClick={() => setConfirmingCreate(true)} disabled={creatingShippitReturn || saving || !activeReturnCase || !selectedQuote}>
+              Create and Book Shippit Return
             </Button>
             {returnableOrder ? (
               <Typography variant="body2" color="text.secondary">
@@ -531,8 +531,8 @@ function ReturnsPage() {
                     {pollingShippitReturn ? "Refreshing..." : "Refresh Status"}
                   </Button>
                   {!shippitReturn.return.label_url ? (
-                    <Button size="small" variant="contained" color="secondary" onClick={() => setConfirmingLabel(true)}>
-                      Approve Return and Generate Label
+                    <Button size="small" variant="contained" color="secondary" onClick={handleFetchLabel} disabled={fetchingLabel}>
+                      {fetchingLabel ? "Fetching Label..." : "Fetch Return Label"}
                     </Button>
                   ) : null}
                   {shippitReturn.return.label_url ? (
@@ -627,17 +627,17 @@ function ReturnsPage() {
         ) : null}
       </Paper>
 
-      <Dialog open={confirmingLabel} onClose={() => !generatingLabel && setConfirmingLabel(false)}>
-        <DialogTitle>Approve Return and Generate Label?</DialogTitle>
+      <Dialog open={confirmingCreate} onClose={() => !creatingShippitReturn && setConfirmingCreate(false)}>
+        <DialogTitle>Create and Book Shippit Return?</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
-            This action approves the return in Shippit and generates the customer return label. A status refresh alone does not do this.
+            This creates a live Shippit return shipment, allocates the selected carrier, generates its tracking number and label, and books it for dispatch or pickup. This is not a quote or dry run.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmingLabel(false)} disabled={generatingLabel}>Cancel</Button>
-          <Button variant="contained" color="secondary" onClick={handleGenerateLabel} disabled={generatingLabel}>
-            {generatingLabel ? "Generating..." : "Approve and Generate Label"}
+          <Button onClick={() => setConfirmingCreate(false)} disabled={creatingShippitReturn}>Cancel</Button>
+          <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn}>
+            {creatingShippitReturn ? "Creating and Booking..." : "Create and Book Return"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createReturn,
   createShippitReturnOrder,
-  generateShippitReturnLabel,
+  fetchShippitReturnLabel,
   getReturnableOrderItems,
   getShippitReturnOrder,
   listReturns,
@@ -14,7 +14,7 @@ import ReturnsPage from "./ReturnsPage";
 vi.mock("../api/returnsApi", () => ({
   createReturn: vi.fn(),
   createShippitReturnOrder: vi.fn(),
-  generateShippitReturnLabel: vi.fn(),
+  fetchShippitReturnLabel: vi.fn(),
   getReturnableOrderItems: vi.fn(),
   getShippitReturnOrder: vi.fn(),
   listReturns: vi.fn(),
@@ -40,7 +40,7 @@ describe("ReturnsPage Shippit workflow", () => {
     vi.clearAllMocks();
   });
 
-  it("requires a saved case and explicit confirmation before label generation", async () => {
+  it("confirms live booking and retrieves the existing label separately", async () => {
     vi.mocked(listReturns).mockResolvedValue([]);
     vi.mocked(getReturnableOrderItems).mockResolvedValue({
       order: {
@@ -99,7 +99,7 @@ describe("ReturnsPage Shippit workflow", () => {
       },
     });
     vi.mocked(getShippitReturnOrder).mockResolvedValue(returnRecord);
-    vi.mocked(generateShippitReturnLabel).mockResolvedValue({
+    vi.mocked(fetchShippitReturnLabel).mockResolvedValue({
       ...returnRecord,
       return: { ...returnRecord.return, label_url: "https://labels.example.test/return.pdf" },
     });
@@ -116,7 +116,10 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
 
-    fireEvent.click(view.getByRole("button", { name: "Create Shippit Return" }));
+    fireEvent.click(view.getByRole("button", { name: "Create and Book Shippit Return" }));
+    expect(view.getByText(/This creates a live Shippit return shipment/)).toBeInTheDocument();
+    expect(createShippitReturnOrder).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole("button", { name: "Create and Book Return" }));
     await waitFor(() => expect(createShippitReturnOrder).toHaveBeenCalledWith(expect.objectContaining({
       orderId: 134400,
       returnId: 7,
@@ -126,14 +129,13 @@ describe("ReturnsPage Shippit workflow", () => {
       currency: "AUD",
     })));
 
-    fireEvent.click(view.getByRole("button", { name: "Refresh Status" }));
+    const refreshButton = await view.findByRole("button", { name: "Refresh Status" });
+    fireEvent.click(refreshButton);
     await waitFor(() => expect(getShippitReturnOrder).toHaveBeenCalledOnce());
-    expect(generateShippitReturnLabel).not.toHaveBeenCalled();
+    expect(fetchShippitReturnLabel).not.toHaveBeenCalled();
 
-    fireEvent.click(view.getByRole("button", { name: "Approve Return and Generate Label" }));
-    expect(view.getByText(/This action approves the return in Shippit/)).toBeInTheDocument();
-    fireEvent.click(view.getByRole("button", { name: "Approve and Generate Label" }));
-    await waitFor(() => expect(generateShippitReturnLabel).toHaveBeenCalledWith(134400, "RETURN-TRACKING"));
+    fireEvent.click(view.getByRole("button", { name: "Fetch Return Label" }));
+    await waitFor(() => expect(fetchShippitReturnLabel).toHaveBeenCalledWith(134400, "RETURN-TRACKING"));
   });
 
   it("shows outbound and return shipment details separately", async () => {
