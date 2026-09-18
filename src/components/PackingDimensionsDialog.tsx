@@ -73,35 +73,19 @@ function positiveNumber(value: unknown): number {
   return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : 0;
 }
 
-function hasValidProductDimensions(line: any): boolean {
-  return positiveNumber(line?.product_weight) > 0
-    && positiveNumber(line?.product_length) > 0
-    && positiveNumber(line?.product_width) > 0
-    && positiveNumber(line?.product_height) > 0;
-}
-
-function buildParcelsFromOrderLines(order: any): ParcelDraft[] {
-  const lines = Array.isArray(order?.lines) ? order.lines : [];
-  const dimensionedBundleParentKeys = new Set(
-    lines
-      .filter((line: any) => Boolean(line?.is_bundle_parent) && hasValidProductDimensions(line))
-      .map((line: any) => String(line.bundle_cart_key || line.order_item_id || ""))
-      .filter(Boolean),
-  );
-
-  return lines
-    .filter((line: any) => {
-      if (!hasValidProductDimensions(line)) return false;
-      if (line?.bundled_by && dimensionedBundleParentKeys.has(String(line.bundled_by))) return false;
-      return true;
-    })
-    .map((line: any) => ({
+function buildParcelsFromRecommendations(parcels: PackingQuoteParcel[]): ParcelDraft[] {
+  return parcels
+    .filter(parcel => positiveNumber(parcel.weight_kg) > 0
+      && positiveNumber(parcel.length_cm) > 0
+      && positiveNumber(parcel.width_cm) > 0
+      && positiveNumber(parcel.height_cm) > 0)
+    .map(parcel => ({
       id: crypto.randomUUID(),
-      qty: numericString(Math.max(1, Math.floor(Number(line.qty || 1)))) || "1",
-      weightGrams: numericString(line.product_weight),
-      lengthCm: numericString(line.product_length),
-      widthCm: numericString(line.product_width),
-      heightCm: numericString(line.product_height),
+      qty: numericString(Math.max(1, Math.floor(Number(parcel.qty || 1)))) || "1",
+      weightGrams: numericString(Number(parcel.weight_kg) * 1000),
+      lengthCm: numericString(parcel.length_cm),
+      widthCm: numericString(parcel.width_cm),
+      heightCm: numericString(parcel.height_cm),
     }));
 }
 
@@ -218,13 +202,15 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
             text: response.message || "Existing Shippit order loaded.",
           });
         } else {
-          const productParcels = buildParcelsFromOrderLines(order);
-          setParcels(productParcels.length > 0 ? productParcels : [createBlankParcel()]);
+          const recommendedParcels = buildParcelsFromRecommendations(
+            Array.isArray(response.recommended_parcels) ? response.recommended_parcels : [],
+          );
+          setParcels(recommendedParcels.length > 0 ? recommendedParcels : [createBlankParcel()]);
           setMessage({
-            type: productParcels.length > 0 ? "info" : "warning",
-            text: productParcels.length > 0
-              ? `No existing Shippit order found. Seeded ${productParcels.length} parcel(s) from WooCommerce product dimensions; check before quoting.`
-              : response.message || "No existing Shippit order found, and WooCommerce product dimensions are missing. Enter parcel dimensions manually before quoting.",
+            type: recommendedParcels.length > 0 ? "info" : "warning",
+            text: recommendedParcels.length > 0
+              ? `No existing Shippit order found. Loaded ${recommendedParcels.length} parcel(s) from the authoritative NY Shipping rules for the remaining order quantities; check before quoting.`
+              : response.message || "No existing Shippit order found, and NY Shipping could not calculate complete parcel dimensions. Enter parcel dimensions manually before quoting.",
           });
         }
       })

@@ -49,6 +49,16 @@ export type PackingShippitOrderResponse = {
   mapped_shippit_service?: string | null;
   shipping_methods?: Array<Record<string, unknown>>;
   parcels: PackingShippitOrderParcel[];
+  recommended_parcels?: PackingQuoteParcel[];
+  parcel_decisions?: Array<Record<string, unknown>>;
+  line_states?: Array<{
+    order_item_id: number;
+    product_id: number;
+    ordered_quantity: number;
+    refunded_quantity: number;
+    fulfilled_quantity: number;
+    remaining_quantity: number;
+  }>;
   parcel_attributes?: unknown[];
   product_attributes?: unknown[];
   message?: string;

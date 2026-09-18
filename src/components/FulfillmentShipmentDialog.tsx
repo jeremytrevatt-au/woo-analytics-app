@@ -81,10 +81,10 @@ export default function FulfillmentShipmentDialog({
         }));
         setParcel({
           qty: 1,
-          weight_kg: Number(selectedLines.reduce(
+          weight_kg: Number((selectedLines.reduce(
             (total, entry) => total + Number(entry.line?.product_weight || 0) * entry.item.remaining_quantity,
             0,
-          ).toFixed(3)),
+          ) / 1000).toFixed(3)),
           length_cm: Math.max(0, ...selectedLines.map(entry => Number(entry.line?.product_length || 0))),
           width_cm: Math.max(0, ...selectedLines.map(entry => Number(entry.line?.product_width || 0))),
           height_cm: Math.max(0, ...selectedLines.map(entry => Number(entry.line?.product_height || 0))),

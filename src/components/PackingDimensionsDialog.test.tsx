@@ -51,13 +51,16 @@ describe("PackingDimensionsDialog", () => {
     ));
   });
 
-  it("seeds Australia Post parcels from WooCommerce product dimensions", async () => {
+  it("uses authoritative NY Shipping recommendations instead of one parcel per order line", async () => {
     apiMocks.getPackingShippitOrder.mockResolvedValue({
       order_id: 103,
       has_shippit_order: false,
       can_edit: false,
       shipping_methods: [{ name: "Australia Post Parcel Post" }],
       parcels: [],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 0.52, length_cm: 30, width_cm: 20, height_cm: 12 },
+      ],
       message: "Shippit Order doesn't exist - check Australia Post.",
     });
     apiMocks.previewPackingQuote.mockResolvedValue({
@@ -89,16 +92,16 @@ describe("PackingDimensionsDialog", () => {
       />,
     );
 
-    await waitFor(() => expect(view.getByDisplayValue("260")).toBeInTheDocument());
+    await waitFor(() => expect(view.getByDisplayValue("520")).toBeInTheDocument());
     expect(view.getByDisplayValue("30")).toBeInTheDocument();
     expect(view.getByDisplayValue("20")).toBeInTheDocument();
-    expect(view.getByDisplayValue("10")).toBeInTheDocument();
+    expect(view.getByDisplayValue("12")).toBeInTheDocument();
 
     fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
 
     await waitFor(() => expect(apiMocks.previewPackingQuote).toHaveBeenCalledWith(
       103,
-      [{ qty: 2, weight_kg: 0.26, length_cm: 30, width_cm: 20, height_cm: 10 }],
+      [{ qty: 1, weight_kg: 0.52, length_cm: 30, width_cm: 20, height_cm: 12 }],
     ));
   });
 
@@ -108,6 +111,9 @@ describe("PackingDimensionsDialog", () => {
       has_shippit_order: false,
       can_edit: false,
       parcels: [],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 1.5, length_cm: 55, width_cm: 31.5, height_cm: 29 },
+      ],
     });
 
     const view = render(

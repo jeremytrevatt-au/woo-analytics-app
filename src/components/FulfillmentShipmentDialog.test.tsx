@@ -52,7 +52,7 @@ describe("FulfillmentShipmentDialog", () => {
           order_id: 101,
           lines: [{
             order_item_id: 55,
-            product_weight: 1.5,
+            product_weight: 1500,
             product_length: 20,
             product_width: 10,
             product_height: 5,
