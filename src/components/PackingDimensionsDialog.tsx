@@ -422,6 +422,12 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
             <Typography variant="body2" color="text.secondary">
               Loads parcels from an existing Shippit order when available. Quotes can also be generated for Australia Post orders and previously cancelled Shippit orders. Dimensions are centimetres; weight is grams.
             </Typography>
+            {shippitOrder?.source_carrier ? (
+              <Alert severity="info">
+                Source order carrier: {shippitOrder.source_carrier === "australia_post" ? "Australia Post" : "Shippit"}.
+                {" "}This dialog currently requests quotes through the Shippit adapter.
+              </Alert>
+            ) : null}
 
             {loadingExistingOrder ? (
               <Alert severity="info">Loading existing Shippit order before showing parcel dimensions...</Alert>

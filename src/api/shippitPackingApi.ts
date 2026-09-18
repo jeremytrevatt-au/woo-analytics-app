@@ -44,6 +44,7 @@ export type PackingShippitOrderParcel = {
 
 export type PackingShippitOrderResponse = {
   order_id: number;
+  source_carrier?: string | null;
   has_shippit_order: boolean;
   can_edit: boolean;
   shippit_tracking_number?: string | null;

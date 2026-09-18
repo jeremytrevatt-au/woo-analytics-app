@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -32,6 +33,7 @@ import {
   triggerDataSync,
   updateStockIdentityReviewRow
 } from "../api/adminApi";
+import { getShippingCarriers, ShippingCarrierHealth } from "../api/shippingCarriersApi";
 
 function AdminPage() {
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,22 @@ function AdminPage() {
   const [identityReview, setIdentityReview] = useState<StockIdentityReviewResponse | null>(null);
   const [identityReviewPage, setIdentityReviewPage] = useState(1);
   const [remapTargets, setRemapTargets] = useState<Record<string, ProductSearchResult | null>>({});
+  const [carrierLoading, setCarrierLoading] = useState(false);
+  const [carriers, setCarriers] = useState<ShippingCarrierHealth[] | null>(null);
+
+  const handleLoadCarriers = async () => {
+    setCarrierLoading(true);
+    setResult(null);
+    try {
+      const response = await getShippingCarriers();
+      setCarriers(response.carriers);
+      setResult({ type: "success", message: "Loaded carrier adapter diagnostics." });
+    } catch (err: any) {
+      setResult({ type: "error", message: err.message || "Failed to load carrier adapter diagnostics" });
+    } finally {
+      setCarrierLoading(false);
+    }
+  };
 
   const handleSync = async () => {
     setLoading(true);
@@ -212,6 +230,50 @@ function AdminPage() {
             {loading ? <CircularProgress size={24} /> : "Trigger Global Re-Sync"}
           </Button>
         </Box>
+      </Paper>
+
+      <Paper sx={{ p: 3, mt: 3, maxWidth: 1100 }}>
+        <Typography variant="h6" gutterBottom>
+          Shipping Carrier Adapters
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Read-only runtime, entitlement and capability diagnostics for carrier integrations. Requests and responses are retained in the API Debug panel.
+        </Typography>
+        <Button variant="outlined" onClick={handleLoadCarriers} disabled={carrierLoading}>
+          {carrierLoading ? <CircularProgress size={20} /> : "Load Carrier Diagnostics"}
+        </Button>
+        {carriers ? (
+          <Box sx={{ mt: 2, overflowX: "auto" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Carrier</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Version</TableCell>
+                  <TableCell>Environment</TableCell>
+                  <TableCell>Capabilities</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {carriers.map(carrier => (
+                  <TableRow key={carrier.id}>
+                    <TableCell>{carrier.label}</TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        color={carrier.available ? "success" : "warning"}
+                        label={carrier.available ? "Available" : carrier.runtime_loaded ? "Unavailable" : "Plugin not loaded"}
+                      />
+                    </TableCell>
+                    <TableCell>{carrier.plugin_version || "-"}</TableCell>
+                    <TableCell>{carrier.environment || "-"}</TableCell>
+                    <TableCell>{carrier.capabilities.length ? carrier.capabilities.join(", ") : "None"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        ) : null}
       </Paper>
 
       <Paper sx={{ p: 3, mt: 3, maxWidth: 1100 }}>
