@@ -451,3 +451,24 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Complete Product Owner acceptance testing in the staging Returns page.
    2. Keep production unchanged until acceptance is complete.
+
+## 2026-09-18 09:57 UTC
+
+1. TODOs completed since the previous main push:
+   1. Added an isolated staging application build bound to the staging analytics service and verified API diagnostics and Cloud Logging mirroring.
+   2. Added Partial Fulfillment and Combine Orders packing workflows with authoritative action guards and parcel quote dialogs.
+   3. Added Shipped and Delivered order-status filters for the Shippit lifecycle workflow.
+   4. Expanded Returns with authoritative case-first processing, shipment and packing details, quote selection, live-booking confirmation, read-only refresh, and label retrieval.
+   5. Added the Reshipments page with source-order item selection, product search, inventory-effect controls, destination editing, parcel dimensions, quote failures, and live-shipment confirmation.
+   6. Fixed the Returns workflow to require Save Return Case before quoting and to submit the validated return-case identifier.
+2. Git build reference:
+   1. Main push range: `38bdd01..f3f97d0`.
+   2. Latest app build: `f3f97d0550c3cb586e02f0f5a43518e4f4c367c1`.
+   3. Deployed staging revision: `woo-analytics-app-staging-00012-69x`.
+3. New understandings/learnings:
+   1. The Returns UI must freeze saved line quantities and quote that authoritative case rather than reconstructing mutable request lines.
+   2. Shippit return creation is a live booking action and must be clearly separated from read-only status and label retrieval.
+   3. Sanitised staging addresses must be visibly rejected and replaced with validated test destinations before requesting carrier quotes.
+4. Understood next steps (remaining TODOs):
+   1. Continue Product Owner acceptance testing for Returns and Reshipments on staging.
+   2. Keep production unchanged until staging acceptance is complete.
