@@ -29,7 +29,10 @@ import type { AppFilterState } from "../types/analytics";
 const ORDER_STATUS_OPTIONS = [
   { value: "wc-processing", label: "Processing" },
   { value: "wc-pre-ordered", label: "Pre Ordered" },
+  { value: "wc-partial-shipped", label: "Partially Shipped" },
+  { value: "wc-shipped", label: "Shipped" },
   { value: "wc-completed", label: "Completed" },
+  { value: "wc-delivered", label: "Delivered" },
   { value: "wc-on-hold", label: "On Hold" },
   { value: "wc-pending", label: "Pending Payment" },
   { value: "wc-cancelled", label: "Cancelled" },
