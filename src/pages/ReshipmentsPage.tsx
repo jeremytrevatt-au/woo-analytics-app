@@ -28,6 +28,7 @@ import {
   getReshipmentSource,
   quoteReshipment,
   type InventoryEffect,
+  type ReshipmentDestination,
   type ReshipmentLineRequest,
   type ReshipmentOperation,
   type ReshipmentParcel,
@@ -49,6 +50,12 @@ type SelectedLine = ReshipmentLineRequest & {
 type QuoteOption = PackingQuoteSelection & {
   id: string;
   label: string;
+};
+
+type QuoteFailure = {
+  courier: string;
+  service: string;
+  error: string;
 };
 
 const reasonLabels: Record<ReshipmentReason, string> = {
@@ -91,6 +98,33 @@ function quoteOptions(response: PackingQuoteResponse | null): QuoteOption[] {
   return options.sort((left, right) => Number(left.price) - Number(right.price));
 }
 
+function quoteFailures(response: PackingQuoteResponse | null): QuoteFailure[] {
+  const body = response?.body as { response?: unknown } | undefined;
+  const carriers = body && Array.isArray(body.response) ? body.response : [];
+  const failures: QuoteFailure[] = [];
+  carriers.forEach(carrier => {
+    if (!carrier || typeof carrier !== "object") return;
+    const data = carrier as Record<string, unknown>;
+    const courier = String(data.courier_type || "Unknown courier");
+    const service = String(data.service_level || "");
+    if (data.success === false && typeof data.error === "string" && data.error) {
+      failures.push({ courier, service, error: data.error });
+    }
+    if (Array.isArray(data.failures)) {
+      data.failures.forEach(nested => {
+        if (!nested || typeof nested !== "object") return;
+        const failure = nested as Record<string, unknown>;
+        failures.push({
+          courier: String(failure.courier_type || courier),
+          service: String(failure.service_level || service),
+          error: String(failure.error || data.error || "Quote unavailable."),
+        });
+      });
+    }
+  });
+  return failures;
+}
+
 function inventoryEffect(reason: ReshipmentReason): InventoryEffect {
   return reason === "missing_from_package" ? "already_accounted" : "decrement";
 }
@@ -111,6 +145,7 @@ export default function ReshipmentsPage() {
   const { products, loading: productsLoading, error: productsError } = useProductIndex();
   const [orderId, setOrderId] = useState("");
   const [source, setSource] = useState<ReshipmentSource | null>(null);
+  const [destination, setDestination] = useState<ReshipmentDestination | null>(null);
   const [lines, setLines] = useState<SelectedLine[]>([]);
   const [parcel, setParcel] = useState<ReshipmentParcel>(emptyParcel);
   const [productQuery, setProductQuery] = useState("");
@@ -146,12 +181,14 @@ export default function ReshipmentsPage() {
     try {
       const result = await getReshipmentSource(id);
       setSource(result);
+      setDestination(result.destination);
       setLines([]);
       setParcel(emptyParcel);
       resetCalculatedState();
       setMessage({ type: "success", text: `Source order #${result.order.number} loaded.` });
     } catch (error) {
       setSource(null);
+      setDestination(null);
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to load the source order." });
     } finally {
       setLoadingSource(false);
@@ -262,10 +299,30 @@ export default function ReshipmentsPage() {
   }));
 
   const parcelValid = Math.min(parcel.qty, parcel.weight_kg, parcel.length_cm, parcel.width_cm, parcel.height_cm) > 0;
+  const destinationValid = Boolean(
+    destination
+    && destination.first_name
+    && destination.last_name
+    && destination.address_1
+    && destination.city
+    && destination.state
+    && destination.postcode
+    && destination.country.length === 2
+    && destination.email
+    && destination.phone,
+  );
+  const destinationSanitised = Boolean(
+    destination
+    && (
+      Object.values(destination).some(value => value.toLowerCase().includes("redacted-"))
+      || destination.email.toLowerCase().endsWith("@example.test")
+      || destination.phone.replace(/\D/g, "").startsWith("000")
+    ),
+  );
 
   const previewQuote = async () => {
-    if (!source || lines.length === 0 || !parcelValid) {
-      setMessage({ type: "error", text: "Select at least one item and enter positive parcel dimensions and weight." });
+    if (!source || !destinationValid || destinationSanitised || lines.length === 0 || !parcelValid) {
+      setMessage({ type: "error", text: "Enter a valid unsanitised destination, select an item, and complete the parcel dimensions." });
       return;
     }
     setLoadingQuote(true);
@@ -275,6 +332,7 @@ export default function ReshipmentsPage() {
         source_order_id: source.order.id,
         lines: requestLines(),
         parcels: [parcel],
+        destination: destination!,
       });
       setQuote(result);
       setSelectedQuote(quoteOptions(result)[0] ?? null);
@@ -289,7 +347,7 @@ export default function ReshipmentsPage() {
   };
 
   const submitReshipment = async () => {
-    if (!source || !selectedQuote || !parcelValid) return;
+    if (!source || !destination || !selectedQuote || !parcelValid) return;
     setCreating(true);
     setMessage(null);
     try {
@@ -298,6 +356,7 @@ export default function ReshipmentsPage() {
         source_order_id: source.order.id,
         lines: requestLines(),
         parcels: [parcel],
+        destination,
         quote_selection: selectedQuote,
         notify_customer: notifyCustomer,
       });
@@ -338,6 +397,7 @@ export default function ReshipmentsPage() {
               onChange={event => {
                 setOrderId(event.target.value);
                 setSource(null);
+                setDestination(null);
                 setLines([]);
                 resetCalculatedState();
               }}
@@ -348,13 +408,66 @@ export default function ReshipmentsPage() {
             </Button>
           </Stack>
           {source ? (
-            <Alert severity="info">
-              <Typography variant="subtitle2">
-                Order #{source.order.number} — {source.order.customer} — {source.order.status_label}
-              </Typography>
-              <Typography variant="body2">{source.order.shipping_address}</Typography>
-              <Typography variant="body2">{source.order.email} · {source.order.phone}</Typography>
-            </Alert>
+            <Stack spacing={2}>
+              <Alert severity="info">
+                <Typography variant="subtitle2">
+                  Order #{source.order.number} — {source.order.customer} — {source.order.status_label}
+                </Typography>
+                <Typography variant="body2">{source.order.shipping_address}</Typography>
+                <Typography variant="body2">{source.order.email} · {source.order.phone}</Typography>
+              </Alert>
+              {destinationSanitised ? (
+                <Alert severity="warning">
+                  This staging order contains sanitised customer data. Replace the destination and contact fields below before requesting quotes.
+                </Alert>
+              ) : null}
+              <Typography variant="subtitle2">Replacement shipment destination</Typography>
+              {destination ? (
+                <>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    {([
+                      ["first_name", "First name"],
+                      ["last_name", "Last name"],
+                      ["company", "Company"],
+                      ["email", "Email"],
+                      ["phone", "Phone"],
+                    ] as const).map(([key, label]) => (
+                      <TextField
+                        key={key}
+                        label={label}
+                        value={destination[key]}
+                        required={key !== "company"}
+                        onChange={event => {
+                          setDestination(previous => previous ? { ...previous, [key]: event.target.value } : previous);
+                          resetCalculatedState();
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    {([
+                      ["address_1", "Address line 1"],
+                      ["address_2", "Address line 2"],
+                      ["city", "Suburb / city"],
+                      ["state", "State"],
+                      ["postcode", "Postcode"],
+                      ["country", "Country code"],
+                    ] as const).map(([key, label]) => (
+                      <TextField
+                        key={key}
+                        label={label}
+                        value={destination[key]}
+                        required={key !== "address_2"}
+                        onChange={event => {
+                          setDestination(previous => previous ? { ...previous, [key]: event.target.value } : previous);
+                          resetCalculatedState();
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </>
+              ) : null}
+            </Stack>
           ) : null}
         </Stack>
       </Paper>
@@ -508,36 +621,64 @@ export default function ReshipmentsPage() {
                 {loadingQuote ? "Loading Quotes..." : "Get Shippit Quotes"}
               </Button>
               {quote ? (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Courier</TableCell>
-                      <TableCell>Service</TableCell>
-                      <TableCell align="right">Cost</TableCell>
-                      <TableCell>Transit</TableCell>
-                      <TableCell />
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {quoteOptions(quote).map(option => (
-                      <TableRow key={option.id}>
-                        <TableCell>{option.label}</TableCell>
-                        <TableCell>{option.service_level || option.courier_type || "-"}</TableCell>
-                        <TableCell align="right">{source.order.currency} {Number(option.price).toFixed(2)}</TableCell>
-                        <TableCell>{option.estimated_transit_time || "-"}</TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            variant={selectedQuote?.id === option.id ? "contained" : "outlined"}
-                            onClick={() => setSelectedQuote(option)}
-                          >
-                            {selectedQuote?.id === option.id ? "Selected" : "Select"}
-                          </Button>
-                        </TableCell>
+                <Stack spacing={2}>
+                  <Alert severity={quoteFailures(quote).length > 0 ? "warning" : "success"}>
+                    {quoteOptions(quote).length} usable quote(s) returned; {quoteFailures(quote).length} carrier quote failure(s).
+                  </Alert>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Courier</TableCell>
+                        <TableCell>Service</TableCell>
+                        <TableCell align="right">Cost</TableCell>
+                        <TableCell>Transit</TableCell>
+                        <TableCell />
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {quoteOptions(quote).map(option => (
+                        <TableRow key={option.id}>
+                          <TableCell>{option.label}</TableCell>
+                          <TableCell>{option.service_level || option.courier_type || "-"}</TableCell>
+                          <TableCell align="right">{source.order.currency} {Number(option.price).toFixed(2)}</TableCell>
+                          <TableCell>{option.estimated_transit_time || "-"}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="small"
+                              variant={selectedQuote?.id === option.id ? "contained" : "outlined"}
+                              onClick={() => setSelectedQuote(option)}
+                            >
+                              {selectedQuote?.id === option.id ? "Selected" : "Select"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {quoteFailures(quote).length > 0 ? (
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>Carrier quote failures</Typography>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Courier</TableCell>
+                            <TableCell>Service</TableCell>
+                            <TableCell>Reason</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {quoteFailures(quote).map((failure, index) => (
+                            <TableRow key={`${failure.courier}-${failure.service}-${index}`}>
+                              <TableCell>{failure.courier}</TableCell>
+                              <TableCell>{failure.service || "-"}</TableCell>
+                              <TableCell>{failure.error}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Box>
+                  ) : null}
+                </Stack>
               ) : null}
             </Stack>
           </Paper>

@@ -16,6 +16,7 @@ export type ReshipmentSource = {
     phone: string;
     shipping_address: string;
   };
+  destination: ReshipmentDestination;
   items: Array<{
     order_item_id: number;
     product_id: number;
@@ -30,6 +31,20 @@ export type ReshipmentSource = {
     height_cm: number;
   }>;
   previous_reshipments: ReshipmentOperation[];
+};
+
+export type ReshipmentDestination = {
+  first_name: string;
+  last_name: string;
+  company: string;
+  address_1: string;
+  address_2: string;
+  city: string;
+  state: string;
+  postcode: string;
+  country: string;
+  email: string;
+  phone: string;
 };
 
 export type ReshipmentLineRequest = {
@@ -70,6 +85,7 @@ export function quoteReshipment(payload: {
   source_order_id: number;
   lines: ReshipmentLineRequest[];
   parcels: ReshipmentParcel[];
+  destination: ReshipmentDestination;
 }): Promise<PackingQuoteResponse> {
   return fetchJson<PackingQuoteResponse>("/api/v1/shipping/reshipments/quote", {
     method: "POST",
@@ -82,6 +98,7 @@ export function createReshipment(payload: {
   source_order_id: number;
   lines: ReshipmentLineRequest[];
   parcels: ReshipmentParcel[];
+  destination: ReshipmentDestination;
   quote_selection: PackingQuoteSelection;
   notify_customer: boolean;
 }): Promise<ReshipmentOperation> {

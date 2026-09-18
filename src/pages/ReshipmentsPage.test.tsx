@@ -32,6 +32,19 @@ describe("ReshipmentsPage", () => {
         phone: "0491570006",
         shipping_address: "1 Test Street",
       },
+      destination: {
+        first_name: "Test",
+        last_name: "Customer",
+        company: "",
+        address_1: "1 Test Street",
+        address_2: "",
+        city: "Sydney",
+        state: "NSW",
+        postcode: "2000",
+        country: "AU",
+        email: "test@example.com",
+        phone: "0491570006",
+      },
       items: [{
         order_item_id: 11,
         product_id: 21,
@@ -54,12 +67,22 @@ describe("ReshipmentsPage", () => {
       status_code: 200,
       duration_ms: 10,
       body: {
-        response: [{
-          courier_type: "standard",
-          courier_name: "Test Courier",
-          service_level: "Standard",
-          quotes: [{ price: 12.34, estimated_transit_time: "2 days" }],
-        }],
+        response: [
+          {
+            success: false,
+            courier_type: "AramexAuNz",
+            service_level: "standard",
+            error: "Destination suburb is invalid.",
+            quotes: null,
+          },
+          {
+            success: true,
+            courier_type: "ClickAndCollect",
+            courier_name: "Click & Collect",
+            service_level: "click_and_collect",
+            quotes: [{ price: 0, estimated_transit_time: "0 business days" }],
+          },
+        ],
       },
     });
     vi.mocked(createReshipment).mockResolvedValue({
@@ -70,9 +93,9 @@ describe("ReshipmentsPage", () => {
       status: "completed",
       tracking_number: "TRACKING",
       tracking_url: "https://tracking.example.test/TRACKING",
-      courier_name: "Test Courier",
+      courier_name: "Click & Collect",
       shipment_state: "",
-      quoted_cost: 12.34,
+      quoted_cost: 0,
       currency: "AUD",
     });
 
@@ -86,6 +109,8 @@ describe("ReshipmentsPage", () => {
     fireEvent.click(view.getByRole("button", { name: "Use Dimensions" }));
     fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Selected" })).toBeInTheDocument());
+    expect(view.getByText("1 usable quote(s) returned; 1 carrier quote failure(s).")).toBeInTheDocument();
+    expect(view.getByText("Destination suburb is invalid.")).toBeInTheDocument();
 
     fireEvent.click(view.getByRole("button", { name: "Create Replacement Order and Submit Shipment" }));
     expect(view.getByText(/creates a real zero-value WooCommerce order/)).toBeInTheDocument();
