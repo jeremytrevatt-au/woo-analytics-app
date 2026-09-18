@@ -110,11 +110,12 @@ describe("ReturnsPage Shippit workflow", () => {
     await waitFor(() => expect(view.getByText("Test Product")).toBeInTheDocument());
 
     fireEvent.change(view.getAllByRole("spinbutton")[1], { target: { value: "1" } });
-    fireEvent.click(view.getByRole("button", { name: "Preview Return Quote" }));
-    await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
-    fireEvent.click(view.getByRole("button", { name: "Select" }));
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
+    fireEvent.click(view.getByRole("button", { name: "Quote Saved Return Case" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
+    expect(previewShippitReturnQuote).toHaveBeenCalledWith({ orderId: 134400, returnId: 7 });
+    fireEvent.click(view.getByRole("button", { name: "Select" }));
 
     fireEvent.click(view.getByRole("button", { name: "Create and Book Shippit Return" }));
     expect(view.getByText(/This creates a live Shippit return shipment/)).toBeInTheDocument();

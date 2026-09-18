@@ -155,7 +155,6 @@ function ReturnsPage() {
       setMessage({ type: "error", text: "Enter a valid WooCommerce order ID first." });
       return;
     }
-
     setLoadingReturnableItems(true);
     setMessage(null);
     try {
@@ -326,13 +325,17 @@ function ReturnsPage() {
       setMessage({ type: "error", text: "Enter a valid WooCommerce order ID first." });
       return;
     }
+    if (!activeReturnCase) {
+      setMessage({ type: "error", text: "Save the return case before requesting a quote." });
+      return;
+    }
 
     setPreviewingQuote(true);
     setMessage(null);
     try {
       const response = await previewShippitReturnQuote({
         orderId: numericOrderId,
-        lines: selectedReturnLines(),
+        returnId: activeReturnCase.id,
       });
       setQuotePreview(response);
       setSelectedQuote(null);
@@ -419,8 +422,8 @@ function ReturnsPage() {
             <Button variant="outlined" onClick={handleClearReturnQty} disabled={!returnableOrder || saving || Boolean(activeReturnCase)}>
               Clear Qty
             </Button>
-            <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving}>
-              {previewingQuote ? "Loading Quote..." : "Preview Return Quote"}
+            <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving || !activeReturnCase}>
+              {previewingQuote ? "Loading Quote..." : "Quote Saved Return Case"}
             </Button>
             <Button variant="contained" color="secondary" onClick={() => setConfirmingCreate(true)} disabled={creatingShippitReturn || saving || !activeReturnCase || !selectedQuote}>
               Create and Book Shippit Return
