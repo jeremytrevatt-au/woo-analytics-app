@@ -7,6 +7,7 @@ import {
   getReturnableOrderItems,
   getShippitReturnOrder,
   listReturns,
+  previewShippitReturnQuote,
 } from "../api/returnsApi";
 import ReturnsPage from "./ReturnsPage";
 
@@ -46,6 +47,7 @@ describe("ReturnsPage Shippit workflow", () => {
         id: 134400,
         number: "134400",
         status: "delivered",
+        currency: "AUD",
         date_created: null,
         customer: { email: "customer@example.test", first_name: "Test", last_name: "Customer" },
         shipping_address: {},
@@ -81,6 +83,21 @@ describe("ReturnsPage Shippit workflow", () => {
       lines: [{ order_item_id: 11, qty: 1 }],
     });
     vi.mocked(createShippitReturnOrder).mockResolvedValue(returnRecord);
+    vi.mocked(previewShippitReturnQuote).mockResolvedValue({
+      name: "returns_quote_preview_v3",
+      method: "POST",
+      url: "https://app.staging.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 100,
+      body: {
+        response: [{
+          success: true,
+          courier_type: "standard",
+          service_level: "Standard",
+          quotes: [{ price: 12.34, estimated_transit_time: "2 days" }],
+        }],
+      },
+    });
     vi.mocked(getShippitReturnOrder).mockResolvedValue(returnRecord);
     vi.mocked(generateShippitReturnLabel).mockResolvedValue({
       ...returnRecord,
@@ -93,6 +110,9 @@ describe("ReturnsPage Shippit workflow", () => {
     await waitFor(() => expect(view.getByText("Test Product")).toBeInTheDocument());
 
     fireEvent.change(view.getAllByRole("spinbutton")[1], { target: { value: "1" } });
+    fireEvent.click(view.getByRole("button", { name: "Preview Return Quote" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "Select" }));
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
 
@@ -101,6 +121,9 @@ describe("ReturnsPage Shippit workflow", () => {
       orderId: 134400,
       returnId: 7,
       operationId: expect.any(String),
+      courierType: "standard",
+      quotedCost: 12.34,
+      currency: "AUD",
     })));
 
     fireEvent.click(view.getByRole("button", { name: "Refresh Status" }));
@@ -111,5 +134,56 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.getByText(/This action approves the return in Shippit/)).toBeInTheDocument();
     fireEvent.click(view.getByRole("button", { name: "Approve and Generate Label" }));
     await waitFor(() => expect(generateShippitReturnLabel).toHaveBeenCalledWith(134400, "RETURN-TRACKING"));
+  });
+
+  it("shows outbound and return shipment details separately", async () => {
+    vi.mocked(listReturns).mockResolvedValue([{
+      id: 4,
+      order_id: 134336,
+      status: "approved",
+      reason: "Changed mind",
+      resolution: "Return label",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      created_at: "2026-09-18",
+      updated_at: "2026-09-18",
+      lines: [{ id: 1, order_item_id: 11, product_name: "Test Product", sku: "SKU-1", qty: 1 }],
+      originating_order: {
+        id: 134336,
+        number: "134336",
+        status: "delivered",
+        status_label: "Delivered",
+        fulfillment_status: "Fulfilled",
+        currency: "AUD",
+      },
+      outbound_shipment: {
+        tracking_number: "OUTBOUND-TRACKING",
+        tracking_url: "https://tracking.example.test/outbound",
+        state: "completed",
+        courier_name: "Aramex",
+      },
+      return_shipment: {
+        return_order_id: "RETURN-TRACKING",
+        tracking_number: "RETURN-TRACKING",
+        tracking_url: "https://tracking.example.test/return",
+        state: "return_requested",
+        courier_name: "Aramex",
+        quoted_cost: 12.34,
+        currency: "AUD",
+        parcels: [{ length: 0.325, width: 0.205, depth: 0.03, weight: 0.5, package_type: "satchel" }],
+      },
+    }]);
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#4")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+
+    expect(view.getByText("Order status: Delivered")).toBeInTheDocument();
+    expect(view.getByText("Outbound fulfillment: Fulfilled")).toBeInTheDocument();
+    expect(view.getByText("OUTBOUND-TRACKING")).toBeInTheDocument();
+    expect(view.getByText("RETURN-TRACKING")).toBeInTheDocument();
+    expect(view.getByText("Quoted cost: AUD 12.34")).toBeInTheDocument();
+    expect(view.getByText(/0.325 × 0.205 × 0.03 m, 0.5 kg, satchel/)).toBeInTheDocument();
   });
 });

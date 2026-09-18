@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -42,11 +42,13 @@ import {
   updateReturn,
 } from "../api/returnsApi";
 import { ApiRequestError } from "../api/httpClient";
+import { wordpressAdminUrl } from "../config/wordpress";
 
 const RETURN_STATUS_OPTIONS: Array<{ value: ReturnStatus | "all"; label: string }> = [
   { value: "all", label: "All" },
   { value: "requested", label: "Requested" },
   { value: "approved", label: "Approved" },
+  { value: "in_transit", label: "In Transit" },
   { value: "received", label: "Received" },
   { value: "closed", label: "Closed" },
   { value: "cancelled", label: "Cancelled" },
@@ -84,6 +86,8 @@ function ReturnsPage() {
   const [pollingShippitReturn, setPollingShippitReturn] = useState(false);
   const [confirmingLabel, setConfirmingLabel] = useState(false);
   const [generatingLabel, setGeneratingLabel] = useState(false);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteRow | null>(null);
+  const [expandedReturnId, setExpandedReturnId] = useState<number | null>(null);
 
   const loadReturns = async () => {
     setLoading(true);
@@ -235,6 +239,10 @@ function ReturnsPage() {
       setMessage({ type: "error", text: "Save the return case before creating its Shippit return." });
       return;
     }
+    if (!selectedQuote) {
+      setMessage({ type: "error", text: "Preview and select a Shippit quote before creating the return shipment." });
+      return;
+    }
 
     setCreatingShippitReturn(true);
     setMessage(null);
@@ -243,6 +251,9 @@ function ReturnsPage() {
         orderId: numericOrderId,
         returnId: activeReturnCase.id,
         operationId: crypto.randomUUID(),
+        courierType: selectedQuote.courierType,
+        quotedCost: selectedQuote.price,
+        currency: returnableOrder!.order.currency,
       });
       setShippitReturn(response);
       const returnId = response.return.return_order_id;
@@ -324,6 +335,7 @@ function ReturnsPage() {
         lines: selectedReturnLines(),
       });
       setQuotePreview(response);
+      setSelectedQuote(null);
       setMessage({ type: "success", text: "Return quote preview loaded." });
     } catch (error: any) {
       setQuotePreview(null);
@@ -378,6 +390,7 @@ function ReturnsPage() {
                 setActiveReturnCase(null);
                 setShippitReturn(null);
                 setQuotePreview(null);
+                setSelectedQuote(null);
               }}
               type="number"
               inputProps={{ min: 1 }}
@@ -409,7 +422,7 @@ function ReturnsPage() {
             <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving}>
               {previewingQuote ? "Loading Quote..." : "Preview Return Quote"}
             </Button>
-            <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn || saving || !activeReturnCase}>
+            <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn || saving || !activeReturnCase || !selectedQuote}>
               {creatingShippitReturn ? "Creating Shippit Return..." : "Create Shippit Return"}
             </Button>
             {returnableOrder ? (
@@ -470,6 +483,7 @@ function ReturnsPage() {
                     <TableCell>Service</TableCell>
                     <TableCell align="right">Price</TableCell>
                     <TableCell>Transit</TableCell>
+                    <TableCell>Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -479,11 +493,20 @@ function ReturnsPage() {
                       <TableCell>{quote.serviceLevel}</TableCell>
                       <TableCell align="right">${quote.price.toFixed(2)}</TableCell>
                       <TableCell>{quote.estimatedTransitTime || "-"}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          variant={selectedQuote && quoteKey(selectedQuote) === quoteKey(quote) ? "contained" : "outlined"}
+                          onClick={() => setSelectedQuote(quote)}
+                        >
+                          {selectedQuote && quoteKey(selectedQuote) === quoteKey(quote) ? "Selected" : "Select"}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {extractQuoteRows(quotePreview).length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4}>
+                      <TableCell colSpan={5}>
                         <Typography variant="body2" color="text.secondary">
                           No successful quote rows returned.
                         </Typography>
@@ -544,6 +567,8 @@ function ReturnsPage() {
                   setShippitReturn(null);
                   setReturnableOrder(null);
                   setReturnLineQty({});
+                  setQuotePreview(null);
+                  setSelectedQuote(null);
                   setMessage({ type: "success", text: "Ready to start another return." });
                 }}
               >
@@ -647,11 +672,13 @@ function ReturnsPage() {
               <TableCell>Refund</TableCell>
               <TableCell>Lines</TableCell>
               <TableCell>Updated</TableCell>
+              <TableCell>Details</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {returns.map(returnCase => (
-              <TableRow key={returnCase.id}>
+              <Fragment key={returnCase.id}>
+              <TableRow>
                 <TableCell>#{returnCase.id}</TableCell>
                 <TableCell>#{returnCase.order_id}</TableCell>
                 <TableCell>
@@ -673,11 +700,24 @@ function ReturnsPage() {
                 <TableCell>{returnCase.refund_expected ? "May be required" : "No"}</TableCell>
                 <TableCell>{returnCase.lines?.length ?? 0}</TableCell>
                 <TableCell>{returnCase.updated_at}</TableCell>
+                <TableCell>
+                  <Button size="small" onClick={() => setExpandedReturnId(current => current === returnCase.id ? null : returnCase.id)}>
+                    {expandedReturnId === returnCase.id ? "Hide" : "View"}
+                  </Button>
+                </TableCell>
               </TableRow>
+              {expandedReturnId === returnCase.id ? (
+                <TableRow>
+                  <TableCell colSpan={9} sx={{ bgcolor: "action.hover", py: 2 }}>
+                    <ReturnShipmentDetails returnCase={returnCase} />
+                  </TableCell>
+                </TableRow>
+              ) : null}
+              </Fragment>
             ))}
             {!loading && returns.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={9}>
                   <Typography variant="body2" color="text.secondary">
                     No return cases found.
                   </Typography>
@@ -686,7 +726,7 @@ function ReturnsPage() {
             ) : null}
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={9}>
                   <Typography variant="body2" color="text.secondary">
                     Loading return cases...
                   </Typography>
@@ -701,6 +741,88 @@ function ReturnsPage() {
 }
 
 export default ReturnsPage;
+
+function ReturnShipmentDetails({ returnCase }: { returnCase: ReturnCase }) {
+  const order = returnCase.originating_order;
+  const outbound = returnCase.outbound_shipment;
+  const shipment = returnCase.return_shipment ?? {
+    return_order_id: returnCase.shippit_return_order_id,
+    tracking_number: returnCase.shippit_tracking_number,
+    state: returnCase.shippit_state,
+    label_url: returnCase.shippit_label_url,
+  };
+  const orderUrl = order ? wordpressAdminUrl(`admin.php?page=wc-orders&action=edit&id=${order.id}`) : null;
+
+  return (
+    <Stack spacing={2}>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={4}>
+        <Box>
+          <Typography variant="subtitle2">Originating order</Typography>
+          <Typography variant="body2">
+            {orderUrl ? <a href={orderUrl} target="_blank" rel="noopener noreferrer">Order #{order?.number ?? returnCase.order_id}</a> : `Order #${order?.number ?? returnCase.order_id}`}
+          </Typography>
+          <Typography variant="body2">Order status: {order?.status_label ?? "-"}</Typography>
+          <Typography variant="body2">Outbound fulfillment: {order?.fulfillment_status ?? "-"}</Typography>
+          <Typography variant="body2">
+            Outbound tracking: {outbound?.tracking_url
+              ? <a href={outbound.tracking_url} target="_blank" rel="noopener noreferrer">{outbound.tracking_number || "Open tracking"}</a>
+              : outbound?.tracking_number || "-"}
+          </Typography>
+          <Typography variant="body2">Outbound courier: {outbound?.courier_name || "-"}</Typography>
+        </Box>
+        <Box>
+          <Typography variant="subtitle2">Return shipment</Typography>
+          <Typography variant="body2">Return status: {returnCase.status.replaceAll("_", " ")}</Typography>
+          <Typography variant="body2">Shippit status: {shipment.state || "Not created"}</Typography>
+          <Typography variant="body2">
+            Return tracking: {shipment.tracking_url
+              ? <a href={shipment.tracking_url} target="_blank" rel="noopener noreferrer">{shipment.tracking_number || "Open tracking"}</a>
+              : shipment.tracking_number || "-"}
+          </Typography>
+          <Typography variant="body2">Courier: {shipment.courier_name || shipment.courier_type || "-"}</Typography>
+          <Typography variant="body2">
+            Quoted cost: {shipment.quoted_cost == null ? "Not recorded" : `${shipment.currency || order?.currency || ""} ${shipment.quoted_cost.toFixed(2)}`}
+          </Typography>
+          {shipment.label_url ? <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open return label</Button> : null}
+        </Box>
+      </Stack>
+      <Box>
+        <Typography variant="subtitle2">Parcel details</Typography>
+        {(shipment.parcels ?? []).length
+          ? shipment.parcels!.map((parcel, index) => <Typography variant="body2" key={index}>{formatParcel(parcel, index)}</Typography>)
+          : <Typography variant="body2" color="text.secondary">No parcel details recorded.</Typography>}
+      </Box>
+      <Box>
+        <Typography variant="subtitle2">Returned items</Typography>
+        {returnCase.lines.map(line => (
+          <Typography variant="body2" key={line.id ?? `${line.order_item_id}-${line.sku}`}>
+            {line.product_name || line.sku || `Order item ${line.order_item_id}`} × {line.qty}
+          </Typography>
+        ))}
+      </Box>
+      {(shipment.tracking_history ?? []).length ? (
+        <Box>
+          <Typography variant="subtitle2">Tracking history</Typography>
+          {shipment.tracking_history!.map((event, index) => (
+            <Typography variant="body2" key={index}>
+              {String(event.status ?? event.current_state ?? "Update")}{event.date ? ` — ${String(event.date)}` : ""}
+            </Typography>
+          ))}
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
+function formatParcel(parcel: Record<string, unknown>, index: number): string {
+  const length = parcel.length ?? "-";
+  const width = parcel.width ?? "-";
+  const depth = parcel.depth ?? parcel.height ?? "-";
+  const weight = parcel.weight ?? "-";
+  const type = parcel.package_type ? `, ${String(parcel.package_type)}` : "";
+  const label = parcel.label_number ? `, label ${String(parcel.label_number)}` : "";
+  return `Parcel ${index + 1}: ${String(length)} × ${String(width)} × ${String(depth)} m, ${String(weight)} kg${type}${label}`;
+}
 
 function extractQuoteRows(result: ShippitReturnsProbeResult): QuoteRow[] {
   const body = result.body;
@@ -740,6 +862,10 @@ function extractQuoteRows(result: ShippitReturnsProbeResult): QuoteRow[] {
     });
   });
   return rows.sort((left, right) => left.price - right.price);
+}
+
+function quoteKey(quote: QuoteRow): string {
+  return `${quote.courierType}|${quote.serviceLevel}|${quote.price}`;
 }
 
 function shippitErrorMessage(error: unknown, fallback: string): string {

@@ -1,6 +1,6 @@
 import { fetchJson } from "./httpClient";
 
-export type ReturnStatus = "requested" | "approved" | "received" | "closed" | "cancelled";
+export type ReturnStatus = "requested" | "approved" | "in_transit" | "received" | "closed" | "cancelled";
 
 export type ReturnLine = {
   id?: number;
@@ -32,6 +32,35 @@ export type ReturnCase = {
   shippit_tracking_number?: string;
   shippit_state?: string;
   shippit_label_url?: string;
+  originating_order?: {
+    id: number;
+    number: string;
+    status: string;
+    status_label: string;
+    fulfillment_status: string;
+    date_created?: string | null;
+    currency: string;
+  } | null;
+  outbound_shipment?: {
+    tracking_number?: string;
+    tracking_url?: string;
+    state?: string;
+    courier_name?: string;
+  } | null;
+  return_shipment?: {
+    return_order_id?: string;
+    tracking_number?: string;
+    tracking_url?: string;
+    state?: string;
+    courier_type?: string;
+    courier_name?: string;
+    quoted_cost?: number | null;
+    currency?: string;
+    label_url?: string;
+    parcels?: Array<Record<string, unknown>>;
+    tracking_history?: Array<Record<string, unknown>>;
+    updated_at?: string | null;
+  };
   created_at: string;
   updated_at: string;
   lines: ReturnLine[];
@@ -59,6 +88,7 @@ export type ReturnableOrderResponse = {
     id: number;
     number: string;
     status: string;
+    currency: string;
     date_created: string | null;
     customer: {
       email: string;
@@ -92,6 +122,13 @@ export type ShippitReturnRecord = {
   tracking_number?: string;
   state?: string;
   label_url?: string;
+  tracking_url?: string;
+  courier_type?: string;
+  courier_name?: string;
+  quoted_cost?: number | null;
+  currency?: string;
+  parcels?: Array<Record<string, unknown>>;
+  tracking_history?: Array<Record<string, unknown>>;
   lines?: Array<{
     order_item_id: number;
     product_id?: number;
@@ -171,12 +208,22 @@ export async function previewShippitReturnQuote(payload: { orderId: number; line
   });
 }
 
-export async function createShippitReturnOrder(payload: { orderId: number; returnId: number; operationId: string }): Promise<ShippitReturnOrderResponse> {
+export async function createShippitReturnOrder(payload: {
+  orderId: number;
+  returnId: number;
+  operationId: string;
+  courierType: string;
+  quotedCost: number;
+  currency: string;
+}): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/create`, {
     method: "POST",
     body: JSON.stringify({
       return_id: payload.returnId,
       operation_id: payload.operationId,
+      courier_type: payload.courierType,
+      quoted_cost: payload.quotedCost,
+      currency: payload.currency,
     }),
   });
 }
