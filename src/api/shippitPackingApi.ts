@@ -17,6 +17,15 @@ export type PackingQuoteResponse = {
   body: unknown;
 };
 
+export type PackingDestination = {
+  address_1: string;
+  address_2: string;
+  city: string;
+  state: string;
+  postcode: string;
+  country: string;
+};
+
 export type PackingQuoteSelection = {
   courier_type?: string | null;
   service_level?: string | null;
@@ -59,6 +68,14 @@ export type PackingShippitOrderResponse = {
     fulfilled_quantity: number;
     remaining_quantity: number;
   }>;
+  destination?: PackingDestination & {
+    first_name?: string;
+    last_name?: string;
+    company?: string;
+    email?: string;
+    phone?: string;
+  };
+  destination_sanitised?: boolean;
   parcel_attributes?: unknown[];
   product_attributes?: unknown[];
   message?: string;
@@ -66,12 +83,17 @@ export type PackingShippitOrderResponse = {
   ny_packing_update_status?: string;
 };
 
-export async function previewPackingQuote(orderId: number, parcels: PackingQuoteParcel[]): Promise<PackingQuoteResponse> {
+export async function previewPackingQuote(
+  orderId: number,
+  parcels: PackingQuoteParcel[],
+  destination: PackingDestination,
+): Promise<PackingQuoteResponse> {
   return fetchJson<PackingQuoteResponse>("/api/v1/shippit/packing/quote", {
     method: "POST",
     body: JSON.stringify({
       order_id: orderId,
       parcels,
+      destination,
     }),
   });
 }

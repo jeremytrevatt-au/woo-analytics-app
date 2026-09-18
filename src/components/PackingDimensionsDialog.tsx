@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { getPackingShippitOrder, previewPackingQuote, updatePackingShippitOrder } from "../api/shippitPackingApi";
-import type { PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
+import type { PackingDestination, PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
 
 type ParcelDraft = {
   id: string;
@@ -39,6 +39,21 @@ type QuoteOption = PackingQuoteSelection & {
   id: string;
   label: string;
   raw: unknown;
+};
+
+type QuoteFailure = {
+  courier: string;
+  service: string;
+  error: string;
+};
+
+const emptyDestination: PackingDestination = {
+  address_1: "",
+  address_2: "",
+  city: "",
+  state: "",
+  postcode: "",
+  country: "AU",
 };
 
 function createBlankParcel(): ParcelDraft {
@@ -145,7 +160,7 @@ function extractQuoteOptions(response: PackingQuoteResponse | null): QuoteOption
       const price = Number(quoteData.price);
       if (!courierType && !serviceLevel) return;
       if (quoteData.success === false || carrierData.success === false) return;
-      if (!Number.isFinite(price) || price <= 0) return;
+      if (!Number.isFinite(price) || price < 0) return;
       options.push({
         id: `${courierType || "courier"}-${serviceLevel || "service"}-${carrierIndex}-${quoteIndex}`,
         label: String(carrierData.courier_name || quoteData.courier_name || courierType || serviceLevel),
@@ -158,6 +173,33 @@ function extractQuoteOptions(response: PackingQuoteResponse | null): QuoteOption
     });
   });
   return options.sort((left, right) => Number(left.price) - Number(right.price));
+}
+
+function extractQuoteFailures(response: PackingQuoteResponse | null): QuoteFailure[] {
+  const body = response?.body as { response?: unknown } | null | undefined;
+  const carriers = body && typeof body === "object" && Array.isArray(body.response) ? body.response : [];
+  const failures: QuoteFailure[] = [];
+  carriers.forEach(carrier => {
+    if (!carrier || typeof carrier !== "object") return;
+    const data = carrier as Record<string, unknown>;
+    const courier = String(data.courier_name || data.courier_type || "Unknown courier");
+    const service = String(data.service_level || "");
+    if (data.success === false && typeof data.error === "string" && data.error) {
+      failures.push({ courier, service, error: data.error });
+    }
+    if (Array.isArray(data.failures)) {
+      data.failures.forEach(nested => {
+        if (!nested || typeof nested !== "object") return;
+        const failure = nested as Record<string, unknown>;
+        failures.push({
+          courier: String(failure.courier_name || failure.courier_type || courier),
+          service: String(failure.service_level || service),
+          error: String(failure.error || data.error || "Quote unavailable."),
+        });
+      });
+    }
+  });
+  return failures;
 }
 
 function formatPrice(price: number | null | undefined): string {
@@ -174,6 +216,8 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const [savingOrder, setSavingOrder] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [destination, setDestination] = useState<PackingDestination>(emptyDestination);
+  const [destinationSanitised, setDestinationSanitised] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -187,6 +231,8 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     setSavingOrder(false);
     setSelectedQuoteId(null);
     setDebugOpen(false);
+    setDestination(emptyDestination);
+    setDestinationSanitised(false);
 
     if (!order?.order_id) return;
 
@@ -195,6 +241,15 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       .then(response => {
         if (cancelled) return;
         setShippitOrder(response);
+        setDestination(response.destination ? {
+          address_1: response.destination.address_1 || "",
+          address_2: response.destination.address_2 || "",
+          city: response.destination.city || "",
+          state: response.destination.state || "",
+          postcode: response.destination.postcode || "",
+          country: response.destination.country || "AU",
+        } : emptyDestination);
+        setDestinationSanitised(Boolean(response.destination_sanitised));
         if (response.has_shippit_order && Array.isArray(response.parcels) && response.parcels.length > 0) {
           setParcels(buildParcelsFromShippitOrder(response.parcels));
           setMessage({
@@ -243,7 +298,36 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
 
   const quoteCount = useMemo(() => countQuoteItems(quote), [quote]);
   const quoteOptions = useMemo(() => extractQuoteOptions(quote), [quote]);
+  const quoteFailures = useMemo(() => extractQuoteFailures(quote), [quote]);
   const selectedQuote = quoteOptions.find(option => option.id === selectedQuoteId) ?? null;
+  const fulfillmentScope = useMemo(() => {
+    const lines = shippitOrder?.line_states ?? [];
+    return {
+      fulfilledLines: lines.filter(line => line.remaining_quantity <= 0).length,
+      remainingLines: lines.filter(line => line.remaining_quantity > 0).length,
+      remainingUnits: lines.reduce((total, line) => total + Math.max(0, line.remaining_quantity), 0),
+    };
+  }, [shippitOrder]);
+
+  const updateDestination = (field: keyof PackingDestination, value: string) => {
+    setDestination(previous => ({ ...previous, [field]: value }));
+    setDestinationSanitised(false);
+    setQuote(null);
+    setSelectedQuoteId(null);
+  };
+
+  const validateDestination = () => {
+    const required: Array<keyof PackingDestination> = ["address_1", "city", "state", "postcode", "country"];
+    if (required.some(field => !destination[field].trim())) {
+      setMessage({ type: "error", text: "Complete address, suburb, state, postcode and country before requesting quotes." });
+      return false;
+    }
+    if (destination.country.trim().length !== 2) {
+      setMessage({ type: "error", text: "Country must be a two-letter code such as AU." });
+      return false;
+    }
+    return true;
+  };
 
   const updateParcel = (id: string, field: keyof Omit<ParcelDraft, "id">, value: string) => {
     setParcels(previous => previous.map(parcel => parcel.id === id ? { ...parcel, [field]: value } : parcel));
@@ -261,17 +345,23 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     if (!order?.order_id) return;
     const parsedParcels = parseParcels(parcels);
     if (!validateParcels(parsedParcels)) return;
+    if (!validateDestination()) return;
 
     setLoading(true);
     setMessage(null);
     setQuote(null);
     try {
-      const response = await previewPackingQuote(Number(order.order_id), parsedParcels);
+      const response = await previewPackingQuote(Number(order.order_id), parsedParcels, destination);
       setQuote(response);
       const options = extractQuoteOptions(response);
       setSelectedQuoteId(options[0]?.id ?? null);
       const responseQuoteCount = options.length || countQuoteItems(response);
-      setMessage({ type: "success", text: `Shippit returned ${responseQuoteCount || "one or more"} quote response(s).` });
+      setMessage({
+        type: responseQuoteCount > 0 ? "success" : "warning",
+        text: responseQuoteCount > 0
+          ? `Shippit returned ${responseQuoteCount} selectable quote response(s).`
+          : "Shippit returned no selectable quotes. Carrier failures are shown below.",
+      });
     } catch (error: unknown) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to retrieve Shippit quote." });
     } finally {
@@ -343,6 +433,32 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                 {shippitOrder.courier_allocation ? ` Current courier: ${shippitOrder.courier_allocation}.` : ""}
                 {canEditShippitOrder ? " Parcel and quote changes can be saved." : " Parcel changes are read-only in this state."}
               </Alert>
+            ) : null}
+
+            {!loadingExistingOrder && shippitOrder?.line_states?.length ? (
+              <Alert severity="info">
+                Packing scope: {fulfillmentScope.remainingUnits} remaining unit(s) across {fulfillmentScope.remainingLines} line(s).
+                {" "}{fulfillmentScope.fulfilledLines} line(s) are already fully fulfilled and are excluded from the recommended parcels.
+              </Alert>
+            ) : null}
+
+            {!loadingExistingOrder ? (
+              <Box sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Quote Destination</Typography>
+                {destinationSanitised ? (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    This staging order contains a sanitised destination. Replace it with a valid test address to request delivery quotes.
+                  </Alert>
+                ) : null}
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "2fr 1fr" }, gap: 2 }}>
+                  <TextField required label="Address" value={destination.address_1} onChange={event => updateDestination("address_1", event.target.value)} />
+                  <TextField label="Address line 2" value={destination.address_2} onChange={event => updateDestination("address_2", event.target.value)} />
+                  <TextField required label="Suburb" value={destination.city} onChange={event => updateDestination("city", event.target.value)} />
+                  <TextField required label="State" value={destination.state} onChange={event => updateDestination("state", event.target.value)} />
+                  <TextField required label="Postcode" value={destination.postcode} onChange={event => updateDestination("postcode", event.target.value)} />
+                  <TextField required label="Country code" value={destination.country} onChange={event => updateDestination("country", event.target.value.toUpperCase())} inputProps={{ maxLength: 2 }} />
+                </Box>
+              </Box>
             ) : null}
 
             {message ? (
@@ -432,6 +548,16 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                 ) : (
                   <Alert severity="warning">No selectable Shippit quote options were returned. Use Debug JSON for the raw response.</Alert>
                 )}
+                {quoteFailures.length > 0 ? (
+                  <Stack spacing={1} sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2">Unavailable Carrier Quotes ({quoteFailures.length})</Typography>
+                    {quoteFailures.map((failure, index) => (
+                      <Alert severity="warning" key={`${failure.courier}-${failure.service}-${index}`}>
+                        {failure.courier}{failure.service ? ` (${failure.service})` : ""}: {failure.error}
+                      </Alert>
+                    ))}
+                  </Stack>
+                ) : null}
               </Box>
             ) : null}
           </Stack>
