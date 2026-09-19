@@ -578,3 +578,15 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Understood next steps (remaining TODOs):
    1. Build the latest app commit through the guarded staging pipeline.
    2. Deploy that exact image and validate that API events remain on the staging hostname.
+
+## 2026-09-19 22:07 UTC — Guarded staging bundle deployed
+
+1. TODOs completed:
+   1. Built Git revision `5fda01f` through the environment-bound staging pipeline.
+   2. Verified the compiled bundle contains the staging API hostname and excludes the production hostname.
+   3. Deployed `woo-analytics-app-staging-5fda01f` with 100 percent traffic while preserving the latest Returns changes.
+   4. Verified the deployed revision has no error-severity Cloud Logging entries.
+2. New understandings/learnings:
+   1. Cloud Run service build annotations can remain from older source deployments; the serving image reference and compiled-bundle guard are the authoritative deployment evidence.
+3. Understood next steps (remaining TODOs):
+   1. Refresh the staging browser and confirm API diagnostics use `analytics-staging.naturalyield.com.au`.
