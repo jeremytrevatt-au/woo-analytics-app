@@ -33,11 +33,13 @@ import {
   getReturnableOrderItems,
   listReturns,
   previewReturnCancellation,
+  previewReturnParcels,
   previewShippitReturnQuote,
   probeShippitReturnsEndpoints,
   ReturnableOrderResponse,
   ReturnCase,
   ReturnCancellationPreview,
+  ReturnParcel,
   ReturnSender,
   ReturnStatus,
   ShippitReturnOrderResponse,
@@ -106,6 +108,10 @@ function ReturnsPage() {
   const [confirmingCreate, setConfirmingCreate] = useState(false);
   const [fetchingLabel, setFetchingLabel] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteRow | null>(null);
+  const [returnParcels, setReturnParcels] = useState<ReturnParcel[]>([]);
+  const [recommendedReturnParcels, setRecommendedReturnParcels] = useState<ReturnParcel[]>([]);
+  const [parcelSource, setParcelSource] = useState<"ny_recommendation" | "manual">("ny_recommendation");
+  const [loadingParcelPreview, setLoadingParcelPreview] = useState(false);
   const [useReturnSenderOverride, setUseReturnSenderOverride] = useState(false);
   const [returnSender, setReturnSender] = useState<ReturnSender>(emptyReturnSender);
   const [expandedReturnId, setExpandedReturnId] = useState<number | null>(null);
@@ -183,11 +189,25 @@ function ReturnsPage() {
         lines: selectedLines,
       });
       setActiveReturnCase(created);
-      setMessage({ type: "success", text: `Return case #${created.id} saved. It is now the authoritative record for Shippit creation.` });
+      setLoadingParcelPreview(true);
+      let completionMessage: { type: "success" | "error"; text: string };
+      try {
+        const preview = await previewReturnParcels({ orderId: numericOrderId, returnId: created.id });
+        setRecommendedReturnParcels(preview.parcels);
+        setReturnParcels(preview.parcels);
+        setParcelSource("ny_recommendation");
+        completionMessage = { type: "success", text: `Return case #${created.id} saved with ${preview.parcels.length} NY Shipping recommended parcel${preview.parcels.length === 1 ? "" : "s"}.` };
+      } catch (error: any) {
+        setRecommendedReturnParcels([]);
+        setReturnParcels([]);
+        completionMessage = { type: "error", text: `Return case #${created.id} was saved, but its NY Shipping parcel recommendation failed: ${error.message || "unknown error"}` };
+      }
       await loadReturns();
+      setMessage(completionMessage);
     } catch (error: any) {
       setMessage({ type: "error", text: error.message || "Failed to create return case." });
     } finally {
+      setLoadingParcelPreview(false);
       setSaving(false);
     }
   };
@@ -289,6 +309,37 @@ function ReturnsPage() {
     setReturnSender(current => ({ ...current, [field]: value }));
   };
 
+  const updateReturnParcel = (index: number, field: keyof ReturnParcel, value: string) => {
+    const numericValue = Number(value);
+    setReturnParcels(current => current.map((parcel, parcelIndex) => (
+      parcelIndex === index ? { ...parcel, [field]: Number.isFinite(numericValue) ? numericValue : 0 } : parcel
+    )));
+    setParcelSource("manual");
+    setQuotePreview(null);
+    setSelectedQuote(null);
+  };
+
+  const addReturnParcel = () => {
+    setReturnParcels(current => [...current, { qty: 1, weight_kg: 0, length_cm: 0, width_cm: 0, height_cm: 0 }]);
+    setParcelSource("manual");
+    setQuotePreview(null);
+    setSelectedQuote(null);
+  };
+
+  const removeReturnParcel = (index: number) => {
+    setReturnParcels(current => current.filter((_, parcelIndex) => parcelIndex !== index));
+    setParcelSource("manual");
+    setQuotePreview(null);
+    setSelectedQuote(null);
+  };
+
+  const resetReturnParcels = () => {
+    setReturnParcels(recommendedReturnParcels.map(parcel => ({ ...parcel })));
+    setParcelSource("ny_recommendation");
+    setQuotePreview(null);
+    setSelectedQuote(null);
+  };
+
   const handleCreateShippitReturn = async () => {
     const numericOrderId = Number(orderId);
     if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
@@ -322,8 +373,8 @@ function ReturnsPage() {
       setMessage({
         type: "success",
         text: labelReady
-          ? `Shippit return ${returnId} created and booked; its label link is ready.`
-          : `Shippit return ${returnId} created and booked. Fetch its existing label when required.`,
+          ? `Shippit return order ${returnId} created; its label link is ready. Pickup or dispatch has not been booked.`
+          : `Shippit return order ${returnId} created. Fetch its existing label when required; pickup or dispatch has not been booked.`,
       });
       setConfirmingCreate(false);
     } catch (error: any) {
@@ -391,6 +442,16 @@ function ReturnsPage() {
       setMessage({ type: "error", text: "Save the return case before requesting a quote." });
       return;
     }
+    if (returnParcels.length === 0 || returnParcels.some(parcel => (
+      parcel.qty <= 0
+      || parcel.weight_kg <= 0
+      || parcel.length_cm <= 0
+      || parcel.width_cm <= 0
+      || parcel.height_cm <= 0
+    ))) {
+      setMessage({ type: "error", text: "Every parcel requires positive quantity, weight, length, width, and height before quoting." });
+      return;
+    }
 
     setPreviewingQuote(true);
     setMessage(null);
@@ -398,6 +459,8 @@ function ReturnsPage() {
       const response = await previewShippitReturnQuote({
         orderId: numericOrderId,
         returnId: activeReturnCase.id,
+        parcels: returnParcels,
+        parcelSource,
       });
       setQuotePreview(response);
       setSelectedQuote(null);
@@ -509,6 +572,9 @@ function ReturnsPage() {
                 setShippitReturn(null);
                 setQuotePreview(null);
                 setSelectedQuote(null);
+                setReturnParcels([]);
+                setRecommendedReturnParcels([]);
+                setParcelSource("ny_recommendation");
                 setUseReturnSenderOverride(false);
                 setReturnSender(emptyReturnSender);
               }}
@@ -539,11 +605,11 @@ function ReturnsPage() {
             <Button variant="outlined" onClick={handleClearReturnQty} disabled={!returnableOrder || saving || Boolean(activeReturnCase)}>
               Clear Qty
             </Button>
-            <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving || !activeReturnCase}>
+            <Button variant="outlined" onClick={handlePreviewQuote} disabled={previewingQuote || saving || !activeReturnCase || returnParcels.length === 0}>
               {previewingQuote ? "Loading Quote..." : "Quote Saved Return Case"}
             </Button>
             <Button variant="contained" color="secondary" onClick={() => setConfirmingCreate(true)} disabled={creatingShippitReturn || saving || !activeReturnCase || !selectedQuote}>
-              Create and Book Shippit Return
+              Create Shippit Order
             </Button>
             {returnableOrder ? (
               <Typography variant="body2" color="text.secondary">
@@ -631,6 +697,63 @@ function ReturnsPage() {
                   <TextField label="Pickup Instructions" value={returnSender.instructions || ""} onChange={(event) => updateReturnSender("instructions", event.target.value)} disabled={Boolean(activeReturnCase)} multiline minRows={2} />
                 </Stack>
               ) : null}
+            </Box>
+          ) : null}
+          {activeReturnCase ? (
+            <Box>
+              <Divider sx={{ mb: 2 }} />
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }} sx={{ mb: 2 }}>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="subtitle2">Shippit Parcel Configuration</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Dimensions are centimetres and weight is kilograms. Source: {parcelSource === "ny_recommendation" ? "NY Shipping recommendation" : "manual adjustment"}.
+                  </Typography>
+                </Box>
+                <Button variant="outlined" onClick={addReturnParcel} disabled={Boolean(shippitReturn)}>Add Parcel</Button>
+                <Button variant="outlined" onClick={resetReturnParcels} disabled={Boolean(shippitReturn) || recommendedReturnParcels.length === 0}>Reset to NY Recommendation</Button>
+              </Stack>
+              {loadingParcelPreview ? (
+                <Typography variant="body2">Calculating NY Shipping parcel recommendation...</Typography>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Parcel</TableCell>
+                      <TableCell>Qty</TableCell>
+                      <TableCell>Weight (kg)</TableCell>
+                      <TableCell>Length (cm)</TableCell>
+                      <TableCell>Width (cm)</TableCell>
+                      <TableCell>Height (cm)</TableCell>
+                      <TableCell>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {returnParcels.map((parcel, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{index + 1}</TableCell>
+                        {(["qty", "weight_kg", "length_cm", "width_cm", "height_cm"] as Array<keyof ReturnParcel>).map(field => (
+                          <TableCell key={field}>
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={parcel[field]}
+                              onChange={(event) => updateReturnParcel(index, field, event.target.value)}
+                              disabled={Boolean(shippitReturn)}
+                              inputProps={{ min: field === "qty" ? 1 : 0.01, step: field === "qty" ? 1 : 0.01 }}
+                              sx={{ width: 110 }}
+                            />
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          <Button size="small" color="error" onClick={() => removeReturnParcel(index)} disabled={Boolean(shippitReturn) || returnParcels.length <= 1}>
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </Box>
           ) : null}
           {quotePreview ? (
@@ -744,6 +867,9 @@ function ReturnsPage() {
                   setReturnLineQty({});
                   setQuotePreview(null);
                   setSelectedQuote(null);
+                  setReturnParcels([]);
+                  setRecommendedReturnParcels([]);
+                  setParcelSource("ny_recommendation");
                   setUseReturnSenderOverride(false);
                   setReturnSender(emptyReturnSender);
                   setMessage({ type: "success", text: "Ready to start another return." });
@@ -805,12 +931,15 @@ function ReturnsPage() {
       </Paper>
 
       <Dialog open={confirmingCreate} onClose={() => !creatingShippitReturn && setConfirmingCreate(false)}>
-        <DialogTitle>Create and Book Shippit Return?</DialogTitle>
+        <DialogTitle>Create Shippit Order?</DialogTitle>
         <DialogContent>
           <Stack spacing={2}>
             <Typography variant="body2">
-              This creates a live Shippit return shipment, allocates the selected carrier, generates its tracking number and label, and books it for dispatch or pickup. This is not a quote or dry run.
+              This creates a live Shippit return order with the selected carrier, tracking number and label. It does not book pickup or dispatch. This is not a quote or dry run.
             </Typography>
+            <Alert severity="info">
+              {returnParcels.length} parcel{returnParcels.length === 1 ? "" : "s"} will be submitted using the quoted configuration.
+            </Alert>
             {confirmedReturnSender ? (
               <Alert severity="warning">
                 Return sender: {formatReturnSender(confirmedReturnSender)}
@@ -825,7 +954,7 @@ function ReturnsPage() {
         <DialogActions>
           <Button onClick={() => setConfirmingCreate(false)} disabled={creatingShippitReturn}>Cancel</Button>
           <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn}>
-            {creatingShippitReturn ? "Creating and Booking..." : "Create and Book Return"}
+            {creatingShippitReturn ? "Creating Shippit Order..." : "Create Shippit Order"}
           </Button>
         </DialogActions>
       </Dialog>

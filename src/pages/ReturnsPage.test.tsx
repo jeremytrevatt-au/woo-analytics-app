@@ -9,6 +9,7 @@ import {
   getShippitReturnOrder,
   listReturns,
   previewReturnCancellation,
+  previewReturnParcels,
   previewShippitReturnQuote,
 } from "../api/returnsApi";
 import ReturnsPage from "./ReturnsPage";
@@ -22,6 +23,7 @@ vi.mock("../api/returnsApi", () => ({
   getShippitReturnOrder: vi.fn(),
   listReturns: vi.fn(),
   previewReturnCancellation: vi.fn(),
+  previewReturnParcels: vi.fn(),
   previewShippitReturnQuote: vi.fn(),
   probeShippitReturnsEndpoints: vi.fn(),
   updateReturn: vi.fn(),
@@ -44,7 +46,7 @@ describe("ReturnsPage Shippit workflow", () => {
     vi.clearAllMocks();
   });
 
-  it("confirms live booking and retrieves the existing label separately", async () => {
+  it("configures parcels, creates the Shippit order, and retrieves its label separately", async () => {
     vi.mocked(listReturns).mockResolvedValue([]);
     vi.mocked(getReturnableOrderItems).mockResolvedValue({
       order: {
@@ -108,6 +110,13 @@ describe("ReturnsPage Shippit workflow", () => {
       lines: [{ order_item_id: 11, qty: 1 }],
     });
     vi.mocked(createShippitReturnOrder).mockResolvedValue(returnRecord);
+    vi.mocked(previewReturnParcels).mockResolvedValue({
+      order_id: 134400,
+      return_id: 7,
+      parcels: [{ qty: 1, weight_kg: 0.53, length_cm: 12, width_cm: 11, height_cm: 10 }],
+      decisions: [],
+      parcel_source: "ny_recommendation",
+    });
     vi.mocked(previewShippitReturnQuote).mockResolvedValue({
       name: "returns_quote_preview_v3",
       method: "POST",
@@ -142,6 +151,9 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.change(view.getByLabelText(/Postcode/), { target: { value: "2620" } });
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
+    const parcelWeight = await view.findByDisplayValue("0.53");
+    fireEvent.change(parcelWeight, { target: { value: "0.6" } });
+    expect(view.getByText(/Source: manual adjustment/)).toBeInTheDocument();
     expect(createReturn).toHaveBeenCalledWith(expect.objectContaining({
       return_sender: expect.objectContaining({
         name: "Samantha Actual Recipient",
@@ -152,14 +164,19 @@ describe("ReturnsPage Shippit workflow", () => {
     }));
     fireEvent.click(view.getByRole("button", { name: "Quote Saved Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
-    expect(previewShippitReturnQuote).toHaveBeenCalledWith({ orderId: 134400, returnId: 7 });
+    expect(previewShippitReturnQuote).toHaveBeenCalledWith({
+      orderId: 134400,
+      returnId: 7,
+      parcels: [{ qty: 1, weight_kg: 0.6, length_cm: 12, width_cm: 11, height_cm: 10 }],
+      parcelSource: "manual",
+    });
     fireEvent.click(view.getByRole("button", { name: "Select" }));
 
-    fireEvent.click(view.getByRole("button", { name: "Create and Book Shippit Return" }));
-    expect(view.getByText(/This creates a live Shippit return shipment/)).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "Create Shippit Order" }));
+    expect(view.getByText(/It does not book pickup or dispatch/)).toBeInTheDocument();
     expect(view.getByText(/Return sender: Samantha Actual Recipient.*10 Correct Street.*Googong NSW 2620/)).toBeInTheDocument();
     expect(createShippitReturnOrder).not.toHaveBeenCalled();
-    fireEvent.click(view.getByRole("button", { name: "Create and Book Return" }));
+    fireEvent.click(within(view.getByRole("dialog")).getByRole("button", { name: "Create Shippit Order" }));
     await waitFor(() => expect(createShippitReturnOrder).toHaveBeenCalledWith(expect.objectContaining({
       orderId: 134400,
       returnId: 7,

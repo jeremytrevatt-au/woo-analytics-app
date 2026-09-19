@@ -168,9 +168,25 @@ export type ShippitReturnOrderResponse = {
   order_id: number;
   return_id?: number;
   idempotent_replay?: boolean;
-  creation_mode?: "book_immediately";
+  creation_mode?: "create_order";
   return: ShippitReturnRecord;
   result?: ShippitReturnsProbeResult;
+};
+
+export type ReturnParcel = {
+  qty: number;
+  weight_kg: number;
+  length_cm: number;
+  width_cm: number;
+  height_cm: number;
+};
+
+export type ReturnParcelPreview = {
+  order_id: number;
+  return_id: number;
+  parcels: ReturnParcel[];
+  decisions: Array<Record<string, unknown>>;
+  parcel_source: "ny_recommendation";
 };
 
 export type ReturnInventoryReversal = {
@@ -253,12 +269,26 @@ export async function probeShippitReturnsEndpoints(params: { orderId?: number; t
   });
 }
 
-export async function previewShippitReturnQuote(payload: { orderId: number; returnId: number }): Promise<ShippitReturnsProbeResult> {
+export async function previewReturnParcels(payload: { orderId: number; returnId: number }): Promise<ReturnParcelPreview> {
+  return fetchJson<ReturnParcelPreview>(`/api/v1/shippit/returns/${payload.returnId}/parcel-preview`, {
+    method: "POST",
+    body: JSON.stringify({ order_id: payload.orderId }),
+  });
+}
+
+export async function previewShippitReturnQuote(payload: {
+  orderId: number;
+  returnId: number;
+  parcels: ReturnParcel[];
+  parcelSource: "ny_recommendation" | "manual";
+}): Promise<ShippitReturnsProbeResult> {
   return fetchJson<ShippitReturnsProbeResult>("/api/v1/shippit/returns/quote", {
     method: "POST",
     body: JSON.stringify({
       order_id: payload.orderId,
       return_id: payload.returnId,
+      parcels: payload.parcels,
+      parcel_source: payload.parcelSource,
     }),
   });
 }
