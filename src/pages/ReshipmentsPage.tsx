@@ -157,6 +157,7 @@ export default function ReshipmentsPage() {
   const [productQuery, setProductQuery] = useState("");
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<QuoteOption | null>(null);
+  const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [operation, setOperation] = useState<ReshipmentOperation | null>(null);
   const [loadingSource, setLoadingSource] = useState(false);
@@ -173,6 +174,7 @@ export default function ReshipmentsPage() {
   const resetCalculatedState = () => {
     setQuote(null);
     setSelectedQuote(null);
+    setPendingOperationId(null);
     setOperation(null);
   };
 
@@ -398,9 +400,11 @@ export default function ReshipmentsPage() {
     if (!source || !destination || !selectedQuote || !parcelValid) return;
     setCreating(true);
     setMessage(null);
+    const operationId = pendingOperationId ?? crypto.randomUUID();
+    setPendingOperationId(operationId);
     try {
       const result = await createReshipment({
-        operation_id: crypto.randomUUID(),
+        operation_id: operationId,
         source_order_id: source.order.id,
         lines: requestLines,
         parcels,

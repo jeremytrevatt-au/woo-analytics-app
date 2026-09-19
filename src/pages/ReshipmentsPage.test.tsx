@@ -91,19 +91,21 @@ describe("ReshipmentsPage", () => {
         ],
       },
     });
-    vi.mocked(createReshipment).mockResolvedValue({
-      operation_id: "00000000-0000-4000-8000-000000000001",
-      source_order_id: 101,
-      replacement_order_id: 202,
-      woo_fulfillment_id: 303,
-      status: "completed",
-      tracking_number: "TRACKING",
-      tracking_url: "https://tracking.example.test/TRACKING",
-      courier_name: "Click & Collect",
-      shipment_state: "",
-      quoted_cost: 0,
-      currency: "AUD",
-    });
+    vi.mocked(createReshipment)
+      .mockRejectedValueOnce(new Error("Temporary submission error."))
+      .mockResolvedValue({
+        operation_id: "00000000-0000-4000-8000-000000000001",
+        source_order_id: 101,
+        replacement_order_id: 202,
+        woo_fulfillment_id: 303,
+        status: "completed",
+        tracking_number: "TRACKING",
+        tracking_url: "https://tracking.example.test/TRACKING",
+        courier_name: "Click & Collect",
+        shipment_state: "",
+        quoted_cost: 0,
+        currency: "AUD",
+      });
     vi.mocked(previewReshipmentParcels).mockResolvedValue({
       parcels: [
         {
@@ -137,8 +139,10 @@ describe("ReshipmentsPage", () => {
     expect(view.getByText(/creates a real zero-value WooCommerce order/)).toBeInTheDocument();
     expect(createReshipment).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole("button", { name: "Create Order and Submit" }));
+    await waitFor(() => expect(view.getByText("Temporary submission error.")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "Create Order and Submit" }));
 
-    await waitFor(() => expect(createReshipment).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(createReshipment).toHaveBeenLastCalledWith(expect.objectContaining({
       source_order_id: 101,
       lines: [{
         source_order_item_id: 11,
@@ -157,6 +161,9 @@ describe("ReshipmentsPage", () => {
       parcel_source: "manual",
       notify_customer: true,
     })));
+    expect(createReshipment).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(createReshipment).mock.calls[0][0].operation_id)
+      .toBe(vi.mocked(createReshipment).mock.calls[1][0].operation_id);
     expect(view.getByText(/Replacement order #202 created/)).toBeInTheDocument();
   });
 });
