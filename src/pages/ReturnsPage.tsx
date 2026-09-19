@@ -25,16 +25,19 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  cancelReturn,
   createReturn,
   createShippitReturnOrder,
   fetchShippitReturnLabel,
   getShippitReturnOrder,
   getReturnableOrderItems,
   listReturns,
+  previewReturnCancellation,
   previewShippitReturnQuote,
   probeShippitReturnsEndpoints,
   ReturnableOrderResponse,
   ReturnCase,
+  ReturnCancellationPreview,
   ReturnSender,
   ReturnStatus,
   ShippitReturnOrderResponse,
@@ -106,6 +109,11 @@ function ReturnsPage() {
   const [useReturnSenderOverride, setUseReturnSenderOverride] = useState(false);
   const [returnSender, setReturnSender] = useState<ReturnSender>(emptyReturnSender);
   const [expandedReturnId, setExpandedReturnId] = useState<number | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<ReturnCancellationPreview | null>(null);
+  const [returnPendingCancellation, setReturnPendingCancellation] = useState<ReturnCase | null>(null);
+  const [previewingCancellation, setPreviewingCancellation] = useState(false);
+  const [cancellingReturn, setCancellingReturn] = useState(false);
+  const [cancelOperationId, setCancelOperationId] = useState<string | null>(null);
 
   const loadReturns = async () => {
     setLoading(true);
@@ -413,6 +421,56 @@ function ReturnsPage() {
       setMessage({ type: "error", text: error.message || "Failed to update return case." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePreviewCancellation = async (returnCase: ReturnCase) => {
+    setPreviewingCancellation(true);
+    setMessage(null);
+    setCancelPreview(null);
+    setReturnPendingCancellation(returnCase);
+    setCancelOperationId(null);
+    try {
+      setCancelPreview(await previewReturnCancellation(returnCase));
+    } catch (error: any) {
+      setReturnPendingCancellation(null);
+      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to verify return cancellation.") });
+    } finally {
+      setPreviewingCancellation(false);
+    }
+  };
+
+  const handleCancelReturn = async () => {
+    if (!returnPendingCancellation || !cancelPreview?.cancellable) return;
+
+    setCancellingReturn(true);
+    setMessage(null);
+    const operationId = cancelOperationId ?? crypto.randomUUID();
+    setCancelOperationId(operationId);
+    try {
+      const result = await cancelReturn({
+        returnId: returnPendingCancellation.id,
+        orderId: returnPendingCancellation.order_id,
+        operationId,
+      });
+      const restoredQuantity = result.inventory_reversals.reduce(
+        (total, reversal) => total + reversal.quantity_restored,
+        0,
+      );
+      setReturnPendingCancellation(null);
+      setCancelPreview(null);
+      setCancelOperationId(null);
+      await loadReturns();
+      setMessage({
+        type: "success",
+        text: restoredQuantity > 0
+          ? `Return #${result.return_id} cancelled and ${restoredQuantity} recorded stock units restored.`
+          : `Return #${result.return_id} cancelled. No recorded inventory deduction required reversal.`,
+      });
+    } catch (error: any) {
+      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to cancel return.") });
+    } finally {
+      setCancellingReturn(false);
     }
   };
 
@@ -772,6 +830,72 @@ function ReturnsPage() {
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={returnPendingCancellation !== null}
+        onClose={() => {
+          if (!cancellingReturn) {
+            setReturnPendingCancellation(null);
+            setCancelPreview(null);
+            setCancelOperationId(null);
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Cancel Return #{returnPendingCancellation?.id}?</DialogTitle>
+        <DialogContent>
+          {previewingCancellation || !cancelPreview ? (
+            <Typography variant="body2">Verifying the live Shippit state and recorded inventory effects...</Typography>
+          ) : (
+            <Stack spacing={2}>
+              <Alert severity={cancelPreview.cancellable ? "warning" : "error"}>
+                {cancelPreview.cancellable
+                  ? "This will cancel the live Shippit return when present, cancel the internal case, and reverse only inventory deductions recorded against this return."
+                  : cancelPreview.reason}
+              </Alert>
+              <Typography variant="body2">
+                Shippit: {cancelPreview.shippit_tracking_number || "No shipment created"}; state: {cancelPreview.shippit_state || "not created"}.
+              </Typography>
+              {cancelPreview.inventory_reversals.length > 0 ? (
+                <Box>
+                  <Typography variant="subtitle2">Recorded inventory to restore</Typography>
+                  {cancelPreview.inventory_reversals.map(reversal => (
+                    <Typography variant="body2" key={reversal.product_id}>
+                      {reversal.product_name} × {reversal.quantity_restored}
+                      {reversal.current_stock == null ? "" : ` (current stock ${reversal.current_stock})`}
+                    </Typography>
+                  ))}
+                </Box>
+              ) : (
+                <Alert severity="info">
+                  No inventory deduction is recorded against this return, so WooCommerce stock will not change.
+                </Alert>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setReturnPendingCancellation(null);
+              setCancelPreview(null);
+              setCancelOperationId(null);
+            }}
+            disabled={cancellingReturn}
+          >
+            Keep Return
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleCancelReturn}
+            disabled={cancellingReturn || !cancelPreview?.cancellable}
+          >
+            {cancellingReturn ? "Cancelling..." : "Cancel Return"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Paper sx={{ p: 3 }}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }} justifyContent="space-between" sx={{ mb: 2 }}>
           <Typography variant="h6">Return Cases</Typography>
@@ -815,10 +939,13 @@ function ReturnsPage() {
                   <Select
                     size="small"
                     value={returnCase.status}
-                    disabled={saving}
+                    disabled={saving || returnCase.status === "cancelled" || returnCase.status === "closed"}
                     onChange={(event) => handleStatusChange(returnCase, event.target.value as ReturnStatus)}
                   >
-                    {RETURN_STATUS_OPTIONS.filter(option => option.value !== "all").map(option => (
+                    {RETURN_STATUS_OPTIONS.filter(option =>
+                      option.value !== "all"
+                      && (option.value !== "cancelled" || returnCase.status === "cancelled")
+                    ).map(option => (
                       <MenuItem key={option.value} value={option.value}>
                         {option.label}
                       </MenuItem>
@@ -839,7 +966,11 @@ function ReturnsPage() {
               {expandedReturnId === returnCase.id ? (
                 <TableRow>
                   <TableCell colSpan={9} sx={{ bgcolor: "action.hover", py: 2 }}>
-                    <ReturnShipmentDetails returnCase={returnCase} />
+                    <ReturnShipmentDetails
+                      returnCase={returnCase}
+                      onCancel={() => handlePreviewCancellation(returnCase)}
+                      previewingCancellation={previewingCancellation && returnPendingCancellation?.id === returnCase.id}
+                    />
                   </TableCell>
                 </TableRow>
               ) : null}
@@ -872,7 +1003,15 @@ function ReturnsPage() {
 
 export default ReturnsPage;
 
-function ReturnShipmentDetails({ returnCase }: { returnCase: ReturnCase }) {
+function ReturnShipmentDetails({
+  returnCase,
+  onCancel,
+  previewingCancellation,
+}: {
+  returnCase: ReturnCase;
+  onCancel: () => void;
+  previewingCancellation: boolean;
+}) {
   const order = returnCase.originating_order;
   const outbound = returnCase.outbound_shipment;
   const shipment = returnCase.return_shipment ?? {
@@ -914,6 +1053,21 @@ function ReturnShipmentDetails({ returnCase }: { returnCase: ReturnCase }) {
             Quoted cost: {shipment.quoted_cost == null ? "Not recorded" : `${shipment.currency || order?.currency || ""} ${shipment.quoted_cost.toFixed(2)}`}
           </Typography>
           {shipment.label_url ? <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open return label</Button> : null}
+          {["requested", "approved"].includes(returnCase.status) ? (
+            <Button
+              size="small"
+              color="error"
+              variant="outlined"
+              onClick={onCancel}
+              disabled={previewingCancellation}
+              sx={{ ml: shipment.label_url ? 1 : 0 }}
+            >
+              {previewingCancellation ? "Checking..." : "Cancel Return"}
+            </Button>
+          ) : null}
+          {returnCase.cancellation_state && returnCase.cancellation_state !== "not_cancelled" ? (
+            <Typography variant="body2">Cancellation state: {returnCase.cancellation_state.replaceAll("_", " ")}</Typography>
+          ) : null}
         </Box>
       </Stack>
       <Box>

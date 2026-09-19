@@ -1,23 +1,27 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cancelReturn,
   createReturn,
   createShippitReturnOrder,
   fetchShippitReturnLabel,
   getReturnableOrderItems,
   getShippitReturnOrder,
   listReturns,
+  previewReturnCancellation,
   previewShippitReturnQuote,
 } from "../api/returnsApi";
 import ReturnsPage from "./ReturnsPage";
 
 vi.mock("../api/returnsApi", () => ({
+  cancelReturn: vi.fn(),
   createReturn: vi.fn(),
   createShippitReturnOrder: vi.fn(),
   fetchShippitReturnLabel: vi.fn(),
   getReturnableOrderItems: vi.fn(),
   getShippitReturnOrder: vi.fn(),
   listReturns: vi.fn(),
+  previewReturnCancellation: vi.fn(),
   previewShippitReturnQuote: vi.fn(),
   probeShippitReturnsEndpoints: vi.fn(),
   updateReturn: vi.fn(),
@@ -223,5 +227,69 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.getByText("RETURN-TRACKING")).toBeInTheDocument();
     expect(view.getByText("Quoted cost: AUD 12.34")).toBeInTheDocument();
     expect(view.getByText(/0.325 × 0.205 × 0.03 m, 0.5 kg, satchel/)).toBeInTheDocument();
+  });
+
+  it("confirms carrier cancellation and leaves stock unchanged without a recorded deduction", async () => {
+    vi.mocked(listReturns).mockResolvedValue([{
+      id: 7,
+      order_id: 134400,
+      status: "approved",
+      reason: "Changed mind",
+      resolution: "Return label",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      shippit_tracking_number: "RETURN-TRACKING",
+      shippit_state: "order_placed",
+      cancellation_state: "not_cancelled",
+      created_at: "2026-09-18",
+      updated_at: "2026-09-18",
+      lines: [{ id: 1, order_item_id: 11, product_id: 21, product_name: "Test Product", qty: 1 }],
+    }]);
+    vi.mocked(previewReturnCancellation).mockResolvedValue({
+      order_id: 134400,
+      return_id: 7,
+      case_status: "approved",
+      cancellation_state: "not_cancelled",
+      shippit_tracking_number: "RETURN-TRACKING",
+      shippit_state: "order_placed",
+      cancellable: true,
+      reason: "",
+      inventory_reversals: [],
+      inventory_quantity_restore: 0,
+    });
+    vi.mocked(cancelReturn)
+      .mockRejectedValueOnce(new Error("Temporary cancellation error"))
+      .mockResolvedValue({
+        order_id: 134400,
+        return_id: 7,
+        status: "cancelled",
+        operation_id: "00000000-0000-4000-8000-000000000001",
+        cancellation_state: "completed",
+        cancelled_at: "2026-09-19",
+        shippit_state: "cancelled",
+        idempotent_replay: false,
+        inventory_reversals: [],
+      });
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#7")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+    fireEvent.click(view.getByRole("button", { name: "Cancel Return" }));
+
+    await waitFor(() => expect(view.getByText(/No inventory deduction is recorded/)).toBeInTheDocument());
+    expect(previewReturnCancellation).toHaveBeenCalledWith(expect.objectContaining({ id: 7, order_id: 134400 }));
+    fireEvent.click(within(view.getByRole("dialog")).getByRole("button", { name: "Cancel Return" }));
+
+    await waitFor(() => expect(view.getByText("Temporary cancellation error")).toBeInTheDocument());
+    fireEvent.click(within(view.getByRole("dialog")).getByRole("button", { name: "Cancel Return" }));
+    await waitFor(() => expect(cancelReturn).toHaveBeenLastCalledWith(expect.objectContaining({
+      returnId: 7,
+      orderId: 134400,
+      operationId: expect.any(String),
+    })));
+    expect(vi.mocked(cancelReturn).mock.calls[0][0].operationId)
+      .toBe(vi.mocked(cancelReturn).mock.calls[1][0].operationId);
+    await waitFor(() => expect(view.getByText(/No recorded inventory deduction required reversal/)).toBeInTheDocument());
   });
 });

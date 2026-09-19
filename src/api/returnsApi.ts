@@ -47,6 +47,10 @@ export type ReturnCase = {
   shippit_tracking_number?: string;
   shippit_state?: string;
   shippit_label_url?: string;
+  cancellation_operation_id?: string | null;
+  cancellation_state?: string;
+  cancellation_error?: string | null;
+  cancelled_at?: string | null;
   originating_order?: {
     id: number;
     number: string;
@@ -169,6 +173,39 @@ export type ShippitReturnOrderResponse = {
   result?: ShippitReturnsProbeResult;
 };
 
+export type ReturnInventoryReversal = {
+  product_id: number;
+  product_name: string;
+  quantity_restored: number;
+  current_stock?: number | null;
+  new_stock?: number;
+};
+
+export type ReturnCancellationPreview = {
+  order_id: number;
+  return_id: number;
+  case_status: ReturnStatus;
+  cancellation_state: string;
+  shippit_tracking_number: string;
+  shippit_state: string;
+  cancellable: boolean;
+  reason: string;
+  inventory_reversals: ReturnInventoryReversal[];
+  inventory_quantity_restore: number;
+};
+
+export type ReturnCancellationResult = {
+  order_id: number;
+  return_id: number;
+  status: ReturnStatus;
+  operation_id: string;
+  cancellation_state: string;
+  cancelled_at?: string | null;
+  shippit_state: string;
+  idempotent_replay: boolean;
+  inventory_reversals: ReturnInventoryReversal[];
+};
+
 export type ReturnCreatePayload = {
   order_id: number;
   status?: ReturnStatus;
@@ -252,4 +289,24 @@ export async function getShippitReturnOrder(orderId: number, returnOrderId: stri
 
 export async function fetchShippitReturnLabel(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}/label`);
+}
+
+export async function previewReturnCancellation(returnCase: ReturnCase): Promise<ReturnCancellationPreview> {
+  return fetchJson<ReturnCancellationPreview>(
+    `/api/v1/shippit/returns/${returnCase.id}/cancel-preview?order_id=${returnCase.order_id}`,
+  );
+}
+
+export async function cancelReturn(payload: {
+  returnId: number;
+  orderId: number;
+  operationId: string;
+}): Promise<ReturnCancellationResult> {
+  return fetchJson<ReturnCancellationResult>(`/api/v1/shippit/returns/${payload.returnId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({
+      order_id: payload.orderId,
+      operation_id: payload.operationId,
+    }),
+  });
 }
