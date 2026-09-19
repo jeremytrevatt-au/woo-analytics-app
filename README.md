@@ -472,3 +472,19 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Continue Product Owner acceptance testing for Returns and Reshipments on staging.
    2. Keep production unchanged until staging acceptance is complete.
+
+## 2026-09-19 06:58 UTC — NY Chat CRM Inbox
+
+1. TODOs completed:
+   1. Added Open, Assigned, Waiting and Closed NY Chat queues.
+   2. Added conversation history, idempotent replies, assignment and workflow actions.
+   3. Embedded linked WooCommerce customer CRM details.
+   4. Redacted chat content and operator email addresses from the existing API debug mirror.
+2. New understandings/learnings:
+   1. The staging CRM app and API require direct Cloud Run IAP before an operator Inbox can be exposed safely.
+   2. Browser requests must include IAP credentials while all NY Chat internal credentials remain server-side.
+   3. The existing toggleable API debug panel can diagnose Inbox traffic without retaining transcript content.
+3. Understood next steps (remaining TODOs):
+   1. Validate domain-restricted IAP login and the Inbox on staging.
+   2. Add realtime replies and reconnect/replay handling.
+   3. Add audited manual association for guest conversations.

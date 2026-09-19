@@ -33,10 +33,17 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     headers.set('Content-Type', 'application/json');
   }
 
-  const finalInit = { ...init, headers, cache: "no-store" as RequestCache };
+  const finalInit = {
+    ...init,
+    headers,
+    cache: "no-store" as RequestCache,
+    credentials: init?.credentials ?? "include",
+  };
   const method = finalInit.method ?? "GET";
   const startedAt = performance.now();
   const timestamp = new Date().toISOString();
+  const isChatRequest = path.startsWith("/api/v1/chat");
+  const debugRequestBody = isChatRequest ? redactChatPayload(init?.body) : init?.body ? String(init.body) : undefined;
 
   try {
     const response = await fetch(url, finalInit);
@@ -53,10 +60,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       timestamp,
       method,
       url,
-      requestBody: init?.body ? String(init.body) : undefined,
+      requestBody: debugRequestBody,
       statusCode: response.status,
       durationMs: Math.round(performance.now() - startedAt),
-      responseBody: parsedBody
+      responseBody: isChatRequest ? redactChatPayload(parsedBody) : parsedBody
     };
     pushApiDebugEvent(event);
     mirrorDebugEvent(baseUrl, event);
@@ -71,7 +78,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       timestamp,
       method,
       url,
-      requestBody: init?.body ? String(init.body) : undefined,
+      requestBody: debugRequestBody,
       durationMs: Math.round(performance.now() - startedAt),
       error: error instanceof Error ? error.message : String(error)
     };
@@ -133,9 +140,36 @@ function extractShippitNestedError(detail: unknown): string | null {
 function mirrorDebugEvent(baseUrl: string, event: ApiDebugEvent): void {
   fetch(`${baseUrl}/api/v1/diagnostics/frontend-event`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(event)
   }).catch(() => {
     // diagnostics mirror should not block the primary call
   });
+}
+
+function redactChatPayload(value: unknown): unknown {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return "[redacted chat payload]";
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.map(redactChatPayload);
+  }
+  if (parsed && typeof parsed === "object") {
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, child]) => {
+        const normalized = key.toLowerCase();
+        if (normalized === "body" || normalized === "content" || normalized.includes("email")) {
+          return [key, "[redacted]"];
+        }
+        return [key, redactChatPayload(child)];
+      }),
+    );
+  }
+  return parsed;
 }
