@@ -17,6 +17,20 @@ export type ReturnLine = {
   notes?: string;
 };
 
+export type ReturnSender = {
+  name: string;
+  company_name?: string;
+  address_line_1: string;
+  address_line_2?: string;
+  suburb: string;
+  state: string;
+  postcode: string;
+  country_code: string;
+  phone?: string;
+  email?: string;
+  instructions?: string;
+};
+
 export type ReturnCase = {
   id: number;
   order_id: number;
@@ -26,6 +40,7 @@ export type ReturnCase = {
   refund_expected: boolean | number;
   refund_reference: string;
   notes: string;
+  return_sender?: ReturnSender | null;
   shippit_operation_id?: string | null;
   shippit_create_state?: string;
   shippit_return_order_id?: string;
@@ -142,6 +157,7 @@ export type ShippitReturnRecord = {
   updated_at?: number;
   created_at?: number;
   raw_response?: unknown;
+  sender_overridden?: boolean;
 };
 
 export type ShippitReturnOrderResponse = {
@@ -161,6 +177,7 @@ export type ReturnCreatePayload = {
   refund_expected?: boolean;
   refund_reference?: string;
   notes?: string;
+  return_sender?: ReturnSender;
   lines?: ReturnLine[];
 };
 

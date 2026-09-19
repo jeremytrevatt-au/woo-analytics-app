@@ -35,6 +35,7 @@ import {
   probeShippitReturnsEndpoints,
   ReturnableOrderResponse,
   ReturnCase,
+  ReturnSender,
   ReturnStatus,
   ShippitReturnOrderResponse,
   ShippitReturnsProbeResult,
@@ -60,6 +61,20 @@ type QuoteRow = {
   serviceLevel: string;
   price: number;
   estimatedTransitTime: string;
+};
+
+const emptyReturnSender: ReturnSender = {
+  name: "",
+  company_name: "",
+  address_line_1: "",
+  address_line_2: "",
+  suburb: "",
+  state: "",
+  postcode: "",
+  country_code: "AU",
+  phone: "",
+  email: "",
+  instructions: "",
 };
 
 function ReturnsPage() {
@@ -88,6 +103,8 @@ function ReturnsPage() {
   const [confirmingCreate, setConfirmingCreate] = useState(false);
   const [fetchingLabel, setFetchingLabel] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteRow | null>(null);
+  const [useReturnSenderOverride, setUseReturnSenderOverride] = useState(false);
+  const [returnSender, setReturnSender] = useState<ReturnSender>(emptyReturnSender);
   const [expandedReturnId, setExpandedReturnId] = useState<number | null>(null);
 
   const loadReturns = async () => {
@@ -131,6 +148,22 @@ function ReturnsPage() {
         setMessage({ type: "error", text: "Enter at least one return quantity before saving the return case." });
         return;
       }
+      if (useReturnSenderOverride) {
+        const missing = [
+          ["name", returnSender.name],
+          ["address", returnSender.address_line_1],
+          ["suburb", returnSender.suburb],
+          ["state", returnSender.state],
+          ["postcode", returnSender.postcode],
+          ["country", returnSender.country_code],
+          ["phone", returnSender.phone || ""],
+          ["email", returnSender.email || ""],
+        ].filter(([, value]) => !value.trim()).map(([label]) => label);
+        if (missing.length > 0) {
+          setMessage({ type: "error", text: `Complete the return sender fields: ${missing.join(", ")}.` });
+          return;
+        }
+      }
 
       const created = await createReturn({
         order_id: numericOrderId,
@@ -138,6 +171,7 @@ function ReturnsPage() {
         resolution,
         refund_expected: refundExpected,
         notes,
+        return_sender: useReturnSenderOverride ? returnSender : undefined,
         lines: selectedLines,
       });
       setActiveReturnCase(created);
@@ -166,6 +200,21 @@ function ReturnsPage() {
         initialQty[item.order_item_id] = "";
       });
       setReturnLineQty(initialQty);
+      const shipping = response.order.shipping_address;
+      setReturnSender({
+        name: `${shipping.first_name || ""} ${shipping.last_name || ""}`.trim(),
+        company_name: shipping.company || "",
+        address_line_1: shipping.address_1 || "",
+        address_line_2: shipping.address_2 || "",
+        suburb: shipping.suburb || "",
+        state: shipping.state || "",
+        postcode: shipping.postcode || "",
+        country_code: shipping.country || "AU",
+        phone: shipping.phone || "",
+        email: response.order.customer.email || "",
+        instructions: "",
+      });
+      setUseReturnSenderOverride(false);
       setMessage({ type: "success", text: `Loaded ${response.items.length} returnable item rows for order #${response.order.number}.` });
     } catch (error: any) {
       setReturnableOrder(null);
@@ -226,6 +275,10 @@ function ReturnsPage() {
       emptyQty[item.order_item_id] = "";
     });
     setReturnLineQty(emptyQty);
+  };
+
+  const updateReturnSender = (field: keyof ReturnSender, value: string) => {
+    setReturnSender(current => ({ ...current, [field]: value }));
   };
 
   const handleCreateShippitReturn = async () => {
@@ -363,6 +416,9 @@ function ReturnsPage() {
     }
   };
 
+  const confirmedReturnSender = activeReturnCase?.return_sender
+    ?? (useReturnSenderOverride ? returnSender : null);
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -395,6 +451,8 @@ function ReturnsPage() {
                 setShippitReturn(null);
                 setQuotePreview(null);
                 setSelectedQuote(null);
+                setUseReturnSenderOverride(false);
+                setReturnSender(emptyReturnSender);
               }}
               type="number"
               inputProps={{ min: 1 }}
@@ -474,6 +532,48 @@ function ReturnsPage() {
                 ))}
               </TableBody>
             </Table>
+          ) : null}
+          {returnableOrder ? (
+            <Box>
+              <Divider sx={{ mb: 2 }} />
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={useReturnSenderOverride}
+                    onChange={(event) => setUseReturnSenderOverride(event.target.checked)}
+                    disabled={Boolean(activeReturnCase)}
+                  />
+                )}
+                label="Use a different return sender address"
+              />
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Use this when the person physically returning the parcel is not at the originating order address. The WooCommerce order is not modified.
+              </Typography>
+              {useReturnSenderOverride ? (
+                <Stack spacing={2}>
+                  <Alert severity="warning">
+                    Quotes and the final Shippit return will use this sender snapshot instead of the order address.
+                  </Alert>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    <TextField label="Return Sender Name" value={returnSender.name} onChange={(event) => updateReturnSender("name", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="Company" value={returnSender.company_name || ""} onChange={(event) => updateReturnSender("company_name", event.target.value)} disabled={Boolean(activeReturnCase)} fullWidth />
+                    <TextField label="Phone" value={returnSender.phone || ""} onChange={(event) => updateReturnSender("phone", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="Email" value={returnSender.email || ""} onChange={(event) => updateReturnSender("email", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                  </Stack>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    <TextField label="Address Line 1" value={returnSender.address_line_1} onChange={(event) => updateReturnSender("address_line_1", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="Address Line 2" value={returnSender.address_line_2 || ""} onChange={(event) => updateReturnSender("address_line_2", event.target.value)} disabled={Boolean(activeReturnCase)} fullWidth />
+                  </Stack>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                    <TextField label="Suburb" value={returnSender.suburb} onChange={(event) => updateReturnSender("suburb", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="State" value={returnSender.state} onChange={(event) => updateReturnSender("state", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="Postcode" value={returnSender.postcode} onChange={(event) => updateReturnSender("postcode", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="Country Code" value={returnSender.country_code} onChange={(event) => updateReturnSender("country_code", event.target.value.toUpperCase())} disabled={Boolean(activeReturnCase)} required inputProps={{ maxLength: 2 }} fullWidth />
+                  </Stack>
+                  <TextField label="Pickup Instructions" value={returnSender.instructions || ""} onChange={(event) => updateReturnSender("instructions", event.target.value)} disabled={Boolean(activeReturnCase)} multiline minRows={2} />
+                </Stack>
+              ) : null}
+            </Box>
           ) : null}
           {quotePreview ? (
             <Box>
@@ -586,6 +686,8 @@ function ReturnsPage() {
                   setReturnLineQty({});
                   setQuotePreview(null);
                   setSelectedQuote(null);
+                  setUseReturnSenderOverride(false);
+                  setReturnSender(emptyReturnSender);
                   setMessage({ type: "success", text: "Ready to start another return." });
                 }}
               >
@@ -647,9 +749,20 @@ function ReturnsPage() {
       <Dialog open={confirmingCreate} onClose={() => !creatingShippitReturn && setConfirmingCreate(false)}>
         <DialogTitle>Create and Book Shippit Return?</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">
-            This creates a live Shippit return shipment, allocates the selected carrier, generates its tracking number and label, and books it for dispatch or pickup. This is not a quote or dry run.
-          </Typography>
+          <Stack spacing={2}>
+            <Typography variant="body2">
+              This creates a live Shippit return shipment, allocates the selected carrier, generates its tracking number and label, and books it for dispatch or pickup. This is not a quote or dry run.
+            </Typography>
+            {confirmedReturnSender ? (
+              <Alert severity="warning">
+                Return sender: {formatReturnSender(confirmedReturnSender)}
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                Return sender: originating WooCommerce order address.
+              </Alert>
+            )}
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmingCreate(false)} disabled={creatingShippitReturn}>Cancel</Button>
@@ -804,6 +917,14 @@ function ReturnShipmentDetails({ returnCase }: { returnCase: ReturnCase }) {
         </Box>
       </Stack>
       <Box>
+        <Typography variant="subtitle2">Return sender</Typography>
+        <Typography variant="body2">
+          {returnCase.return_sender
+            ? formatReturnSender(returnCase.return_sender)
+            : "Originating WooCommerce order address"}
+        </Typography>
+      </Box>
+      <Box>
         <Typography variant="subtitle2">Parcel details</Typography>
         {(shipment.parcels ?? []).length
           ? shipment.parcels!.map((parcel, index) => <Typography variant="body2" key={index}>{formatParcel(parcel, index)}</Typography>)
@@ -839,6 +960,17 @@ function formatParcel(parcel: Record<string, unknown>, index: number): string {
   const type = parcel.package_type ? `, ${String(parcel.package_type)}` : "";
   const label = parcel.label_number ? `, label ${String(parcel.label_number)}` : "";
   return `Parcel ${index + 1}: ${String(length)} × ${String(width)} × ${String(depth)} m, ${String(weight)} kg${type}${label}`;
+}
+
+function formatReturnSender(sender: ReturnSender): string {
+  return [
+    sender.name,
+    sender.company_name,
+    sender.address_line_1,
+    sender.address_line_2,
+    `${sender.suburb} ${sender.state} ${sender.postcode}`.trim(),
+    sender.country_code,
+  ].filter(Boolean).join(", ");
 }
 
 function extractQuoteRows(result: ShippitReturnsProbeResult): QuoteRow[] {

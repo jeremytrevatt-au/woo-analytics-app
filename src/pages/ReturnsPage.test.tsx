@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createReturn,
@@ -50,7 +51,18 @@ describe("ReturnsPage Shippit workflow", () => {
         currency: "AUD",
         date_created: null,
         customer: { email: "customer@example.test", first_name: "Test", last_name: "Customer" },
-        shipping_address: {},
+        shipping_address: {
+          first_name: "Test",
+          last_name: "Customer",
+          company: "",
+          address_1: "1 Original Street",
+          address_2: "",
+          suburb: "Sydney",
+          state: "NSW",
+          postcode: "2000",
+          country: "AU",
+          phone: "0400000000",
+        },
       },
       items: [{
         order_item_id: 11,
@@ -78,6 +90,16 @@ describe("ReturnsPage Shippit workflow", () => {
       refund_expected: false,
       refund_reference: "",
       notes: "",
+      return_sender: {
+        name: "Samantha Actual Recipient",
+        address_line_1: "10 Correct Street",
+        suburb: "Googong",
+        state: "NSW",
+        postcode: "2620",
+        country_code: "AU",
+        email: "customer@example.test",
+        phone: "0400000000",
+      },
       created_at: "2026-09-18",
       updated_at: "2026-09-18",
       lines: [{ order_item_id: 11, qty: 1 }],
@@ -105,13 +127,27 @@ describe("ReturnsPage Shippit workflow", () => {
     });
 
     const view = render(<ReturnsPage />);
+    const user = userEvent.setup();
     fireEvent.change(view.getByLabelText("WooCommerce Order ID"), { target: { value: "134400" } });
     fireEvent.click(view.getByRole("button", { name: "Load Returnable Items" }));
     await waitFor(() => expect(view.getByText("Test Product")).toBeInTheDocument());
 
     fireEvent.change(view.getAllByRole("spinbutton")[1], { target: { value: "1" } });
+    await user.click(view.getByLabelText("Use a different return sender address"));
+    fireEvent.change(await view.findByLabelText(/Return Sender Name/), { target: { value: "Samantha Actual Recipient" } });
+    fireEvent.change(view.getByLabelText(/Address Line 1/), { target: { value: "10 Correct Street" } });
+    fireEvent.change(view.getByLabelText(/Suburb/), { target: { value: "Googong" } });
+    fireEvent.change(view.getByLabelText(/Postcode/), { target: { value: "2620" } });
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
+    expect(createReturn).toHaveBeenCalledWith(expect.objectContaining({
+      return_sender: expect.objectContaining({
+        name: "Samantha Actual Recipient",
+        address_line_1: "10 Correct Street",
+        suburb: "Googong",
+        postcode: "2620",
+      }),
+    }));
     fireEvent.click(view.getByRole("button", { name: "Quote Saved Return Case" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
     expect(previewShippitReturnQuote).toHaveBeenCalledWith({ orderId: 134400, returnId: 7 });
@@ -119,6 +155,7 @@ describe("ReturnsPage Shippit workflow", () => {
 
     fireEvent.click(view.getByRole("button", { name: "Create and Book Shippit Return" }));
     expect(view.getByText(/This creates a live Shippit return shipment/)).toBeInTheDocument();
+    expect(view.getByText(/Return sender: Samantha Actual Recipient.*10 Correct Street.*Googong NSW 2620/)).toBeInTheDocument();
     expect(createShippitReturnOrder).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole("button", { name: "Create and Book Return" }));
     await waitFor(() => expect(createShippitReturnOrder).toHaveBeenCalledWith(expect.objectContaining({
