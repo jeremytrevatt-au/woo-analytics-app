@@ -43,6 +43,8 @@ const triggerOptions = [
   { value: "packing_order", label: "Show when packing an order" },
   { value: "next_order_created", label: "Show on the next order" },
   { value: "follow_up", label: "Follow up" },
+  { value: "return", label: "Return workflow" },
+  { value: "reshipment", label: "Reshipment workflow" },
 ];
 
 function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_phone, customerName, orderId, defaultTriggerEvent, onChanged }: Props) {

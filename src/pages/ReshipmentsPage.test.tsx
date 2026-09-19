@@ -1,11 +1,17 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createReshipment, getReshipmentSource, quoteReshipment } from "../api/reshipmentsApi";
+import {
+  createReshipment,
+  getReshipmentSource,
+  previewReshipmentParcels,
+  quoteReshipment,
+} from "../api/reshipmentsApi";
 import ReshipmentsPage from "./ReshipmentsPage";
 
 vi.mock("../api/reshipmentsApi", () => ({
   createReshipment: vi.fn(),
   getReshipmentSource: vi.fn(),
+  previewReshipmentParcels: vi.fn(),
   quoteReshipment: vi.fn(),
 }));
 
@@ -98,6 +104,18 @@ describe("ReshipmentsPage", () => {
       quoted_cost: 0,
       currency: "AUD",
     });
+    vi.mocked(previewReshipmentParcels).mockResolvedValue({
+      parcels: [
+        {
+          qty: 1,
+          weight_kg: 0.5,
+          length_cm: 20,
+          width_cm: 15,
+          height_cm: 10,
+        },
+      ],
+      decisions: [{ product_id: 21, calculated: true }],
+    });
 
     const view = render(<ReshipmentsPage />);
     fireEvent.change(view.getByLabelText("Source WooCommerce Order ID"), { target: { value: "101" } });
@@ -106,7 +124,10 @@ describe("ReshipmentsPage", () => {
 
     fireEvent.click(view.getByRole("button", { name: "Add Missing Item" }));
     expect(view.getByText("No additional reduction")).toBeInTheDocument();
-    fireEvent.click(view.getByRole("button", { name: "Use Dimensions" }));
+    expect(view.queryByRole("button", { name: "Use Dimensions" })).not.toBeInTheDocument();
+    await waitFor(() => expect(view.getByText("1 parcel(s) calculated using NY Shipping rules.")).toBeInTheDocument());
+    fireEvent.change(view.getByDisplayValue("0.5"), { target: { value: "0.6" } });
+    expect(view.getByText(/Parcel configuration has been manually adjusted/)).toBeInTheDocument();
     fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Selected" })).toBeInTheDocument());
     expect(view.getByText("1 usable quote(s) returned; 1 carrier quote failure(s).")).toBeInTheDocument();
@@ -126,6 +147,14 @@ describe("ReshipmentsPage", () => {
         reason: "missing_from_package",
         inventory_effect: "already_accounted",
       }],
+      parcels: [{
+        qty: 1,
+        weight_kg: 0.6,
+        length_cm: 20,
+        width_cm: 15,
+        height_cm: 10,
+      }],
+      parcel_source: "manual",
       notify_customer: true,
     })));
     expect(view.getByText(/Replacement order #202 created/)).toBeInTheDocument();

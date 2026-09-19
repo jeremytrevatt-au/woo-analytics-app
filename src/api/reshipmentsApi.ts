@@ -63,6 +63,11 @@ export type ReshipmentParcel = {
   height_cm: number;
 };
 
+export type ReshipmentParcelPreview = {
+  parcels: ReshipmentParcel[];
+  decisions: Array<Record<string, unknown>>;
+};
+
 export type ReshipmentOperation = {
   operation_id: string;
   source_order_id: number;
@@ -86,8 +91,20 @@ export function quoteReshipment(payload: {
   lines: ReshipmentLineRequest[];
   parcels: ReshipmentParcel[];
   destination: ReshipmentDestination;
+  parcel_source: "recommended" | "manual";
 }): Promise<PackingQuoteResponse> {
   return fetchJson<PackingQuoteResponse>("/api/v1/shipping/reshipments/quote", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function previewReshipmentParcels(payload: {
+  source_order_id: number;
+  lines: ReshipmentLineRequest[];
+  destination: ReshipmentDestination;
+}): Promise<ReshipmentParcelPreview> {
+  return fetchJson<ReshipmentParcelPreview>("/api/v1/shipping/reshipments/parcel-preview", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -99,6 +116,7 @@ export function createReshipment(payload: {
   lines: ReshipmentLineRequest[];
   parcels: ReshipmentParcel[];
   destination: ReshipmentDestination;
+  parcel_source: "recommended" | "manual";
   quote_selection: PackingQuoteSelection;
   notify_customer: boolean;
 }): Promise<ReshipmentOperation> {

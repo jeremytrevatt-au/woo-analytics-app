@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -9,6 +9,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Link,
   MenuItem,
@@ -26,6 +27,7 @@ import type { ProductSearchResult } from "../api/productsApi";
 import {
   createReshipment,
   getReshipmentSource,
+  previewReshipmentParcels,
   quoteReshipment,
   type InventoryEffect,
   type ReshipmentDestination,
@@ -36,6 +38,7 @@ import {
   type ReshipmentSource,
 } from "../api/reshipmentsApi";
 import type { PackingQuoteResponse, PackingQuoteSelection } from "../api/shippitPackingApi";
+import CrmNoteComposer from "../components/CrmNoteComposer";
 import { useProductIndex } from "../components/ProductIndexProvider";
 import { wordpressAdminUrl } from "../config/wordpress";
 import { searchProductIndex } from "../lib/purchaseOrderProductSearch";
@@ -147,7 +150,10 @@ export default function ReshipmentsPage() {
   const [source, setSource] = useState<ReshipmentSource | null>(null);
   const [destination, setDestination] = useState<ReshipmentDestination | null>(null);
   const [lines, setLines] = useState<SelectedLine[]>([]);
-  const [parcel, setParcel] = useState<ReshipmentParcel>(emptyParcel);
+  const [parcels, setParcels] = useState<ReshipmentParcel[]>([]);
+  const [recommendedParcels, setRecommendedParcels] = useState<ReshipmentParcel[]>([]);
+  const [loadingParcels, setLoadingParcels] = useState(false);
+  const [parcelError, setParcelError] = useState<string | null>(null);
   const [productQuery, setProductQuery] = useState("");
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<QuoteOption | null>(null);
@@ -183,7 +189,9 @@ export default function ReshipmentsPage() {
       setSource(result);
       setDestination(result.destination);
       setLines([]);
-      setParcel(emptyParcel);
+      setParcels([]);
+      setRecommendedParcels([]);
+      setParcelError(null);
       resetCalculatedState();
       setMessage({ type: "success", text: `Source order #${result.order.number} loaded.` });
     } catch (error) {
@@ -275,30 +283,69 @@ export default function ReshipmentsPage() {
     resetCalculatedState();
   };
 
-  const useSourceItemDimensions = (item: ReshipmentSource["items"][number]) => {
-    if (Math.min(item.weight_kg, item.length_cm, item.width_cm, item.height_cm) <= 0) {
-      setMessage({ type: "error", text: "This product does not have complete positive parcel dimensions." });
-      return;
-    }
-    setParcel({
-      qty: 1,
-      weight_kg: item.weight_kg,
-      length_cm: item.length_cm,
-      width_cm: item.width_cm,
-      height_cm: item.height_cm,
-    });
-    resetCalculatedState();
-  };
-
-  const requestLines = (): ReshipmentLineRequest[] => lines.map(line => ({
+  const requestLines = useMemo<ReshipmentLineRequest[]>(() => lines.map(line => ({
     source_order_item_id: line.source_order_item_id,
     product_id: line.product_id,
     quantity: line.quantity,
     reason: line.reason,
     inventory_effect: line.inventory_effect,
-  }));
+  })), [lines]);
 
-  const parcelValid = Math.min(parcel.qty, parcel.weight_kg, parcel.length_cm, parcel.width_cm, parcel.height_cm) > 0;
+  useEffect(() => {
+    if (!source || !destination || requestLines.length === 0) {
+      setParcels([]);
+      setRecommendedParcels([]);
+      setParcelError(null);
+      return;
+    }
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      setLoadingParcels(true);
+      setParcelError(null);
+      try {
+        const result = await previewReshipmentParcels({
+          source_order_id: source.order.id,
+          lines: requestLines,
+          destination,
+        });
+        if (cancelled) return;
+        setRecommendedParcels(result.parcels);
+        setParcels(result.parcels);
+        setQuote(null);
+        setSelectedQuote(null);
+      } catch (error) {
+        if (cancelled) return;
+        setRecommendedParcels([]);
+        setParcels([]);
+        setParcelError(error instanceof Error ? error.message : "Failed to calculate NY Shipping parcels.");
+      } finally {
+        if (!cancelled) setLoadingParcels(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [destination, requestLines, source]);
+
+  const parcelSource: "recommended" | "manual" =
+    JSON.stringify(parcels) === JSON.stringify(recommendedParcels) ? "recommended" : "manual";
+
+  const updateParcel = (index: number, values: Partial<ReshipmentParcel>) => {
+    setParcels(previous => previous.map((parcel, parcelIndex) => (
+      parcelIndex === index ? { ...parcel, ...values } : parcel
+    )));
+    resetCalculatedState();
+  };
+
+  const resetToRecommendedParcels = () => {
+    setParcels(recommendedParcels);
+    resetCalculatedState();
+  };
+
+  const parcelValid = parcels.length > 0 && parcels.every(
+    parcel => Math.min(parcel.qty, parcel.weight_kg, parcel.length_cm, parcel.width_cm, parcel.height_cm) > 0,
+  );
   const destinationValid = Boolean(
     destination
     && destination.first_name
@@ -330,9 +377,10 @@ export default function ReshipmentsPage() {
     try {
       const result = await quoteReshipment({
         source_order_id: source.order.id,
-        lines: requestLines(),
-        parcels: [parcel],
+        lines: requestLines,
+        parcels,
         destination: destination!,
+        parcel_source: parcelSource,
       });
       setQuote(result);
       setSelectedQuote(quoteOptions(result)[0] ?? null);
@@ -354,9 +402,10 @@ export default function ReshipmentsPage() {
       const result = await createReshipment({
         operation_id: crypto.randomUUID(),
         source_order_id: source.order.id,
-        lines: requestLines(),
-        parcels: [parcel],
+        lines: requestLines,
+        parcels,
         destination,
+        parcel_source: parcelSource,
         quote_selection: selectedQuote,
         notify_customer: notifyCustomer,
       });
@@ -467,6 +516,14 @@ export default function ReshipmentsPage() {
                   </Stack>
                 </>
               ) : null}
+              <Divider />
+              <CrmNoteComposer
+                orderId={source.order.id}
+                customerEmail={source.order.email}
+                customerPhone={source.order.phone}
+                customerName={source.order.customer}
+                triggerEvent="reshipment"
+              />
             </Stack>
           ) : null}
         </Stack>
@@ -501,9 +558,6 @@ export default function ReshipmentsPage() {
                           </Button>
                           <Button size="small" variant="outlined" onClick={() => addSourceLine(item, "damaged_transit")}>
                             Add Damaged Replacement
-                          </Button>
-                          <Button size="small" variant="text" onClick={() => useSourceItemDimensions(item)}>
-                            Use Dimensions
                           </Button>
                         </Stack>
                       </TableCell>
@@ -597,27 +651,84 @@ export default function ReshipmentsPage() {
           <Paper sx={{ p: 3, mb: 3 }}>
             <Stack spacing={2}>
               <Typography variant="h6">3. Parcel and Shippit quote</Typography>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                {([
-                  ["weight_kg", "Weight (kg)"],
-                  ["length_cm", "Length (cm)"],
-                  ["width_cm", "Width (cm)"],
-                  ["height_cm", "Height (cm)"],
-                ] as const).map(([key, label]) => (
-                  <TextField
-                    key={key}
-                    label={label}
-                    type="number"
-                    value={parcel[key] || ""}
-                    onChange={event => {
-                      setParcel(previous => ({ ...previous, [key]: Number(event.target.value) }));
-                      resetCalculatedState();
-                    }}
-                    inputProps={{ min: 0.01, step: 0.01 }}
-                  />
-                ))}
+              {loadingParcels ? <Alert severity="info">Calculating parcels with NY Shipping rules...</Alert> : null}
+              {parcelError ? <Alert severity="error">{parcelError}</Alert> : null}
+              {!loadingParcels && parcels.length > 0 ? (
+                <Alert severity={parcelSource === "recommended" ? "success" : "warning"}>
+                  {parcelSource === "recommended"
+                    ? `${parcels.length} parcel(s) calculated using NY Shipping rules.`
+                    : "Parcel configuration has been manually adjusted. Request a new quote before booking."}
+                </Alert>
+              ) : null}
+              {parcels.length > 0 ? (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Parcel</TableCell>
+                      <TableCell>Weight (kg)</TableCell>
+                      <TableCell>Length (cm)</TableCell>
+                      <TableCell>Width (cm)</TableCell>
+                      <TableCell>Height (cm)</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {parcels.map((parcelRow, parcelIndex) => (
+                      <TableRow key={`parcel-${parcelIndex}`}>
+                        <TableCell>{parcelIndex + 1}</TableCell>
+                        {(["weight_kg", "length_cm", "width_cm", "height_cm"] as const).map(key => (
+                          <TableCell key={key}>
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={parcelRow[key] || ""}
+                              onChange={event => updateParcel(parcelIndex, { [key]: Number(event.target.value) })}
+                              inputProps={{ min: 0.01, step: 0.01 }}
+                              sx={{ width: 120 }}
+                            />
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          <Button
+                            color="error"
+                            size="small"
+                            onClick={() => {
+                              setParcels(previous => previous.filter((_parcel, index) => index !== parcelIndex));
+                              resetCalculatedState();
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : null}
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setParcels(previous => [...previous, { ...emptyParcel }]);
+                    resetCalculatedState();
+                  }}
+                  disabled={lines.length === 0}
+                >
+                  Add Parcel
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={resetToRecommendedParcels}
+                  disabled={recommendedParcels.length === 0 || parcelSource === "recommended"}
+                >
+                  Reset to NY Recommendation
+                </Button>
               </Stack>
-              <Button variant="outlined" onClick={previewQuote} disabled={loadingQuote || lines.length === 0}>
+              <Button
+                variant="outlined"
+                onClick={previewQuote}
+                disabled={loadingQuote || loadingParcels || lines.length === 0 || !parcelValid}
+              >
                 {loadingQuote ? "Loading Quotes..." : "Get Shippit Quotes"}
               </Button>
               {quote ? (

@@ -42,6 +42,7 @@ import {
   updateReturn,
 } from "../api/returnsApi";
 import { ApiRequestError } from "../api/httpClient";
+import CrmNoteComposer from "../components/CrmNoteComposer";
 import { wordpressAdminUrl } from "../config/wordpress";
 
 const RETURN_STATUS_OPTIONS: Array<{ value: ReturnStatus | "all"; label: string }> = [
@@ -548,12 +549,25 @@ function ReturnsPage() {
             </Alert>
           ) : null}
           <TextField
-            label="Notes"
+            label="Return case notes"
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
             multiline
             minRows={2}
+            helperText="Stored on the return case. Use CRM Note below for customer follow-up."
           />
+          {returnableOrder ? (
+            <>
+              <Divider />
+              <CrmNoteComposer
+                orderId={returnableOrder.order.id}
+                customerEmail={returnableOrder.order.customer.email}
+                customerPhone={returnableOrder.order.shipping_address.phone}
+                customerName={`${returnableOrder.order.customer.first_name} ${returnableOrder.order.customer.last_name}`.trim()}
+                triggerEvent="return"
+              />
+            </>
+          ) : null}
           <Stack direction="row" spacing={2} alignItems="center">
             <FormControlLabel
               control={<Checkbox checked={refundExpected} onChange={(event) => setRefundExpected(event.target.checked)} />}
