@@ -527,3 +527,21 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Both the app and `/api/*` now use the same Google-managed IAP client and hostname.
 3. Understood next steps (remaining TODOs):
    1. Complete Product Owner browser validation at the new staging URL.
+
+## 2026-09-19 09:12 UTC — Guarded return cancellation interface
+
+1. TODOs completed since the previous main push:
+   1. Added a dedicated Cancel Return action for eligible requested and approved returns.
+   2. Added a confirmation dialog showing the authoritative Shippit state and exact recorded stock quantity that will be restored.
+   3. Removed generic cancellation as a selectable status transition.
+   4. Reused the same operation identifier across retries and added focused cancellation regression coverage.
+   5. Passed the focused Returns tests and production TypeScript build, then deployed the staging interface.
+2. Git build reference:
+   1. Feature commit: `e8b75c7f8167ac547015986348db9a66ed8d591d`.
+   2. Staging revision: `woo-analytics-app-staging-e8b75c7`.
+3. New understandings/learnings:
+   1. Operators must see both carrier and inventory consequences before confirming cancellation.
+   2. Cancellation errors must keep the original operation identifier available for an idempotent retry.
+4. Understood next steps (remaining TODOs):
+   1. Complete Product Owner acceptance testing through the staging Returns page.
+   2. Keep production unchanged until staging acceptance is complete.
