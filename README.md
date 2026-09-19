@@ -545,3 +545,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Complete Product Owner acceptance testing through the staging Returns page.
    2. Keep production unchanged until staging acceptance is complete.
+
+## 2026-09-19 20:30 UTC — Production Returns interface deployment
+
+1. TODOs completed:
+   1. Deployed the alternate return-sender address controls and guarded cancellation interface to production.
+   2. Routed 100 percent of production frontend traffic to revision `woo-analytics-app-d30f49b`.
+   3. Invalidated the production CDN cache and verified no error-severity logs for the deployed revision.
+2. Git build reference:
+   1. Deployed app build: `d30f49b8f1199338a361cbd0ebf796edefe051db`.
+3. New understandings/learnings:
+   1. The previous production frontend contained the Reshipment retry repair but predated the alternate return-sender controls.
+4. Understood next steps (remaining TODOs):
+   1. Confirm the alternate sender control after refreshing the production Returns page and loading an order's returnable items.
