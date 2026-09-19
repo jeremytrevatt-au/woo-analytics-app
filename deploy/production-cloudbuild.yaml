@@ -1,0 +1,29 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VITE_ANALYTICS_API_BASE_URL=https://analytics.naturalyield.com.au
+      - --build-arg
+      - VITE_FORBIDDEN_ANALYTICS_API_BASE_URL=https://analytics-staging.naturalyield.com.au
+      - --build-arg
+      - VITE_WORDPRESS_BASE_URL=https://naturalyield.com.au
+      - --build-arg
+      - BUILD_GIT_REF=${_GIT_REF}
+      - --tag
+      - australia-southeast1-docker.pkg.dev/natural-yield-analytics/cloud-run-source-deploy/woo-analytics-app:${_GIT_REF}
+      - .
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        docker run --rm --entrypoint sh \
+          australia-southeast1-docker.pkg.dev/natural-yield-analytics/cloud-run-source-deploy/woo-analytics-app:${_GIT_REF} \
+          -c "grep -R -F 'https://analytics.naturalyield.com.au' /usr/share/nginx/html >/dev/null && ! grep -R -F 'https://analytics-staging.naturalyield.com.au' /usr/share/nginx/html >/dev/null"
+images:
+  - australia-southeast1-docker.pkg.dev/natural-yield-analytics/cloud-run-source-deploy/woo-analytics-app:${_GIT_REF}
+substitutions:
+  _GIT_REF: unknown
+options:
+  logging: CLOUD_LOGGING_ONLY

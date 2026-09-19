@@ -32,9 +32,15 @@ The infrastructure uses a Global HTTP Load Balancer with Identity-Aware Proxy (I
 ### Deployment Commands
 
 **1. Deploy Frontend (from `woo-analytics-app` directory)**:
-```bash
-gcloud run deploy woo-analytics-app --source . --region australia-southeast1 --project natural-yield-analytics --quiet
+```powershell
+$GIT_REF = git rev-parse --short HEAD
+gcloud builds submit --project natural-yield-analytics --config deploy/production-cloudbuild.yaml --substitutions "_GIT_REF=$GIT_REF" .
+gcloud run deploy woo-analytics-app --image "australia-southeast1-docker.pkg.dev/natural-yield-analytics/cloud-run-source-deploy/woo-analytics-app:$GIT_REF" --region australia-southeast1 --project natural-yield-analytics --quiet
 ```
+
+Direct `gcloud run deploy --source .` frontend deployments are intentionally
+unsupported because they cannot prove which Vite API URL was compiled into the
+static bundle.
 
 **2. Deploy Backend (from `woo-analytics-service` directory)**:
 ```bash
@@ -558,3 +564,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. The previous production frontend contained the Reshipment retry repair but predated the alternate return-sender controls.
 4. Understood next steps (remaining TODOs):
    1. Confirm the alternate sender control after refreshing the production Returns page and loading an order's returnable items.
+
+## 2026-09-19 22:03 UTC — Environment-bound frontend build guard
+
+1. TODOs addressed:
+   1. Diagnosed staging revision `woo-analytics-app-staging-a0dae14` as a source deployment compiled with the production API default.
+   2. Removed the Dockerfile's silent production API default.
+   3. Added staging and production image builds that verify the expected compiled API hostname and reject the opposite environment.
+   4. Added immutable Git revision metadata to frontend images.
+2. New understandings/learnings:
+   1. A Cloud Run source deployment can silently rebuild Vite assets with Dockerfile defaults and replace a correctly environment-bound image.
+   2. Frontend environment isolation must be verified against compiled assets, not inferred from Cloud Run runtime variables.
+3. Understood next steps (remaining TODOs):
+   1. Build the latest app commit through the guarded staging pipeline.
+   2. Deploy that exact image and validate that API events remain on the staging hostname.
