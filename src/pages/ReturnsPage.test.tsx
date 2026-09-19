@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createReturn,
@@ -127,13 +126,12 @@ describe("ReturnsPage Shippit workflow", () => {
     });
 
     const view = render(<ReturnsPage />);
-    const user = userEvent.setup();
     fireEvent.change(view.getByLabelText("WooCommerce Order ID"), { target: { value: "134400" } });
     fireEvent.click(view.getByRole("button", { name: "Load Returnable Items" }));
     await waitFor(() => expect(view.getByText("Test Product")).toBeInTheDocument());
 
     fireEvent.change(view.getAllByRole("spinbutton")[1], { target: { value: "1" } });
-    await user.click(view.getByLabelText("Use a different return sender address"));
+    fireEvent.click(view.getByLabelText("Use a different return sender address"));
     fireEvent.change(await view.findByLabelText(/Return Sender Name/), { target: { value: "Samantha Actual Recipient" } });
     fireEvent.change(view.getByLabelText(/Address Line 1/), { target: { value: "10 Correct Street" } });
     fireEvent.change(view.getByLabelText(/Suburb/), { target: { value: "Googong" } });
