@@ -5,6 +5,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import FilterBar from "./FilterBar";
 import ApiDebugPanel from "./ApiDebugPanel";
+import ChatNotificationBell from "./ChatNotificationBell";
 
 type Props = {
   children: React.ReactNode;
@@ -90,6 +91,7 @@ function DashboardLayout({ children }: Props) {
               Natural Yield Analytics
             </Typography>
           </Stack>
+          <ChatNotificationBell />
           <ApiDebugPanel />
         </Toolbar>
       </AppBar>

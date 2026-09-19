@@ -9,6 +9,20 @@ export type ChatConversation = {
   wordpress_user_id?: number | null;
   woo_customer_id?: number | null;
   assigned_operator_email?: string | null;
+  unread_count?: number;
+  customer_page_path?: string | null;
+  customer_page_title?: string | null;
+  customer_last_seen_at?: string | null;
+  last_customer_message_at?: string | null;
+};
+
+export type ChatAttachment = {
+  id: string;
+  conversation_id: string;
+  content_type: string;
+  width: number;
+  height: number;
+  size_bytes: number;
 };
 
 export type ChatMessage = {
@@ -18,6 +32,7 @@ export type ChatMessage = {
   sender_id: string;
   body: string;
   created_at: string;
+  attachments?: ChatAttachment[];
 };
 
 export type ChatInboxResponse = {
@@ -26,4 +41,9 @@ export type ChatInboxResponse = {
 
 export type ChatMessagesResponse = {
   messages: ChatMessage[];
+};
+
+export type ChatUnreadSummary = {
+  unread_conversation_count: number;
+  conversations: ChatConversation[];
 };

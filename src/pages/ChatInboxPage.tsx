@@ -19,11 +19,17 @@ import {
   Typography,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
+  chatAttachmentUrl,
+  chatMessageEventsUrl,
   listChatConversations,
   listChatMessages,
+  markChatConversationRead,
   sendChatReply,
+  uploadChatAttachment,
   updateChatConversation,
 } from "../api/chatApi";
 import {
@@ -36,11 +42,15 @@ import CustomerCrmPanel from "../components/CustomerCrmPanel";
 const statuses: ChatConversationStatus[] = ["open", "assigned", "waiting", "closed"];
 
 function ChatInboxPage() {
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<ChatConversationStatus>("open");
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedId, setSelectedId] = useState<string>(
+    searchParams.get("conversation") ?? "",
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState("");
+  const [attachment, setAttachment] = useState<File | null>(null);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +87,13 @@ function ChatInboxPage() {
     try {
       const response = await listChatMessages(selectedId);
       setMessages(response.messages);
+      await markChatConversationRead(selectedId);
+      setConversations((current) => current.map((conversation) => (
+        conversation.id === selectedId
+          ? { ...conversation, unread_count: 0 }
+          : conversation
+      )));
+      window.dispatchEvent(new Event("ny-chat-unread-changed"));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -92,16 +109,56 @@ function ChatInboxPage() {
     void loadMessages();
   }, [loadMessages]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => void loadInbox(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [loadInbox]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      return;
+    }
+    const source = new EventSource(chatMessageEventsUrl(selectedId), {
+      withCredentials: true,
+    });
+    source.addEventListener("message", (event) => {
+      const message = JSON.parse((event as MessageEvent).data) as ChatMessage;
+      setMessages((current) => {
+        if (current.some((item) => item.id === message.id)) {
+          return current;
+        }
+        return [...current, message].sort(
+          (left, right) => Date.parse(left.created_at) - Date.parse(right.created_at),
+        );
+      });
+      if (message.sender_type === "customer") {
+        void markChatConversationRead(selectedId).then(() => {
+          setConversations((current) => current.map((conversation) => (
+            conversation.id === selectedId
+              ? { ...conversation, unread_count: 0, updated_at: message.created_at }
+              : conversation
+          )));
+          window.dispatchEvent(new Event("ny-chat-unread-changed"));
+        });
+      }
+    });
+    return () => source.close();
+  }, [selectedId]);
+
   const handleReply = async () => {
     const body = reply.trim();
-    if (!selectedId || !body) {
+    if (!selectedId || (!body && !attachment)) {
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await sendChatReply(selectedId, body);
+      const uploaded = attachment
+        ? await uploadChatAttachment(selectedId, attachment)
+        : null;
+      await sendChatReply(selectedId, body, uploaded ? [uploaded.id] : []);
       setReply("");
+      setAttachment(null);
       await Promise.all([loadMessages(), loadInbox()]);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
@@ -175,6 +232,9 @@ function ChatInboxPage() {
                     primary={`Customer ${conversation.woo_customer_id ?? "unlinked"}`}
                     secondary={`${conversation.channel} · ${new Date(conversation.updated_at ?? conversation.created_at).toLocaleString()}`}
                   />
+                  {(conversation.unread_count ?? 0) > 0 ? (
+                    <Chip label="New" size="small" color="error" sx={{ mr: 1 }} />
+                  ) : null}
                   <Chip label={conversation.status} size="small" />
                 </ListItemButton>
               ))}
@@ -192,6 +252,12 @@ function ChatInboxPage() {
                   <Typography fontWeight={700}>Conversation {selected.id}</Typography>
                   <Typography variant="body2" color="text.secondary">
                     Woo customer: {selected.woo_customer_id ?? "Not linked"} · Assigned: {selected.assigned_operator_email ?? "Unassigned"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Current page: {selected.customer_page_title || selected.customer_page_path || "Not reported"}
+                    {selected.customer_last_seen_at
+                      ? ` · seen ${new Date(selected.customer_last_seen_at).toLocaleString()}`
+                      : ""}
                   </Typography>
                 </Box>
                 <Stack direction="row" gap={1} flexWrap="wrap">
@@ -215,7 +281,18 @@ function ChatInboxPage() {
                       maxWidth: "78%",
                     }}
                   >
-                    <Typography sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body}</Typography>
+                    {message.body ? (
+                      <Typography sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.body}</Typography>
+                    ) : null}
+                    {(message.attachments ?? []).map((item) => (
+                      <Box
+                        key={item.id}
+                        component="img"
+                        src={chatAttachmentUrl(message.conversation_id, item.id)}
+                        alt="Chat attachment"
+                        sx={{ display: "block", maxWidth: "100%", maxHeight: 320, mt: message.body ? 1 : 0, borderRadius: 1 }}
+                      />
+                    ))}
                     <Typography variant="caption" color="text.secondary">
                       {message.sender_type} · {new Date(message.created_at).toLocaleString()}
                     </Typography>
@@ -233,7 +310,21 @@ function ChatInboxPage() {
                   onChange={(event) => setReply(event.target.value)}
                   disabled={saving}
                 />
-                <Button variant="contained" onClick={() => void handleReply()} disabled={saving || !reply.trim()}>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  startIcon={<AttachFileIcon />}
+                  disabled={saving}
+                >
+                  {attachment ? attachment.name : "Image"}
+                  <input
+                    hidden
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => setAttachment(event.target.files?.[0] ?? null)}
+                  />
+                </Button>
+                <Button variant="contained" onClick={() => void handleReply()} disabled={saving || (!reply.trim() && !attachment)}>
                   Send
                 </Button>
               </Stack>

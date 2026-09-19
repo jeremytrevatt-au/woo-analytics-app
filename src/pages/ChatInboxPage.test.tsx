@@ -1,10 +1,13 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import {
   listChatConversations,
   listChatMessages,
   sendChatReply,
+  markChatConversationRead,
+  uploadChatAttachment,
   updateChatConversation,
 } from "../api/chatApi";
 import ChatInboxPage from "./ChatInboxPage";
@@ -13,6 +16,10 @@ vi.mock("../api/chatApi", () => ({
   listChatConversations: vi.fn(),
   listChatMessages: vi.fn(),
   sendChatReply: vi.fn(),
+  markChatConversationRead: vi.fn(),
+  uploadChatAttachment: vi.fn(),
+  chatMessageEventsUrl: vi.fn(() => "https://example.test/events"),
+  chatAttachmentUrl: vi.fn(() => "https://example.test/attachment"),
   updateChatConversation: vi.fn(),
 }));
 
@@ -26,9 +33,17 @@ const conversation = {
 };
 
 describe("ChatInboxPage", () => {
+  beforeEach(() => {
+    vi.stubGlobal("EventSource", class {
+      addEventListener() {}
+      close() {}
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("loads an Inbox conversation and sends an operator reply", async () => {
@@ -56,8 +71,9 @@ describe("ChatInboxPage", () => {
       created_at: "2026-09-19T07:02:00Z",
     });
     vi.mocked(updateChatConversation).mockResolvedValue(conversation);
+    vi.mocked(markChatConversationRead).mockResolvedValue(undefined);
 
-    const view = render(<ChatInboxPage />);
+    const view = render(<MemoryRouter><ChatInboxPage /></MemoryRouter>);
 
     expect(await view.findByText("Customer unlinked")).toBeInTheDocument();
     expect(await view.findByText("Can you help with my order?")).toBeInTheDocument();
@@ -70,6 +86,7 @@ describe("ChatInboxPage", () => {
     await waitFor(() => expect(sendChatReply).toHaveBeenCalledWith(
       conversation.id,
       "Yes, we can help.",
+      [],
     ));
   });
 });

@@ -590,3 +590,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Cloud Run service build annotations can remain from older source deployments; the serving image reference and compiled-bundle guard are the authoritative deployment evidence.
 3. Understood next steps (remaining TODOs):
    1. Refresh the staging browser and confirm API diagnostics use `analytics-staging.naturalyield.com.au`.
+
+## 2026-09-19 22:34 UTC — Chat notifications and realtime Inbox
+
+1. TODOs completed:
+   1. Added a top-right NY Chat mailbox icon with a 60-second unread refresh and conversation badge.
+   2. Added per-conversation unread indicators and automatic read receipts.
+   3. Added realtime active-conversation updates with reconnect and deduplication.
+   4. Added current customer page and last-seen context.
+   5. Added authenticated image upload and display.
+2. New understandings/learnings:
+   1. The notification badge counts conversations with unread customer messages rather than raw message volume.
+   2. The active conversation remains current through SSE while the 60-second refresh covers background queues.
+3. Understood next steps (remaining TODOs):
+   1. Deploy the guarded staging build and complete browser acceptance.
+   2. Keep production unchanged until acceptance is complete.
