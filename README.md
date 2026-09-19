@@ -488,3 +488,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Validate domain-restricted IAP login and the Inbox on staging.
    2. Add realtime replies and reconnect/replay handling.
    3. Add audited manual association for guest conversations.
+
+## 2026-09-19 07:39 UTC — NY Chat Inbox staging deployment
+
+1. TODOs completed:
+   1. Built and deployed Git build `4a63bf0` as `woo-analytics-app-staging-4a63bf0`.
+   2. Restricted staging access to the `naturalyield.com.au` domain through direct Cloud Run IAP.
+   3. Passed TypeScript compilation and the focused Inbox queue/reply component test.
+   4. Verified unauthenticated `/chat` access is redirected to Google login.
+2. New understandings/learnings:
+   1. The repository's complete frontend suite has pre-existing failures in `App.test.tsx`, `ReturnsPage.test.tsx` and Playwright test discovery; the new Inbox test passes independently.
+   2. Credentialed browser API requests and unauthenticated IAP `OPTIONS` handling are both required for the separate staging app and API origins.
+3. Understood next steps (remaining TODOs):
+   1. Complete Product Owner browser acceptance of `/chat`.
+   2. Add realtime updates and audited guest association.
+   3. Keep production unchanged until staging acceptance is complete.
