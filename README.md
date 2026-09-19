@@ -516,3 +516,14 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Understood next steps (remaining TODOs):
    1. Deploy the corrected staging build after the managed certificate becomes active.
    2. Validate dashboard and NY Chat API traffic through the shared hostname.
+
+## 2026-09-19 08:24 UTC — Same-origin staging deployment
+
+1. TODOs completed:
+   1. Deployed Git build `969e51f` as `woo-analytics-app-staging-969e51f`.
+   2. Activated `https://analytics-staging.naturalyield.com.au` with managed TLS and domain-restricted IAP.
+   3. Restricted direct Cloud Run ingress and enabled complete load-balancer diagnostics.
+2. New understandings/learnings:
+   1. Both the app and `/api/*` now use the same Google-managed IAP client and hostname.
+3. Understood next steps (remaining TODOs):
+   1. Complete Product Owner browser validation at the new staging URL.
