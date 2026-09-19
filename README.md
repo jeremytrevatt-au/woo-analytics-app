@@ -503,3 +503,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Complete Product Owner browser acceptance of `/chat`.
    2. Add realtime updates and audited guest association.
    3. Keep production unchanged until staging acceptance is complete.
+
+## 2026-09-19 08:09 UTC — Staging same-origin correction
+
+1. TODOs addressed:
+   1. Diagnosed browser API failures caused by separate app and API IAP sessions.
+   2. Changed the staging build to use `https://analytics-staging.naturalyield.com.au` for API requests.
+   3. Provisioned same-origin load-balancer routing for the app and `/api/*`.
+2. New understandings/learnings:
+   1. A browser fetch cannot complete an interactive IAP redirect for a separately authenticated API origin.
+   2. Staging must mirror production's single hostname and path routing to preserve one operator session.
+3. Understood next steps (remaining TODOs):
+   1. Deploy the corrected staging build after the managed certificate becomes active.
+   2. Validate dashboard and NY Chat API traffic through the shared hostname.

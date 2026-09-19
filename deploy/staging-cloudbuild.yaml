@@ -3,7 +3,7 @@ steps:
     args:
       - build
       - --build-arg
-      - VITE_ANALYTICS_API_BASE_URL=https://woo-analytics-service-staging-kfnxalgclq-ts.a.run.app
+      - VITE_ANALYTICS_API_BASE_URL=https://analytics-staging.naturalyield.com.au
       - --build-arg
       - VITE_WORDPRESS_BASE_URL=https://staging.naturalyield.com.au
       - --tag
