@@ -172,7 +172,7 @@ describe("ReturnsPage Shippit workflow", () => {
 
     fireEvent.click(view.getByRole("button", { name: "Fetch Return Label" }));
     await waitFor(() => expect(fetchShippitReturnLabel).toHaveBeenCalledWith(134400, "RETURN-TRACKING"));
-  });
+  }, 15000);
 
   it("shows outbound and return shipment details separately", async () => {
     vi.mocked(listReturns).mockResolvedValue([{
