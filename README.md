@@ -497,6 +497,16 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Understood next steps (remaining TODOs):
    1. Deploy and visually confirm the hyperlink in staging.
 
+## 2026-09-20 02:30 UTC — Current-page hyperlink deployed
+
+1. TODOs completed:
+   1. Deployed guarded image `e8922b4` as revision `woo-analytics-app-staging-00027-hm8`.
+   2. Verified TypeScript, Inbox component behavior and safe storefront URL construction.
+2. New understandings/learnings:
+   1. Existing privacy-safe page paths require no backend migration.
+3. Understood next steps (remaining TODOs):
+   1. Complete Product Owner visual acceptance.
+
 ## 2026-09-18 09:57 UTC
 
 1. TODOs completed since the previous main push:
