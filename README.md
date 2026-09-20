@@ -473,6 +473,19 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Deploy and validate the customer labels against staging conversations.
    2. Add the audited guest-to-customer/order association workflow.
 
+## 2026-09-20 01:01 UTC — Customer identity staging deployment
+
+1. TODOs completed:
+   1. Deployed guarded image `f365e2a` as revision `woo-analytics-app-staging-00026-mzp`.
+   2. Verified the active Customer 1978 conversation contains a customer display name.
+   3. Verified guest identity claims and new-sales status reach the operator Inbox API.
+2. New understandings/learnings:
+   1. Names can be displayed without additional per-row CRM requests because they are conversation snapshots.
+   2. Claimed guest orders remain explicitly unverified in the operator UI.
+3. Understood next steps (remaining TODOs):
+   1. Complete Product Owner visual acceptance.
+   2. Build audited guest association controls.
+
 ## 2026-09-18 09:57 UTC
 
 1. TODOs completed since the previous main push:
