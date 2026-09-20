@@ -486,6 +486,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Complete Product Owner visual acceptance.
    2. Build audited guest association controls.
 
+## 2026-09-20 02:26 UTC — Current customer page hyperlink
+
+1. TODOs completed:
+   1. Added an operator hyperlink from the reported page title/path to the configured WordPress storefront.
+   2. Opened customer pages in a separate tab with `noopener`/`noreferrer`.
+   3. Restricted destinations to relative storefront paths and removed query strings/fragments.
+2. New understandings/learnings:
+   1. The environment-controlled storefront origin prevents conversation data from selecting an arbitrary host.
+3. Understood next steps (remaining TODOs):
+   1. Deploy and visually confirm the hyperlink in staging.
+
 ## 2026-09-18 09:57 UTC
 
 1. TODOs completed since the previous main push:

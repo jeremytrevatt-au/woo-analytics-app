@@ -23,6 +23,12 @@ vi.mock("../api/chatApi", () => ({
   updateChatConversation: vi.fn(),
 }));
 
+vi.mock("../config/wordpress", () => ({
+  wordpressStorefrontUrl: vi.fn(
+    (path: string) => `https://staging.naturalyield.com.au${path}`,
+  ),
+}));
+
 const conversation = {
   id: "conversation-1",
   channel: "website_chat",
@@ -31,6 +37,8 @@ const conversation = {
   updated_at: "2026-09-19T07:01:00Z",
   woo_customer_id: null,
   customer_display_name: "NYA-Staging-Admin",
+  customer_page_path: "/shop/sample-product",
+  customer_page_title: "Sample product",
 };
 
 describe("ChatInboxPage", () => {
@@ -78,6 +86,10 @@ describe("ChatInboxPage", () => {
 
     expect((await view.findAllByText("NYA-Staging-Admin")).length).toBeGreaterThan(0);
     expect(await view.findByText("Can you help with my order?")).toBeInTheDocument();
+    expect(view.getByRole("link", { name: "Sample product" })).toHaveAttribute(
+      "href",
+      "https://staging.naturalyield.com.au/shop/sample-product",
+    );
 
     fireEvent.change(view.getByLabelText("Reply"), {
       target: { value: "Yes, we can help." },

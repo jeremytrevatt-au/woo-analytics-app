@@ -8,6 +8,7 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  Link,
   List,
   ListItemButton,
   ListItemText,
@@ -39,6 +40,7 @@ import {
 } from "../types/chat";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import { chatCustomerLabel } from "../lib/chatIdentity";
+import { wordpressStorefrontUrl } from "../config/wordpress";
 
 const statuses: ChatConversationStatus[] = ["open", "assigned", "waiting", "closed"];
 
@@ -58,6 +60,9 @@ function ChatInboxPage() {
   const [error, setError] = useState<string | null>(null);
 
   const selected = conversations.find((conversation) => conversation.id === selectedId);
+  const selectedPageUrl = selected?.customer_page_path
+    ? wordpressStorefrontUrl(selected.customer_page_path)
+    : null;
 
   const loadInbox = useCallback(async () => {
     setLoadingInbox(true);
@@ -260,7 +265,17 @@ function ChatInboxPage() {
                     </Typography>
                   ) : null}
                   <Typography variant="body2" color="text.secondary">
-                    Current page: {selected.customer_page_title || selected.customer_page_path || "Not reported"}
+                    Current page: {selectedPageUrl ? (
+                      <Link
+                        href={selectedPageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {selected.customer_page_title || selected.customer_page_path}
+                      </Link>
+                    ) : (
+                      selected.customer_page_title || selected.customer_page_path || "Not reported"
+                    )}
                     {selected.customer_last_seen_at
                       ? ` · seen ${new Date(selected.customer_last_seen_at).toLocaleString()}`
                       : ""}
