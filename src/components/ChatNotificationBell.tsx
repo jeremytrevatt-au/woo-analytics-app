@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getChatUnreadSummary } from "../api/chatApi";
 import { ChatUnreadSummary } from "../types/chat";
+import { chatCustomerLabel } from "../lib/chatIdentity";
 
 const EMPTY_SUMMARY: ChatUnreadSummary = {
   unread_conversation_count: 0,
@@ -78,7 +79,7 @@ function ChatNotificationBell() {
                 }}
               >
                 <ListItemText
-                  primary={`Customer ${conversation.woo_customer_id ?? "unlinked"}`}
+                  primary={chatCustomerLabel(conversation)}
                   secondary={conversation.customer_page_title || conversation.customer_page_path || "Website chat"}
                 />
               </ListItemButton>

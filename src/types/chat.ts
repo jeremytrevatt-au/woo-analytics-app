@@ -14,6 +14,13 @@ export type ChatConversation = {
   customer_page_title?: string | null;
   customer_last_seen_at?: string | null;
   last_customer_message_at?: string | null;
+  customer_display_name?: string | null;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
+  customer_identity_type?: "logged_in" | "guest";
+  guest_email?: string | null;
+  guest_order_number?: string | null;
+  guest_identity_status?: "not_provided" | "provided_unverified" | "new_sales" | null;
 };
 
 export type ChatAttachment = {

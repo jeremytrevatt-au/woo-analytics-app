@@ -38,6 +38,7 @@ import {
   ChatMessage,
 } from "../types/chat";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
+import { chatCustomerLabel } from "../lib/chatIdentity";
 
 const statuses: ChatConversationStatus[] = ["open", "assigned", "waiting", "closed"];
 
@@ -229,7 +230,7 @@ function ChatInboxPage() {
                   onClick={() => setSelectedId(conversation.id)}
                 >
                   <ListItemText
-                    primary={`Customer ${conversation.woo_customer_id ?? "unlinked"}`}
+                    primary={chatCustomerLabel(conversation)}
                     secondary={`${conversation.channel} · ${new Date(conversation.updated_at ?? conversation.created_at).toLocaleString()}`}
                   />
                   {(conversation.unread_count ?? 0) > 0 ? (
@@ -249,10 +250,15 @@ function ChatInboxPage() {
             <>
               <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" gap={1} sx={{ p: 2 }}>
                 <Box>
-                  <Typography fontWeight={700}>Conversation {selected.id}</Typography>
+                  <Typography fontWeight={700}>{chatCustomerLabel(selected)}</Typography>
                   <Typography variant="body2" color="text.secondary">
                     Woo customer: {selected.woo_customer_id ?? "Not linked"} · Assigned: {selected.assigned_operator_email ?? "Unassigned"}
                   </Typography>
+                  {selected.customer_identity_type === "guest" ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Guest email: {selected.guest_email ?? "Not provided"} · Claimed order: {selected.guest_order_number ?? "Not provided"} · {selected.guest_identity_status === "new_sales" ? "New sales enquiry" : "Unverified"}
+                    </Typography>
+                  ) : null}
                   <Typography variant="body2" color="text.secondary">
                     Current page: {selected.customer_page_title || selected.customer_page_path || "Not reported"}
                     {selected.customer_last_seen_at
@@ -343,6 +349,8 @@ function ChatInboxPage() {
           <AccordionDetails>
             <CustomerCrmPanel
               customer_id={selected.woo_customer_id}
+              customer_email={selected.guest_email ?? undefined}
+              customerName={chatCustomerLabel(selected)}
               defaultTriggerEvent="manual"
             />
           </AccordionDetails>

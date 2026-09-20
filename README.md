@@ -458,6 +458,21 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Complete Product Owner acceptance testing in the staging Returns page.
    2. Keep production unchanged until acceptance is complete.
 
+## 2026-09-20 00:42 UTC — Chat customer identity labels
+
+1. TODOs completed:
+   1. Replaced numeric-only chat labels with verified customer names where available.
+   2. Added safe fallback to the WordPress display name.
+   3. Added guest email, claimed order and new-sales context to the authorized Inbox.
+   4. Added guest email as a CRM lookup identity while keeping order claims unverified.
+   5. Redacted names and order references from API diagnostics.
+2. New understandings/learnings:
+   1. Conversation identity snapshots avoid an N+1 CRM lookup for every Inbox refresh.
+   2. Guest-submitted order numbers must remain visibly unverified until associated by an operator.
+3. Understood next steps (remaining TODOs):
+   1. Deploy and validate the customer labels against staging conversations.
+   2. Add the audited guest-to-customer/order association workflow.
+
 ## 2026-09-18 09:57 UTC
 
 1. TODOs completed since the previous main push:

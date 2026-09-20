@@ -164,7 +164,13 @@ function redactChatPayload(value: unknown): unknown {
     return Object.fromEntries(
       Object.entries(parsed).map(([key, child]) => {
         const normalized = key.toLowerCase();
-        if (normalized === "body" || normalized === "content" || normalized.includes("email")) {
+        if (
+          normalized === "body"
+          || normalized === "content"
+          || normalized.includes("email")
+          || normalized.includes("name")
+          || normalized.includes("order")
+        ) {
           return [key, "[redacted]"];
         }
         return [key, redactChatPayload(child)];

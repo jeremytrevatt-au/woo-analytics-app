@@ -30,6 +30,7 @@ const conversation = {
   created_at: "2026-09-19T07:00:00Z",
   updated_at: "2026-09-19T07:01:00Z",
   woo_customer_id: null,
+  customer_display_name: "NYA-Staging-Admin",
 };
 
 describe("ChatInboxPage", () => {
@@ -75,7 +76,7 @@ describe("ChatInboxPage", () => {
 
     const view = render(<MemoryRouter><ChatInboxPage /></MemoryRouter>);
 
-    expect(await view.findByText("Customer unlinked")).toBeInTheDocument();
+    expect((await view.findAllByText("NYA-Staging-Admin")).length).toBeGreaterThan(0);
     expect(await view.findByText("Can you help with my order?")).toBeInTheDocument();
 
     fireEvent.change(view.getByLabelText("Reply"), {
