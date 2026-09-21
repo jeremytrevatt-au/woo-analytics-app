@@ -69,6 +69,14 @@ describe("ChatInboxPage", () => {
           body: "Can you help with my order?",
           created_at: "2026-09-19T07:01:00Z",
         },
+        {
+          id: "message-2",
+          conversation_id: conversation.id,
+          sender_type: "operator",
+          sender_id: "operator:operator@naturalyield.com.au",
+          body: "We are looking into it.",
+          created_at: "2026-09-19T07:01:30Z",
+        },
       ],
     });
     vi.mocked(sendChatReply).mockResolvedValue({
@@ -86,6 +94,9 @@ describe("ChatInboxPage", () => {
 
     expect((await view.findAllByText("NYA-Staging-Admin")).length).toBeGreaterThan(0);
     expect(await view.findByText("Can you help with my order?")).toBeInTheDocument();
+    expect(view.getByLabelText("operator message")).toHaveTextContent(
+      "We are looking into it.",
+    );
     expect(view.getByRole("link", { name: "Sample product" })).toHaveAttribute(
       "href",
       "https://staging.naturalyield.com.au/shop/sample-product",

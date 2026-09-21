@@ -293,10 +293,14 @@ function ChatInboxPage() {
                 {loadingMessages ? <CircularProgress size={28} /> : messages.map((message) => (
                   <Box
                     key={message.id}
+                    aria-label={`${message.sender_type} message`}
                     sx={{
                       alignSelf: message.sender_type === "operator" ? "flex-end" : "flex-start",
-                      bgcolor: message.sender_type === "operator" ? "primary.light" : "grey.100",
+                      bgcolor: message.sender_type === "operator" ? "grey.200" : "background.paper",
+                      border: 1,
+                      borderColor: "divider",
                       borderRadius: 2,
+                      color: "text.primary",
                       px: 1.5,
                       py: 1,
                       maxWidth: "78%",
