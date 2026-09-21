@@ -722,3 +722,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Deploy the immutable production bundle after the backend and Chat service are ready.
    2. Validate through production IAP with Chat restricted to administrators.
    3. Keep public Chat activation behind a separate approval gate.
+
+## 2026-09-21 08:50 UTC — Production CRM UI deployment
+
+1. TODOs completed:
+   1. Passed the complete frontend test and production-build guard suite in Cloud Build.
+   2. Deployed immutable image `65184a3` to `woo-analytics-app-00170-r5h` with 100 percent traffic.
+   3. Kept the Chat storefront surface administrators-only during production acceptance.
+2. Git build reference:
+   1. Production UI build: `65184a3`.
+3. New understandings/learnings:
+   1. The deployed Gmail history UI can display live inbound and outbound records without exposing email addresses in request URLs or diagnostics.
+4. Understood next steps (remaining TODOs):
+   1. Observe the administrator pilot.
+   2. Keep public Chat activation behind the separate approval gate.
