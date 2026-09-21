@@ -111,6 +111,9 @@ const audit: WebAuditRecord = {
       actionable_audits: [{ id: "unused-js", title: "Reduce unused JavaScript", display_value: "120 KiB" }],
       lighthouse_version: "12.8.0",
       fetch_time: "2026-09-21T04:05:00Z",
+      requested_url: "https://staging.example.test/",
+      final_url: "https://staging.example.test/",
+      document_status: { score: 1, title: "Successful HTTP status code" },
       error: "Accessibility category was unavailable.",
     },
     crux: {

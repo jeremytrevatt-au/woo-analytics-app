@@ -95,6 +95,15 @@ export interface PsiCollector {
   actionable_audits?: LighthouseAudit[];
   lighthouse_version?: string | null;
   fetch_time?: string | null;
+  requested_url?: string | null;
+  final_url?: string | null;
+  runtime_error?: unknown;
+  runtime_warnings?: unknown[];
+  document_status?: {
+    score?: number | null;
+    title?: string | null;
+    display_value?: string | null;
+  };
   error?: string | null;
 }
 

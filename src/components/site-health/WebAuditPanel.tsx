@@ -75,6 +75,20 @@ function PsiResults({ psi }: { psi: PsiCollector }) {
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <StatusMessage name="PageSpeed Insights" status={psi.status} error={psi.error} />
+      {psi.document_status && psi.document_status.score !== 1 ? (
+        <Alert severity="warning">
+          Lighthouse did not confirm a successful page response. This can indicate an authentication challenge,
+          HTTP error, or runtime failure; category scores must not be treated as storefront health.
+        </Alert>
+      ) : null}
+      {psi.requested_url || psi.final_url ? (
+        <Typography variant="body2" color="text.secondary">
+          Requested URL: {psi.requested_url ?? "Not reported"} · Final URL: {psi.final_url ?? "Not reported"}
+        </Typography>
+      ) : null}
+      {psi.runtime_error ? (
+        <Alert severity="error">Lighthouse runtime error: {valueText(psi.runtime_error)}</Alert>
+      ) : null}
       {hasData(psi.status) ? (
         <>
           <Stack direction="row" useFlexGap flexWrap="wrap" spacing={3}>
