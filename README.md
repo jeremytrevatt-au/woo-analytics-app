@@ -685,3 +685,25 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Complete the isolated Workspace staging mailbox and connector authorization.
    2. Validate the first real synchronized conversation and Gmail search link through IAP.
+
+## 2026-09-21 07:54 UTC — Site Health dashboard staging deployment
+
+1. TODOs completed since the previous main push:
+   1. Added a modular Site Health route and navigation entry.
+   2. Added WordPress and host-health panels with expandable authoritative evidence and recommendations.
+   3. Added explicitly requested PageSpeed Insights/Lighthouse and CrUX audits with BigQuery-backed history.
+   4. Added separate page/origin CrUX states and warnings when Lighthouse audits an HTTP error or authentication challenge.
+   5. Preserved API request and response visibility through the global toggleable diagnostics panel.
+   6. Passed focused tests, TypeScript validation, linting and production builds in Cloud Build.
+   7. Deployed and verified staging revision `woo-analytics-app-staging-00031-k75`.
+2. Git build reference:
+   1. Site Health dashboard foundation: `79a22483e5c7477a1986b2819adf5dbc7c432253`.
+   2. Deployed dashboard build: `66377d12376867a1626e8b350a0c0c25b366414f`.
+3. New understandings/learnings:
+   1. A Lighthouse category score is not trustworthy unless the audited document has a successful HTTP response and no Lighthouse runtime error.
+   2. Staging Basic Auth produces a deliberately visible partial audit instead of being presented as storefront health.
+   3. IAP remains the user-authentication boundary, while Cloud Run requires load-balancer invocation permission and restricted ingress.
+4. Understood next steps (remaining TODOs):
+   1. Complete Product Owner acceptance testing of the Site Health dashboard through staging IAP.
+   2. Review the surfaced WordPress health findings before planning remediation.
+   3. Keep production unchanged until an approved production rollout.
