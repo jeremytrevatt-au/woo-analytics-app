@@ -139,12 +139,15 @@ export async function listCrmCustomerEmailHistory(
   customerEmail: string,
   limit = 25,
 ): Promise<CrmCustomerEmailHistoryResponse> {
-  const query = new URLSearchParams({
-    customer_email: customerEmail,
-    limit: String(limit),
-  });
   return fetchJson<CrmCustomerEmailHistoryResponse>(
-    `/api/v1/crm/customer-email-history?${query.toString()}`,
+    "/api/v1/crm/customer-email-history",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        customer_email: customerEmail,
+        limit,
+      }),
+    },
   );
 }
 
