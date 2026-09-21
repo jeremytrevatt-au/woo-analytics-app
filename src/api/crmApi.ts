@@ -70,6 +70,28 @@ export type CrmCustomerProfile = {
   notes: CrmNote[];
 };
 
+export type CrmEmailDirection = "inbound" | "outbound";
+
+export type CrmCustomerEmailMessage = {
+  message_id: string;
+  thread_id: string;
+  subject: string;
+  snippet: string;
+  sent_at: string;
+  direction: CrmEmailDirection;
+  from_name: string;
+  from_address: string;
+  to_addresses: string[];
+  gmail_url: string | null;
+};
+
+export type CrmCustomerEmailHistoryResponse = {
+  messages: CrmCustomerEmailMessage[];
+  sync_state: "ok" | "stale" | "not_configured" | "unavailable";
+  last_synced_at: string | null;
+  watch_expiration_ms: number | null;
+};
+
 function appendIdentityParams(query: URLSearchParams, identity: CrmCustomerIdentity): void {
   if (identity.customer_id !== undefined && identity.customer_id !== null) query.append("customer_id", String(identity.customer_id));
   if (identity.customer_key) query.append("customer_key", identity.customer_key);
@@ -111,6 +133,19 @@ export async function getCrmCustomerProfile(identity: CrmCustomerIdentity): Prom
   const query = new URLSearchParams();
   appendIdentityParams(query, identity);
   return fetchJson<CrmCustomerProfile>(`/api/v1/crm/customer-profile?${query.toString()}`);
+}
+
+export async function listCrmCustomerEmailHistory(
+  customerEmail: string,
+  limit = 25,
+): Promise<CrmCustomerEmailHistoryResponse> {
+  const query = new URLSearchParams({
+    customer_email: customerEmail,
+    limit: String(limit),
+  });
+  return fetchJson<CrmCustomerEmailHistoryResponse>(
+    `/api/v1/crm/customer-email-history?${query.toString()}`,
+  );
 }
 
 export async function listCrmCustomerProfileExtensions(identity: CrmCustomerIdentity = {}): Promise<CrmCustomerProfileExtension[] | CrmCustomerProfileExtension> {

@@ -43,7 +43,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const startedAt = performance.now();
   const timestamp = new Date().toISOString();
   const isChatRequest = path.startsWith("/api/v1/chat");
-  const debugRequestBody = isChatRequest ? redactChatPayload(init?.body) : init?.body ? String(init.body) : undefined;
+  const isEmailHistoryRequest = path.startsWith("/api/v1/crm/customer-email-history");
+  const isSensitiveRequest = isChatRequest || isEmailHistoryRequest;
+  const debugUrl = isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url;
+  const debugRequestBody = isSensitiveRequest ? redactSensitivePayload(init?.body) : init?.body ? String(init.body) : undefined;
 
   try {
     const response = await fetch(url, finalInit);
@@ -59,17 +62,22 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       id: crypto.randomUUID(),
       timestamp,
       method,
-      url,
+      url: debugUrl,
       requestBody: debugRequestBody,
       statusCode: response.status,
       durationMs: Math.round(performance.now() - startedAt),
-      responseBody: isChatRequest ? redactChatPayload(parsedBody) : parsedBody
+      responseBody: isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody
     };
     pushApiDebugEvent(event);
     mirrorDebugEvent(baseUrl, event);
 
     if (!response.ok) {
-      throw new ApiRequestError(buildErrorMessage(response.status, url, parsedBody, textBody), response.status, url, parsedBody);
+      throw new ApiRequestError(
+        buildErrorMessage(response.status, debugUrl, parsedBody, textBody),
+        response.status,
+        debugUrl,
+        isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody,
+      );
     }
     return parsedBody as T;
   } catch (error) {
@@ -77,7 +85,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       id: crypto.randomUUID(),
       timestamp,
       method,
-      url,
+      url: debugUrl,
       requestBody: debugRequestBody,
       durationMs: Math.round(performance.now() - startedAt),
       error: error instanceof Error ? error.message : String(error)
@@ -148,7 +156,7 @@ function mirrorDebugEvent(baseUrl: string, event: ApiDebugEvent): void {
   });
 }
 
-function redactChatPayload(value: unknown): unknown {
+function redactSensitivePayload(value: unknown): unknown {
   let parsed = value;
   if (typeof value === "string") {
     try {
@@ -158,7 +166,7 @@ function redactChatPayload(value: unknown): unknown {
     }
   }
   if (Array.isArray(parsed)) {
-    return parsed.map(redactChatPayload);
+    return parsed.map(redactSensitivePayload);
   }
   if (parsed && typeof parsed === "object") {
     return Object.fromEntries(
@@ -167,15 +175,24 @@ function redactChatPayload(value: unknown): unknown {
         if (
           normalized === "body"
           || normalized === "content"
+          || normalized === "subject"
+          || normalized === "snippet"
           || normalized.includes("email")
           || normalized.includes("name")
           || normalized.includes("order")
         ) {
           return [key, "[redacted]"];
         }
-        return [key, redactChatPayload(child)];
+        return [key, redactSensitivePayload(child)];
       }),
     );
   }
   return parsed;
+}
+
+function redactEmailHistoryUrl(url: string): string {
+  return url.replace(
+    /([?&]customer_email=)[^&]*/i,
+    "$1[redacted]",
+  );
 }

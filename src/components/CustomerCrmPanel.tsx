@@ -30,6 +30,7 @@ import {
   updateCrmNote,
 } from "../api/crmApi";
 import { formatCurrency } from "../lib/format";
+import CustomerEmailHistorySection from "./CustomerEmailHistorySection";
 
 type Props = CrmCustomerIdentity & {
   customerName?: string;
@@ -265,6 +266,10 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
           ) : null}
         </Stack>
       </Paper>
+
+      <CustomerEmailHistorySection
+        customerEmail={profileData?.billing_email || customer_email}
+      />
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={1.5}>

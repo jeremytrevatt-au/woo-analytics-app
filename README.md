@@ -654,3 +654,19 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 3. Understood next steps (remaining TODOs):
    1. Deploy the guarded staging build and complete browser acceptance.
    2. Keep production unchanged until acceptance is complete.
+
+## 2026-09-20 23:55 UTC — CRM customer email history
+
+1. TODOs completed:
+   1. Added a modular Email History section to the shared customer CRM panel.
+   2. Added inbound/outbound direction, message date, subject, preview and authenticated Gmail search links.
+   3. Added explicit connector states for unconfigured, unavailable and stale synchronization.
+   4. Redacted customer email query values, subjects, snippets and message-address fields from the API debug panel and mirrored Cloud Logging events.
+2. New understandings/learnings:
+   1. The shared customer panel makes email history available from Customers, Packing and NY Chat without duplicating integration logic.
+   2. Gmail original-message links are search links because the Gmail API does not provide durable browser permalinks.
+   3. The UI must expose connector health honestly and must not display seeded or fallback message history.
+3. Understood next steps (remaining TODOs):
+   1. Deploy the backend and frontend to staging with the connector disabled until an isolated staging mailbox exists.
+   2. Complete the Workspace read-only authorization and initial bounded sync.
+   3. Validate customer matching, Gmail links and privacy-safe diagnostics before production access.
