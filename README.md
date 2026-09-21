@@ -670,3 +670,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Deploy the backend and frontend to staging with the connector disabled until an isolated staging mailbox exists.
    2. Complete the Workspace read-only authorization and initial bounded sync.
    3. Validate customer matching, Gmail links and privacy-safe diagnostics before production access.
+
+## 2026-09-21 00:10 UTC — CRM email history staging deployment
+
+1. TODOs completed:
+   1. Passed TypeScript validation and focused component tests in Cloud Build.
+   2. Built the environment-guarded image for Git build `eadd41f`.
+   3. Deployed the image to revision `woo-analytics-app-staging-00028-rm6` with 100 percent staging traffic.
+   4. Verified the deployed revision has no error-severity Cloud Logging entries.
+2. Git build reference:
+   1. `eadd41f3f6da3b7ea0e5f051b930ed359f8cebde`
+3. New understandings/learnings:
+   1. The CRM can expose the connector's disabled state without seeded messages or cross-environment mailbox access.
+4. Understood next steps (remaining TODOs):
+   1. Complete the isolated Workspace staging mailbox and connector authorization.
+   2. Validate the first real synchronized conversation and Gmail search link through IAP.
