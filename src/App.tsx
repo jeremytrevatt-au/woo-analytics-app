@@ -19,6 +19,7 @@ import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 import ReturnsPage from "./pages/ReturnsPage";
 import ReshipmentsPage from "./pages/ReshipmentsPage";
 import ChatInboxPage from "./pages/ChatInboxPage";
+import SiteHealthPage from "./pages/SiteHealthPage";
 
 import SuppliersPage from "./pages/SuppliersPage";
 
@@ -45,6 +46,7 @@ function App() {
                 <Route path="/document-templates" element={<DocumentTemplatesPage />} />
                 <Route path="/print-jobs" element={<PrintJobsPage />} />
                 <Route path="/suppliers" element={<SuppliersPage />} />
+                <Route path="/site-health" element={<SiteHealthPage />} />
                 <Route path="/admin" element={<AdminPage />} />
               </Routes>
           </DashboardLayout>

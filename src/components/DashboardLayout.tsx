@@ -28,6 +28,7 @@ const navItems = [
   { label: "Document Templates", to: "/document-templates" },
   { label: "Print Jobs", to: "/print-jobs" },
   { label: "Suppliers", to: "/suppliers" },
+  { label: "Site Health", to: "/site-health" },
   { label: "Admin", to: "/admin" }
 ];
 
