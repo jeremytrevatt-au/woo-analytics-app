@@ -685,3 +685,18 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Complete the isolated Workspace staging mailbox and connector authorization.
    2. Validate the first real synchronized conversation and Gmail search link through IAP.
+
+## 2026-09-21 06:13 UTC — Production Chat and Gmail CRM UI release
+
+1. TODOs completed:
+   1. Prepared the accepted Chat Inbox, notification, realtime, page-context and image-upload surfaces for production.
+   2. Prepared Gmail customer history with POST-body email lookup, redacted diagnostics and original-message links.
+   3. Preserved environment-bound build guards so the production bundle cannot reference staging APIs.
+2. Git build reference:
+   1. Production UI build: `f09f39e`.
+3. New understandings/learnings:
+   1. The production UI can be deployed before Gmail activation because it reports the connector state without inventing history.
+4. Understood next steps (remaining TODOs):
+   1. Deploy the immutable production bundle after the backend and Chat service are ready.
+   2. Validate through production IAP with Chat restricted to administrators.
+   3. Keep public Chat activation behind a separate approval gate.
