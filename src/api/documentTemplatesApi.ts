@@ -1,5 +1,20 @@
 import { fetchJson } from "./httpClient";
 
+export type DocumentMacroSource =
+  | "billing_first_name"
+  | "shipping_first_name"
+  | "billing_last_name"
+  | "shipping_last_name"
+  | "billing_company"
+  | "order_number";
+
+export type DocumentMacroMapping = {
+  id?: number;
+  token: string;
+  source_key: DocumentMacroSource;
+  is_required: boolean;
+};
+
 export type DocumentTemplate = {
   id: number;
   name: string;
@@ -8,6 +23,7 @@ export type DocumentTemplate = {
   google_drive_url: string;
   enabled: boolean | number;
   notes: string;
+  macro_mappings?: DocumentMacroMapping[];
   created_at: string;
   updated_at: string;
 };
@@ -19,6 +35,7 @@ export type DocumentTemplateCreatePayload = {
   google_drive_url: string;
   enabled?: boolean;
   notes?: string;
+  macro_mappings?: DocumentMacroMapping[];
 };
 
 export type DocumentTemplateUpdatePayload = Partial<DocumentTemplateCreatePayload>;

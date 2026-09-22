@@ -4,6 +4,10 @@ import {
   Box,
   Button,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -25,6 +29,11 @@ import {
   listDocumentTemplates,
   updateDocumentTemplate,
 } from "../api/documentTemplatesApi";
+import type { DocumentMacroMapping } from "../api/documentTemplatesApi";
+import DocumentMacroMappingsEditor, {
+  DEFAULT_DOCUMENT_MACRO_MAPPING,
+  DOCUMENT_MACRO_SOURCES,
+} from "../components/DocumentMacroMappingsEditor";
 
 const TRIGGER_OPTIONS = [
   { value: "manual", label: "Manual" },
@@ -46,6 +55,9 @@ function DocumentTemplatesPage() {
   const [googleDriveUrl, setGoogleDriveUrl] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [notes, setNotes] = useState("");
+  const [macroMappings, setMacroMappings] = useState<DocumentMacroMapping[]>([]);
+  const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
+  const [editingMappings, setEditingMappings] = useState<DocumentMacroMapping[]>([]);
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -71,6 +83,7 @@ function DocumentTemplatesPage() {
     setGoogleDriveUrl("");
     setEnabled(true);
     setNotes("");
+    setMacroMappings([]);
   };
 
   const handleCreate = async () => {
@@ -89,12 +102,37 @@ function DocumentTemplatesPage() {
         google_drive_url: googleDriveUrl,
         enabled,
         notes,
+        macro_mappings: macroMappings,
       });
       resetForm();
       setMessage({ type: "success", text: "Document template saved." });
       await loadTemplates();
     } catch (error: any) {
       setMessage({ type: "error", text: error.message || "Failed to save document template." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveMappings = async () => {
+    if (!editingTemplate) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const updated = await updateDocumentTemplate(editingTemplate.id, {
+        macro_mappings: editingMappings,
+      });
+      setTemplates(previous => previous.map(template => (
+        template.id === updated.id ? updated : template
+      )));
+      setEditingTemplate(null);
+      setEditingMappings([]);
+      setMessage({ type: "success", text: `${updated.name} macro mappings saved.` });
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save macro mappings.",
+      });
     } finally {
       setSaving(false);
     }
@@ -138,7 +176,17 @@ function DocumentTemplatesPage() {
             <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} sx={{ minWidth: 260 }} />
             <FormControl sx={{ minWidth: 220 }}>
               <InputLabel>Trigger Type</InputLabel>
-              <Select label="Trigger Type" value={triggerType} onChange={(event) => setTriggerType(event.target.value)}>
+              <Select
+                label="Trigger Type"
+                value={triggerType}
+                onChange={(event) => {
+                  const nextTriggerType = event.target.value;
+                  setTriggerType(nextTriggerType);
+                  if (nextTriggerType === "new_customer" && macroMappings.length === 0) {
+                    setMacroMappings([{ ...DEFAULT_DOCUMENT_MACRO_MAPPING }]);
+                  }
+                }}
+              >
                 {TRIGGER_OPTIONS.map(option => (
                   <MenuItem key={option.value} value={option.value}>
                     {option.label}
@@ -161,6 +209,11 @@ function DocumentTemplatesPage() {
             fullWidth
           />
           <TextField label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} multiline minRows={2} />
+          <DocumentMacroMappingsEditor
+            value={macroMappings}
+            onChange={setMacroMappings}
+            disabled={saving}
+          />
           <Stack direction="row" spacing={2} alignItems="center">
             <FormControlLabel
               control={<Checkbox checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />}
@@ -195,6 +248,7 @@ function DocumentTemplatesPage() {
               <TableCell>Trigger</TableCell>
               <TableCell>Match Value</TableCell>
               <TableCell>Enabled</TableCell>
+              <TableCell>Macros</TableCell>
               <TableCell>Document</TableCell>
               <TableCell>Updated</TableCell>
             </TableRow>
@@ -213,6 +267,31 @@ function DocumentTemplatesPage() {
                   />
                 </TableCell>
                 <TableCell>
+                  <Stack spacing={0.5} alignItems="flex-start">
+                    {(template.macro_mappings || []).map(mapping => (
+                      <Typography key={mapping.token} variant="caption">
+                        {mapping.token} → {
+                          DOCUMENT_MACRO_SOURCES.find(source => source.value === mapping.source_key)?.label
+                          || mapping.source_key
+                        }
+                        {mapping.is_required ? " (required)" : ""}
+                      </Typography>
+                    ))}
+                    {(template.macro_mappings || []).length === 0 ? (
+                      <Typography variant="caption" color="text.secondary">None</Typography>
+                    ) : null}
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setEditingTemplate(template);
+                        setEditingMappings((template.macro_mappings || []).map(mapping => ({ ...mapping })));
+                      }}
+                    >
+                      Edit mappings
+                    </Button>
+                  </Stack>
+                </TableCell>
+                <TableCell>
                   <Button href={template.google_drive_url} target="_blank" rel="noreferrer" size="small">
                     Open Source
                   </Button>
@@ -222,7 +301,7 @@ function DocumentTemplatesPage() {
             ))}
             {!loading && templates.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={7}>
                   <Typography variant="body2" color="text.secondary">
                     No document templates configured.
                   </Typography>
@@ -231,7 +310,7 @@ function DocumentTemplatesPage() {
             ) : null}
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={7}>
                   <Typography variant="body2" color="text.secondary">
                     Loading document templates...
                   </Typography>
@@ -241,6 +320,31 @@ function DocumentTemplatesPage() {
           </TableBody>
         </Table>
       </Paper>
+      <Dialog
+        open={!!editingTemplate}
+        onClose={() => !saving && setEditingTemplate(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          Macro mappings{editingTemplate ? ` — ${editingTemplate.name}` : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          <DocumentMacroMappingsEditor
+            value={editingMappings}
+            onChange={setEditingMappings}
+            disabled={saving}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingTemplate(null)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSaveMappings} disabled={saving}>
+            Save mappings
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
