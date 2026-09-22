@@ -128,7 +128,12 @@ describe("ReshipmentsPage", () => {
     expect(view.getByText("No additional reduction")).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Use Dimensions" })).not.toBeInTheDocument();
     await waitFor(() => expect(view.getByText("1 parcel(s) calculated using NY Shipping rules.")).toBeInTheDocument());
-    fireEvent.change(view.getByDisplayValue("0.5"), { target: { value: "0.6" } });
+    const weightInput = view.getByDisplayValue("0.5");
+    fireEvent.change(weightInput, { target: { value: "0" } });
+    expect(weightInput).toHaveValue(0);
+    fireEvent.change(weightInput, { target: { value: "0.2" } });
+    expect(weightInput).toHaveValue(0.2);
+    fireEvent.change(weightInput, { target: { value: "0.6" } });
     expect(view.getByText(/Parcel configuration has been manually adjusted/)).toBeInTheDocument();
     fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
     await waitFor(() => expect(view.getByRole("button", { name: "Selected" })).toBeInTheDocument());

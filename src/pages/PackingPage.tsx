@@ -1,10 +1,10 @@
-import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, Button, Collapse, Divider, TextField, IconButton, Popover, Dialog, DialogContent, DialogTitle, Tooltip } from "@mui/material";
+import { Alert, Stack, Typography, Grid, Box, Chip, Card, CardContent, Button, CircularProgress, Collapse, Divider, TextField, IconButton, Popover, Dialog, DialogContent, DialogTitle, Tooltip } from "@mui/material";
 import { useEffect, useState } from "react";
-import { Check, CheckCircleOutline, Close, OpenInNew, PrintOutlined } from "@mui/icons-material";
+import { Check, CheckCircleOutline, Close, OpenInNew, PrintOutlined, Refresh } from "@mui/icons-material";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { usePackingOrders } from "../hooks/usePackingOrders";
-import { markOrderPacked, updatePackingLineStock } from "../api/analyticsApi";
+import { markOrderPacked, refreshPackingOrders, updatePackingLineStock } from "../api/analyticsApi";
 import type { PackingStockQuantityResponse } from "../api/analyticsApi";
 import { ApiRequestError } from "../api/httpClient";
 import { listDocumentTemplates } from "../api/documentTemplatesApi";
@@ -38,6 +38,8 @@ function PackingPage() {
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [packingSaving, setPackingSaving] = useState<Record<number, boolean>>({});
   const [packingActionError, setPackingActionError] = useState<string | null>(null);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [stockSaving, setStockSaving] = useState<Record<string, boolean>>({});
   const [stockMessages, setStockMessages] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
@@ -93,6 +95,23 @@ function PackingPage() {
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
+  };
+
+  const handleRefreshOrders = async () => {
+    setRefreshingOrders(true);
+    setRefreshMessage(null);
+    try {
+      const result = await refreshPackingOrders();
+      await refetch();
+      setRefreshMessage({ type: "success", text: result.message });
+    } catch (error) {
+      setRefreshMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to synchronize packing orders.",
+      });
+    } finally {
+      setRefreshingOrders(false);
+    }
   };
 
   const handlePack = async (orderId: number, status: string, e: React.MouseEvent) => {
@@ -837,14 +856,30 @@ function PackingPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h5" fontWeight={700}>
-          Packing Team
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Manage orders ready for fulfillment.
-        </Typography>
-      </Box>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+        <Box>
+          <Typography variant="h5" fontWeight={700}>
+            Packing Team
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Manage orders ready for fulfillment.
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={refreshingOrders ? <CircularProgress size={18} /> : <Refresh />}
+          onClick={() => void handleRefreshOrders()}
+          disabled={refreshingOrders}
+        >
+          {refreshingOrders ? "Synchronizing..." : "Refresh"}
+        </Button>
+      </Stack>
+
+      {refreshMessage && (
+        <Alert severity={refreshMessage.type} onClose={() => setRefreshMessage(null)}>
+          {refreshMessage.text}
+        </Alert>
+      )}
 
       <LoadStateBlock
         isLoading={isLoading}

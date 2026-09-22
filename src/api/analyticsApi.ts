@@ -718,6 +718,16 @@ export async function getPackingOrders(
   };
 }
 
+export async function refreshPackingOrders(): Promise<{
+  status: "complete";
+  message: string;
+  execution: string;
+}> {
+  return fetchJson("/api/v1/packing/refresh", {
+    method: "POST",
+  });
+}
+
 export type PackingStatusUpdateResponse = {
   success: boolean;
   message: string;

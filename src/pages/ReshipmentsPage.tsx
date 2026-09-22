@@ -152,6 +152,7 @@ export default function ReshipmentsPage() {
   const [lines, setLines] = useState<SelectedLine[]>([]);
   const [parcels, setParcels] = useState<ReshipmentParcel[]>([]);
   const [recommendedParcels, setRecommendedParcels] = useState<ReshipmentParcel[]>([]);
+  const [parcelDrafts, setParcelDrafts] = useState<Record<string, string>>({});
   const [loadingParcels, setLoadingParcels] = useState(false);
   const [parcelError, setParcelError] = useState<string | null>(null);
   const [productQuery, setProductQuery] = useState("");
@@ -193,6 +194,7 @@ export default function ReshipmentsPage() {
       setLines([]);
       setParcels([]);
       setRecommendedParcels([]);
+      setParcelDrafts({});
       setParcelError(null);
       resetCalculatedState();
       setMessage({ type: "success", text: `Source order #${result.order.number} loaded.` });
@@ -297,6 +299,7 @@ export default function ReshipmentsPage() {
     if (!source || !destination || requestLines.length === 0) {
       setParcels([]);
       setRecommendedParcels([]);
+      setParcelDrafts({});
       setParcelError(null);
       return;
     }
@@ -313,12 +316,14 @@ export default function ReshipmentsPage() {
         if (cancelled) return;
         setRecommendedParcels(result.parcels);
         setParcels(result.parcels);
+        setParcelDrafts({});
         setQuote(null);
         setSelectedQuote(null);
       } catch (error) {
         if (cancelled) return;
         setRecommendedParcels([]);
         setParcels([]);
+        setParcelDrafts({});
         setParcelError(error instanceof Error ? error.message : "Failed to calculate NY Shipping parcels.");
       } finally {
         if (!cancelled) setLoadingParcels(false);
@@ -342,6 +347,7 @@ export default function ReshipmentsPage() {
 
   const resetToRecommendedParcels = () => {
     setParcels(recommendedParcels);
+    setParcelDrafts({});
     resetCalculatedState();
   };
 
@@ -680,24 +686,42 @@ export default function ReshipmentsPage() {
                     {parcels.map((parcelRow, parcelIndex) => (
                       <TableRow key={`parcel-${parcelIndex}`}>
                         <TableCell>{parcelIndex + 1}</TableCell>
-                        {(["weight_kg", "length_cm", "width_cm", "height_cm"] as const).map(key => (
-                          <TableCell key={key}>
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={parcelRow[key] || ""}
-                              onChange={event => updateParcel(parcelIndex, { [key]: Number(event.target.value) })}
-                              inputProps={{ min: 0.01, step: 0.01 }}
-                              sx={{ width: 120 }}
-                            />
-                          </TableCell>
-                        ))}
+                        {(["weight_kg", "length_cm", "width_cm", "height_cm"] as const).map(key => {
+                          const draftKey = `${parcelIndex}:${key}`;
+                          return (
+                            <TableCell key={key}>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={parcelDrafts[draftKey] ?? String(parcelRow[key])}
+                                onChange={event => {
+                                  const rawValue = event.target.value;
+                                  setParcelDrafts(previous => ({ ...previous, [draftKey]: rawValue }));
+                                  const numericValue = rawValue === "" ? 0 : Number(rawValue);
+                                  if (Number.isFinite(numericValue)) {
+                                    updateParcel(parcelIndex, { [key]: numericValue });
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setParcelDrafts(previous => {
+                                    const next = { ...previous };
+                                    delete next[draftKey];
+                                    return next;
+                                  });
+                                }}
+                                inputProps={{ min: 0.01, step: 0.01 }}
+                                sx={{ width: 120 }}
+                              />
+                            </TableCell>
+                          );
+                        })}
                         <TableCell>
                           <Button
                             color="error"
                             size="small"
                             onClick={() => {
                               setParcels(previous => previous.filter((_parcel, index) => index !== parcelIndex));
+                              setParcelDrafts({});
                               resetCalculatedState();
                             }}
                           >
@@ -714,6 +738,7 @@ export default function ReshipmentsPage() {
                   variant="outlined"
                   onClick={() => {
                     setParcels(previous => [...previous, { ...emptyParcel }]);
+                    setParcelDrafts({});
                     resetCalculatedState();
                   }}
                   disabled={lines.length === 0}
