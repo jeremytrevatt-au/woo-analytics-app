@@ -80,6 +80,26 @@ export type ReshipmentOperation = {
   shipment_state: string;
   quoted_cost: number | null;
   currency: string;
+  change_version?: number;
+  modified_at?: string | null;
+  cancelled_at?: string | null;
+  can_modify?: boolean;
+  can_cancel?: boolean;
+  action_note?: string;
+  lines?: Array<{
+    source_order_item_id: number | null;
+    product_id: number;
+    variation_id: number;
+    quantity: number;
+    reason: ReshipmentReason;
+    inventory_effect: InventoryEffect;
+    sku: string;
+    product_name: string;
+  }>;
+  request_json?: {
+    destination?: ReshipmentDestination;
+    parcels?: ReshipmentParcel[];
+  };
 };
 
 export function getReshipmentSource(orderId: number): Promise<ReshipmentSource> {
@@ -87,6 +107,7 @@ export function getReshipmentSource(orderId: number): Promise<ReshipmentSource> 
 }
 
 export function quoteReshipment(payload: {
+  operation_id?: string;
   source_order_id: number;
   lines: ReshipmentLineRequest[];
   parcels: ReshipmentParcel[];
@@ -100,6 +121,7 @@ export function quoteReshipment(payload: {
 }
 
 export function previewReshipmentParcels(payload: {
+  operation_id?: string;
   source_order_id: number;
   lines: ReshipmentLineRequest[];
   destination: ReshipmentDestination;
@@ -124,4 +146,48 @@ export function createReshipment(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export type ReshipmentCancellationPreview = {
+  operation_id: string;
+  replacement_order_id: number | null;
+  tracking_number: string;
+  shipment_state: string;
+  can_cancel: boolean;
+  blocked_reason: string;
+  stock_restore_quantity: number;
+  already_accounted_quantity: number;
+  lines: NonNullable<ReshipmentOperation["lines"]>;
+};
+
+export function getReshipmentOperation(operationId: string): Promise<ReshipmentOperation> {
+  return fetchJson<ReshipmentOperation>(`/api/v1/shipping/reshipments/operation/${operationId}`);
+}
+
+export function previewReshipmentCancellation(operationId: string): Promise<ReshipmentCancellationPreview> {
+  return fetchJson<ReshipmentCancellationPreview>(
+    `/api/v1/shipping/reshipments/operation/${operationId}/cancel-preview`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export function cancelReshipment(operationId: string): Promise<ReshipmentOperation> {
+  return fetchJson<ReshipmentOperation>(
+    `/api/v1/shipping/reshipments/operation/${operationId}/cancel`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export function modifyReshipment(operationId: string, payload: {
+  change_id: string;
+  lines: ReshipmentLineRequest[];
+  parcels: ReshipmentParcel[];
+  destination: ReshipmentDestination;
+  parcel_source: "recommended" | "manual";
+  quote_selection: PackingQuoteSelection;
+}): Promise<ReshipmentOperation> {
+  return fetchJson<ReshipmentOperation>(
+    `/api/v1/shipping/reshipments/operation/${operationId}/modify`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
 }

@@ -25,12 +25,17 @@ import {
 } from "@mui/material";
 import type { ProductSearchResult } from "../api/productsApi";
 import {
+  cancelReshipment,
   createReshipment,
   getReshipmentSource,
+  getReshipmentOperation,
+  modifyReshipment,
+  previewReshipmentCancellation,
   previewReshipmentParcels,
   quoteReshipment,
   type InventoryEffect,
   type ReshipmentDestination,
+  type ReshipmentCancellationPreview,
   type ReshipmentLineRequest,
   type ReshipmentOperation,
   type ReshipmentParcel,
@@ -159,6 +164,11 @@ export default function ReshipmentsPage() {
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<QuoteOption | null>(null);
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+  const [pendingChangeId, setPendingChangeId] = useState<string | null>(null);
+  const [editingOperation, setEditingOperation] = useState<ReshipmentOperation | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<ReshipmentCancellationPreview | null>(null);
+  const [actionOperation, setActionOperation] = useState<ReshipmentOperation | null>(null);
+  const [loadingAction, setLoadingAction] = useState(false);
   const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [operation, setOperation] = useState<ReshipmentOperation | null>(null);
   const [loadingSource, setLoadingSource] = useState(false);
@@ -176,6 +186,7 @@ export default function ReshipmentsPage() {
     setQuote(null);
     setSelectedQuote(null);
     setPendingOperationId(null);
+    setPendingChangeId(null);
     setOperation(null);
   };
 
@@ -196,6 +207,9 @@ export default function ReshipmentsPage() {
       setRecommendedParcels([]);
       setParcelDrafts({});
       setParcelError(null);
+      setEditingOperation(null);
+      setCancelPreview(null);
+      setActionOperation(null);
       resetCalculatedState();
       setMessage({ type: "success", text: `Source order #${result.order.number} loaded.` });
     } catch (error) {
@@ -309,6 +323,7 @@ export default function ReshipmentsPage() {
       setParcelError(null);
       try {
         const result = await previewReshipmentParcels({
+          operation_id: editingOperation?.operation_id,
           source_order_id: source.order.id,
           lines: requestLines,
           destination,
@@ -333,7 +348,7 @@ export default function ReshipmentsPage() {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [destination, requestLines, source]);
+  }, [destination, editingOperation?.operation_id, requestLines, source]);
 
   const parcelSource: "recommended" | "manual" =
     JSON.stringify(parcels) === JSON.stringify(recommendedParcels) ? "recommended" : "manual";
@@ -384,6 +399,7 @@ export default function ReshipmentsPage() {
     setMessage(null);
     try {
       const result = await quoteReshipment({
+        operation_id: editingOperation?.operation_id,
         source_order_id: source.order.id,
         lines: requestLines,
         parcels,
@@ -402,28 +418,125 @@ export default function ReshipmentsPage() {
     }
   };
 
+  const beginModification = async (row: ReshipmentOperation) => {
+    if (!source) return;
+    setLoadingAction(true);
+    setMessage(null);
+    try {
+      const detail = await getReshipmentOperation(row.operation_id);
+      if (!detail.can_modify) {
+        setMessage({ type: "error", text: detail.action_note || "This reshipment cannot be modified." });
+        return;
+      }
+      const selectedLines: SelectedLine[] = (detail.lines || []).map((line, index) => {
+        const sourceItem = source.items.find(item => item.order_item_id === line.source_order_item_id);
+        const currentQuantity = line.quantity;
+        return {
+          key: `edit-${index}-${line.source_order_item_id || line.variation_id || line.product_id}`,
+          source_order_item_id: line.source_order_item_id,
+          product_id: line.variation_id || line.product_id,
+          quantity: currentQuantity,
+          reason: line.reason,
+          inventory_effect: line.inventory_effect,
+          sku: line.sku,
+          name: line.product_name,
+          maxQuantity: sourceItem
+            ? Math.max(currentQuantity, sourceItem.quantity - sourceItem.already_reshipped_qty + currentQuantity)
+            : null,
+        };
+      });
+      setEditingOperation(detail);
+      setLines(selectedLines);
+      setDestination(detail.request_json?.destination || source.destination);
+      setParcels(detail.request_json?.parcels || []);
+      setRecommendedParcels([]);
+      setParcelDrafts({});
+      setQuote(null);
+      setSelectedQuote(null);
+      setPendingChangeId(null);
+      setOperation(null);
+      setMessage({ type: "info", text: `Editing replacement order #${detail.replacement_order_id}. Recalculate parcels and select a fresh quote before saving.` });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to load the reshipment." });
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const beginCancellation = async (row: ReshipmentOperation) => {
+    setLoadingAction(true);
+    setMessage(null);
+    try {
+      const preview = await previewReshipmentCancellation(row.operation_id);
+      if (!preview.can_cancel) {
+        setMessage({ type: "error", text: preview.blocked_reason || "This reshipment cannot be cancelled." });
+        return;
+      }
+      setActionOperation(row);
+      setCancelPreview(preview);
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to preview cancellation." });
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const confirmCancellation = async () => {
+    if (!actionOperation || !source) return;
+    setLoadingAction(true);
+    setMessage(null);
+    try {
+      const result = await cancelReshipment(actionOperation.operation_id);
+      setCancelPreview(null);
+      setActionOperation(null);
+      if (editingOperation?.operation_id === result.operation_id) setEditingOperation(null);
+      setSource(await getReshipmentSource(source.order.id));
+      setMessage({ type: "success", text: `Replacement order #${result.replacement_order_id} and its Shippit shipment were cancelled.` });
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to cancel the reshipment." });
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
   const submitReshipment = async () => {
     if (!source || !destination || !selectedQuote || !parcelValid) return;
     setCreating(true);
     setMessage(null);
     const operationId = pendingOperationId ?? crypto.randomUUID();
-    setPendingOperationId(operationId);
+    const changeId = pendingChangeId ?? crypto.randomUUID();
+    if (!editingOperation) setPendingOperationId(operationId);
+    if (editingOperation) setPendingChangeId(changeId);
     try {
-      const result = await createReshipment({
-        operation_id: operationId,
-        source_order_id: source.order.id,
-        lines: requestLines,
-        parcels,
-        destination,
-        parcel_source: parcelSource,
-        quote_selection: selectedQuote,
-        notify_customer: notifyCustomer,
-      });
+      const result = editingOperation
+        ? await modifyReshipment(editingOperation.operation_id, {
+            change_id: changeId,
+            lines: requestLines,
+            parcels,
+            destination,
+            parcel_source: parcelSource,
+            quote_selection: selectedQuote,
+          })
+        : await createReshipment({
+            operation_id: operationId,
+            source_order_id: source.order.id,
+            lines: requestLines,
+            parcels,
+            destination,
+            parcel_source: parcelSource,
+            quote_selection: selectedQuote,
+            notify_customer: notifyCustomer,
+          });
       setOperation(result);
+      setPendingChangeId(null);
+      setEditingOperation(null);
       setConfirming(false);
       setMessage({
         type: "success",
-        text: `Replacement order #${result.replacement_order_id} created with Shippit tracking ${result.tracking_number}.`,
+        text: editingOperation
+          ? `Replacement order #${result.replacement_order_id} and Shippit shipment ${result.tracking_number} were updated.`
+          : `Replacement order #${result.replacement_order_id} created with Shippit tracking ${result.tracking_number}.`,
       });
       setSource(await getReshipmentSource(source.order.id));
     } catch (error) {
@@ -825,17 +938,35 @@ export default function ReshipmentsPage() {
 
           <Paper sx={{ p: 3, mb: 3 }}>
             <Stack spacing={2}>
-              <Typography variant="h6">4. Create replacement order and shipment</Typography>
+              <Typography variant="h6">
+                {editingOperation ? "4. Save replacement shipment changes" : "4. Create replacement order and shipment"}
+              </Typography>
               <Alert severity="warning">
-                A new zero-value WooCommerce order will be created. {stockDecrementCount} line(s) will reduce inventory and {alreadyAccountedCount} omitted-item line(s) will not reduce inventory again.
+                {editingOperation
+                  ? `The existing Shippit shipment and replacement order #${editingOperation.replacement_order_id} will be updated. Inventory will be adjusted only by the difference from the current items.`
+                  : `A new zero-value WooCommerce order will be created. ${stockDecrementCount} line(s) will reduce inventory and ${alreadyAccountedCount} omitted-item line(s) will not reduce inventory again.`}
               </Alert>
-              <FormControlLabel
-                control={<Checkbox checked={notifyCustomer} onChange={event => setNotifyCustomer(event.target.checked)} />}
-                label="Send the customer a WooCommerce fulfillment/tracking notification"
-              />
+              {!editingOperation ? (
+                <FormControlLabel
+                  control={<Checkbox checked={notifyCustomer} onChange={event => setNotifyCustomer(event.target.checked)} />}
+                  label="Send the customer a WooCommerce fulfillment/tracking notification"
+                />
+              ) : null}
               <Button variant="contained" color="secondary" onClick={() => setConfirming(true)} disabled={!selectedQuote || creating}>
-                Create Replacement Order and Submit Shipment
+                {editingOperation ? "Review and Save Changes" : "Create Replacement Order and Submit Shipment"}
               </Button>
+              {editingOperation ? (
+                <Button variant="text" onClick={() => {
+                  setEditingOperation(null);
+                  setLines([]);
+                  setParcels([]);
+                  setRecommendedParcels([]);
+                  resetCalculatedState();
+                  setMessage({ type: "info", text: "Modification cancelled. No shipment changes were made." });
+                }}>
+                  Stop Editing
+                </Button>
+              ) : null}
               {operation ? (
                 <Alert severity="success">
                   <Stack spacing={0.5}>
@@ -870,6 +1001,7 @@ export default function ReshipmentsPage() {
                     <TableCell>Courier</TableCell>
                     <TableCell>Tracking</TableCell>
                     <TableCell align="right">Cost</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -884,6 +1016,22 @@ export default function ReshipmentsPage() {
                           : row.tracking_number || "-"}
                       </TableCell>
                       <TableCell align="right">{row.currency} {row.quoted_cost?.toFixed(2) ?? "-"}</TableCell>
+                      <TableCell>
+                        {row.can_modify && row.can_cancel ? (
+                          <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                            <Button size="small" variant="outlined" disabled={loadingAction} onClick={() => beginModification(row)}>
+                              Modify
+                            </Button>
+                            <Button size="small" variant="outlined" color="error" disabled={loadingAction} onClick={() => beginCancellation(row)}>
+                              Cancel
+                            </Button>
+                          </Stack>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            {row.action_note || (row.status === "cancelled" ? "Cancelled" : "Unavailable")}
+                          </Typography>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -894,11 +1042,13 @@ export default function ReshipmentsPage() {
       ) : null}
 
       <Dialog open={confirming} onClose={() => !creating && setConfirming(false)}>
-        <DialogTitle>Create live replacement shipment?</DialogTitle>
+        <DialogTitle>{editingOperation ? "Modify live replacement shipment?" : "Create live replacement shipment?"}</DialogTitle>
         <DialogContent>
           <Stack spacing={1}>
             <Typography variant="body2">
-              This creates a real zero-value WooCommerce order linked to source order #{source?.order.number}, applies the displayed inventory effects, and submits a live Shippit shipment using the selected quote.
+              {editingOperation
+                ? `This updates live Shippit tracking ${editingOperation.tracking_number}, replacement order #${editingOperation.replacement_order_id}, its fulfillment, and the displayed inventory differences.`
+                : `This creates a real zero-value WooCommerce order linked to source order #${source?.order.number}, applies the displayed inventory effects, and submits a live Shippit shipment using the selected quote.`}
             </Typography>
             <Typography variant="body2">
               Courier cost: {source?.order.currency} {Number(selectedQuote?.price || 0).toFixed(2)}.
@@ -908,7 +1058,30 @@ export default function ReshipmentsPage() {
         <DialogActions>
           <Button onClick={() => setConfirming(false)} disabled={creating}>Cancel</Button>
           <Button variant="contained" color="secondary" onClick={submitReshipment} disabled={creating}>
-            {creating ? "Creating..." : "Create Order and Submit"}
+            {creating ? (editingOperation ? "Saving..." : "Creating...") : (editingOperation ? "Save Shipment Changes" : "Create Order and Submit")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(cancelPreview)} onClose={() => !loadingAction && setCancelPreview(null)}>
+        <DialogTitle>Cancel live replacement shipment?</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            <Typography variant="body2">
+              This will cancel Shippit tracking {cancelPreview?.tracking_number}, cancel replacement order #{cancelPreview?.replacement_order_id}, and cancel its WooCommerce fulfillment.
+            </Typography>
+            <Typography variant="body2">
+              {cancelPreview?.stock_restore_quantity || 0} unit(s) previously deducted for this reshipment will be restored. {cancelPreview?.already_accounted_quantity || 0} omitted-item unit(s) will not be restored because their stock was already accounted for.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setCancelPreview(null);
+            setActionOperation(null);
+          }} disabled={loadingAction}>Keep Reshipment</Button>
+          <Button variant="contained" color="error" onClick={confirmCancellation} disabled={loadingAction}>
+            {loadingAction ? "Cancelling..." : "Cancel Reshipment"}
           </Button>
         </DialogActions>
       </Dialog>

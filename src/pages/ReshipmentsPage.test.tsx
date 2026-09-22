@@ -9,8 +9,12 @@ import {
 import ReshipmentsPage from "./ReshipmentsPage";
 
 vi.mock("../api/reshipmentsApi", () => ({
+  cancelReshipment: vi.fn(),
   createReshipment: vi.fn(),
   getReshipmentSource: vi.fn(),
+  getReshipmentOperation: vi.fn(),
+  modifyReshipment: vi.fn(),
+  previewReshipmentCancellation: vi.fn(),
   previewReshipmentParcels: vi.fn(),
   quoteReshipment: vi.fn(),
 }));
