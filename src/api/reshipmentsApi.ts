@@ -102,8 +102,38 @@ export type ReshipmentOperation = {
   };
 };
 
+export type RecentReshipment = ReshipmentOperation & {
+  source_order_number: string;
+  replacement_order_number: string;
+  billing_name: string;
+  is_unprocessed: boolean;
+  created_at: string;
+  item_summary: Array<{
+    name: string;
+    sku: string;
+    quantity: number;
+  }>;
+  crm_notes: Array<{
+    id: number;
+    order_id: number;
+    trigger_event: string;
+    status: string;
+    reminder_date: string;
+    note_content: string;
+    created_by_name: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+};
+
 export function getReshipmentSource(orderId: number): Promise<ReshipmentSource> {
   return fetchJson<ReshipmentSource>(`/api/v1/shipping/reshipments/source/${orderId}`);
+}
+
+export function listRecentReshipments(limit = 25): Promise<{ reshipments: RecentReshipment[] }> {
+  return fetchJson<{ reshipments: RecentReshipment[] }>(
+    `/api/v1/shipping/reshipments/recent?limit=${limit}`,
+  );
 }
 
 export function quoteReshipment(payload: {

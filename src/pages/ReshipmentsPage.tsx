@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -29,6 +30,7 @@ import {
   createReshipment,
   getReshipmentSource,
   getReshipmentOperation,
+  listRecentReshipments,
   modifyReshipment,
   previewReshipmentCancellation,
   previewReshipmentParcels,
@@ -40,6 +42,7 @@ import {
   type ReshipmentOperation,
   type ReshipmentParcel,
   type ReshipmentReason,
+  type RecentReshipment,
   type ReshipmentSource,
 } from "../api/reshipmentsApi";
 import type { PackingQuoteResponse, PackingQuoteSelection } from "../api/shippitPackingApi";
@@ -172,6 +175,10 @@ export default function ReshipmentsPage() {
   const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [operation, setOperation] = useState<ReshipmentOperation | null>(null);
   const [loadingSource, setLoadingSource] = useState(false);
+  const [recentReshipments, setRecentReshipments] = useState<RecentReshipment[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [recentError, setRecentError] = useState<string | null>(null);
+  const [recentFilter, setRecentFilter] = useState<"all" | "unprocessed">("all");
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [creating, setCreating] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -190,36 +197,73 @@ export default function ReshipmentsPage() {
     setOperation(null);
   };
 
-  const loadSource = async () => {
-    const id = Number(orderId);
-    if (!Number.isInteger(id) || id <= 0) {
-      setMessage({ type: "error", text: "Enter a valid source WooCommerce order ID." });
-      return;
-    }
+  const applyLoadedSource = (result: ReshipmentSource) => {
+    setOrderId(String(result.order.id));
+    setSource(result);
+    setDestination(result.destination);
+    setLines([]);
+    setParcels([]);
+    setRecommendedParcels([]);
+    setParcelDrafts({});
+    setParcelError(null);
+    setEditingOperation(null);
+    setCancelPreview(null);
+    setActionOperation(null);
+    resetCalculatedState();
+  };
+
+  const loadSourceById = async (id: number): Promise<ReshipmentSource | null> => {
     setLoadingSource(true);
     setMessage(null);
     try {
       const result = await getReshipmentSource(id);
-      setSource(result);
-      setDestination(result.destination);
-      setLines([]);
-      setParcels([]);
-      setRecommendedParcels([]);
-      setParcelDrafts({});
-      setParcelError(null);
-      setEditingOperation(null);
-      setCancelPreview(null);
-      setActionOperation(null);
-      resetCalculatedState();
+      applyLoadedSource(result);
       setMessage({ type: "success", text: `Source order #${result.order.number} loaded.` });
+      return result;
     } catch (error) {
       setSource(null);
       setDestination(null);
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to load the source order." });
+      return null;
     } finally {
       setLoadingSource(false);
     }
   };
+
+  const loadSource = async () => {
+    const id = Number(orderId);
+    if (!Number.isInteger(id) || id <= 0) {
+      setMessage({ type: "error", text: "Enter a valid source or replacement WooCommerce order ID." });
+      return;
+    }
+    await loadSourceById(id);
+  };
+
+  const loadRecent = async () => {
+    setLoadingRecent(true);
+    setRecentError(null);
+    try {
+      const result = await listRecentReshipments(25);
+      setRecentReshipments(result.reshipments);
+    } catch (error) {
+      setRecentError(error instanceof Error ? error.message : "Failed to load recent reshipments.");
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadRecent();
+    // The recent list is refreshed explicitly after mutations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const visibleRecentReshipments = useMemo(
+    () => recentFilter === "unprocessed"
+      ? recentReshipments.filter(row => row.is_unprocessed)
+      : recentReshipments,
+    [recentFilter, recentReshipments],
+  );
 
   const addSourceLine = (
     item: ReshipmentSource["items"][number],
@@ -418,8 +462,8 @@ export default function ReshipmentsPage() {
     }
   };
 
-  const beginModification = async (row: ReshipmentOperation) => {
-    if (!source) return;
+  const beginModification = async (row: ReshipmentOperation, selectedSource: ReshipmentSource | null = source) => {
+    if (!selectedSource) return;
     setLoadingAction(true);
     setMessage(null);
     try {
@@ -429,7 +473,7 @@ export default function ReshipmentsPage() {
         return;
       }
       const selectedLines: SelectedLine[] = (detail.lines || []).map((line, index) => {
-        const sourceItem = source.items.find(item => item.order_item_id === line.source_order_item_id);
+        const sourceItem = selectedSource.items.find(item => item.order_item_id === line.source_order_item_id);
         const currentQuantity = line.quantity;
         return {
           key: `edit-${index}-${line.source_order_item_id || line.variation_id || line.product_id}`,
@@ -447,7 +491,7 @@ export default function ReshipmentsPage() {
       });
       setEditingOperation(detail);
       setLines(selectedLines);
-      setDestination(detail.request_json?.destination || source.destination);
+      setDestination(detail.request_json?.destination || selectedSource.destination);
       setParcels(detail.request_json?.parcels || []);
       setRecommendedParcels([]);
       setParcelDrafts({});
@@ -482,6 +526,19 @@ export default function ReshipmentsPage() {
     }
   };
 
+  const handleRecentAction = async (
+    row: RecentReshipment,
+    action: "select" | "modify" | "cancel",
+  ) => {
+    const selectedSource = await loadSourceById(row.source_order_id);
+    if (!selectedSource) return;
+    if (action === "modify") {
+      await beginModification(row, selectedSource);
+    } else if (action === "cancel") {
+      await beginCancellation(row);
+    }
+  };
+
   const confirmCancellation = async () => {
     if (!actionOperation || !source) return;
     setLoadingAction(true);
@@ -492,6 +549,7 @@ export default function ReshipmentsPage() {
       setActionOperation(null);
       if (editingOperation?.operation_id === result.operation_id) setEditingOperation(null);
       setSource(await getReshipmentSource(source.order.id));
+      await loadRecent();
       setMessage({ type: "success", text: `Replacement order #${result.replacement_order_id} and its Shippit shipment were cancelled.` });
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to cancel the reshipment." });
@@ -539,6 +597,7 @@ export default function ReshipmentsPage() {
           : `Replacement order #${result.replacement_order_id} created with Shippit tracking ${result.tracking_number}.`,
       });
       setSource(await getReshipmentSource(source.order.id));
+      await loadRecent();
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to create the reshipment." });
     } finally {
@@ -560,10 +619,135 @@ export default function ReshipmentsPage() {
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Stack spacing={2}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
+            <Box>
+              <Typography variant="h6">Recent and unprocessed reshipments</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Select a source order, or modify or cancel a shipment that has not been picked up.
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <TextField
+                select
+                size="small"
+                label="Show"
+                value={recentFilter}
+                onChange={event => setRecentFilter(event.target.value as "all" | "unprocessed")}
+                sx={{ minWidth: 150 }}
+              >
+                <MenuItem value="all">Recent</MenuItem>
+                <MenuItem value="unprocessed">Unprocessed only</MenuItem>
+              </TextField>
+              <Button variant="outlined" onClick={loadRecent} disabled={loadingRecent}>
+                {loadingRecent ? "Refreshing..." : "Refresh"}
+              </Button>
+            </Stack>
+          </Stack>
+          {recentError ? <Alert severity="error">{recentError}</Alert> : null}
+          {!loadingRecent && visibleRecentReshipments.length === 0 ? (
+            <Alert severity="info">
+              {recentFilter === "unprocessed" ? "There are no unprocessed reshipments." : "There are no recent reshipments."}
+            </Alert>
+          ) : null}
+          {visibleRecentReshipments.length > 0 ? (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Source order</TableCell>
+                  <TableCell>Replacement order</TableCell>
+                  <TableCell>Billing name</TableCell>
+                  <TableCell>Items</TableCell>
+                  <TableCell>Shipment</TableCell>
+                  <TableCell>CRM notes</TableCell>
+                  <TableCell>Created</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {visibleRecentReshipments.map(row => (
+                  <TableRow key={row.operation_id} hover>
+                    <TableCell>#{row.source_order_number || row.source_order_id}</TableCell>
+                    <TableCell>#{row.replacement_order_number || row.replacement_order_id || "-"}</TableCell>
+                    <TableCell>{row.billing_name || "-"}</TableCell>
+                    <TableCell>
+                      <Stack spacing={0.25}>
+                        {row.item_summary.map((item, index) => (
+                          <Typography variant="caption" key={`${row.operation_id}-item-${index}`}>
+                            {item.quantity}× {item.sku ? `[${item.sku}] ` : ""}{item.name}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Stack spacing={0.5} alignItems="flex-start">
+                        <Chip
+                          size="small"
+                          color={row.is_unprocessed ? "warning" : row.status === "cancelled" ? "default" : "success"}
+                          label={row.shipment_state || row.status}
+                        />
+                        {row.tracking_url ? (
+                          <Link href={row.tracking_url} target="_blank" rel="noopener noreferrer">
+                            {row.tracking_number}
+                          </Link>
+                        ) : null}
+                      </Stack>
+                    </TableCell>
+                    <TableCell sx={{ minWidth: 240, maxWidth: 360 }}>
+                      {row.crm_notes.length > 0 ? (
+                        <Box component="details">
+                          <Box component="summary" sx={{ cursor: "pointer" }}>
+                            {row.crm_notes.length} note{row.crm_notes.length === 1 ? "" : "s"} — {row.crm_notes[0].note_content}
+                          </Box>
+                          <Stack spacing={1} sx={{ mt: 1 }}>
+                            {row.crm_notes.map(note => (
+                              <Box key={note.id}>
+                                <Typography variant="caption" color="text.secondary">
+                                  {note.status} · {note.trigger_event}{note.reminder_date ? ` · reminder ${note.reminder_date}` : ""}
+                                </Typography>
+                                <Typography variant="body2">{note.note_content}</Typography>
+                              </Box>
+                            ))}
+                          </Stack>
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">No CRM notes</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>{row.created_at ? new Date(`${row.created_at}Z`).toLocaleString() : "-"}</TableCell>
+                    <TableCell>
+                      <Stack spacing={1} alignItems="flex-start">
+                        <Button size="small" variant="outlined" disabled={loadingAction || loadingSource} onClick={() => handleRecentAction(row, "select")}>
+                          Select
+                        </Button>
+                        {row.can_modify ? (
+                          <Button size="small" variant="outlined" disabled={loadingAction || loadingSource} onClick={() => handleRecentAction(row, "modify")}>
+                            Modify
+                          </Button>
+                        ) : null}
+                        {row.can_cancel ? (
+                          <Button size="small" variant="outlined" color="error" disabled={loadingAction || loadingSource} onClick={() => handleRecentAction(row, "cancel")}>
+                            Cancel
+                          </Button>
+                        ) : null}
+                        {!row.can_modify && !row.can_cancel ? (
+                          <Typography variant="caption" color="text.secondary">{row.action_note}</Typography>
+                        ) : null}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
+        </Stack>
+      </Paper>
+
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Stack spacing={2}>
           <Typography variant="h6">1. Source order</Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <TextField
-              label="Source WooCommerce Order ID"
+              label="Source or Replacement WooCommerce Order ID"
               type="number"
               value={orderId}
               onChange={event => {

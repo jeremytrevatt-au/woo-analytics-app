@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createReshipment,
   getReshipmentSource,
+  listRecentReshipments,
   previewReshipmentParcels,
   quoteReshipment,
 } from "../api/reshipmentsApi";
@@ -13,6 +14,7 @@ vi.mock("../api/reshipmentsApi", () => ({
   createReshipment: vi.fn(),
   getReshipmentSource: vi.fn(),
   getReshipmentOperation: vi.fn(),
+  listRecentReshipments: vi.fn(),
   modifyReshipment: vi.fn(),
   previewReshipmentCancellation: vi.fn(),
   previewReshipmentParcels: vi.fn(),
@@ -30,6 +32,7 @@ describe("ReshipmentsPage", () => {
   });
 
   it("creates an omitted-item replacement without decrementing stock twice", async () => {
+    vi.mocked(listRecentReshipments).mockResolvedValue({ reshipments: [] });
     vi.mocked(getReshipmentSource).mockResolvedValue({
       order: {
         id: 101,
@@ -174,5 +177,52 @@ describe("ReshipmentsPage", () => {
     expect(vi.mocked(createReshipment).mock.calls[0][0].operation_id)
       .toBe(vi.mocked(createReshipment).mock.calls[1][0].operation_id);
     expect(view.getByText(/Replacement order #202 created/)).toBeInTheDocument();
+  });
+
+  it("lists actionable reshipments with source order, billing name, and CRM notes", async () => {
+    vi.mocked(listRecentReshipments).mockResolvedValue({
+      reshipments: [{
+        operation_id: "00000000-0000-4000-8000-000000000001",
+        source_order_id: 134254,
+        source_order_number: "134254",
+        replacement_order_id: 134338,
+        replacement_order_number: "134338",
+        woo_fulfillment_id: 44,
+        status: "completed",
+        tracking_number: "TRACKING",
+        tracking_url: "https://tracking.example.test/TRACKING",
+        courier_name: "Test Courier",
+        shipment_state: "order_placed",
+        quoted_cost: 12.5,
+        currency: "AUD",
+        billing_name: "Billie Customer",
+        is_unprocessed: true,
+        can_modify: true,
+        can_cancel: true,
+        action_note: "This shipment can be modified or cancelled before pickup.",
+        created_at: "2026-09-22 20:00:00",
+        item_summary: [{ name: "Test Product", sku: "SKU-1", quantity: 2 }],
+        crm_notes: [{
+          id: 9,
+          order_id: 134254,
+          trigger_event: "reshipment",
+          status: "open",
+          reminder_date: "",
+          note_content: "Call before sending replacement.",
+          created_by_name: "Operator",
+          created_at: "2026-09-22 19:00:00",
+          updated_at: "2026-09-22 19:00:00",
+        }],
+      }],
+    });
+
+    const view = render(<ReshipmentsPage />);
+
+    await waitFor(() => expect(view.getByText("#134254")).toBeInTheDocument());
+    expect(view.getByText("#134338")).toBeInTheDocument();
+    expect(view.getByText("Billie Customer")).toBeInTheDocument();
+    expect(view.getByText(/Call before sending replacement/)).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Modify" })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 });
