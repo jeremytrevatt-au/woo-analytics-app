@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel } from "@mui/material";
+import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -8,12 +8,14 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
 import { purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
-import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary } from "../api/preordersApi";
+import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
-import { wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
+import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
+type LineSortKey = "sku" | "product_name" | "qty" | "allocated" | "reserved" | "available" | "status" | "reserve";
+type SortDirection = "asc" | "desc";
 
 function qty(value: number | string | null | undefined): string {
   const numeric = Number(value ?? 0);
@@ -46,6 +48,22 @@ function getPoLineId(line: PurchaseOrderLine): number | null {
   return Number.isFinite(poLineId) && poLineId > 0 ? poLineId : null;
 }
 
+function lineSortValue(line: PurchaseOrderLine, summary: PurchaseOrderPreorderLineSummary | undefined, key: LineSortKey): string | number {
+  const allocation = summary?.allocations[0];
+  const totals = lineTotals(summary);
+  switch (key) {
+    case "sku": return String(line.sku || "").toLocaleLowerCase();
+    case "product_name": return String(line.product_name || "").toLocaleLowerCase();
+    case "qty": return Number(line.qty || 0);
+    case "allocated": return totals.allocated;
+    case "reserved": return totals.reserved;
+    case "available": return totals.available;
+    case "status": return allocation?.status || "not allocated";
+    case "reserve": return allocation?.is_reserve_enabled ? 1 : 0;
+    default: return "";
+  }
+}
+
 function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: (po: PurchaseOrder) => void, handleDelete: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<PurchaseOrderPreorderSummary | null>(null);
@@ -53,6 +71,14 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
   const [bulkAllocating, setBulkAllocating] = useState(false);
+  const [selectedLineIds, setSelectedLineIds] = useState<number[]>([]);
+  const [lineFilter, setLineFilter] = useState("");
+  const [lineSortKey, setLineSortKey] = useState<LineSortKey>("sku");
+  const [lineSortDirection, setLineSortDirection] = useState<SortDirection>("asc");
+  const [bulkReserveEnabled, setBulkReserveEnabled] = useState(true);
+  const [bulkDepositType, setBulkDepositType] = useState<ReserveDepositType>("percent");
+  const [bulkDepositValue, setBulkDepositValue] = useState("");
+  const [bulkReserveUpdating, setBulkReserveUpdating] = useState(false);
   const [reserveUpdatingAllocationId, setReserveUpdatingAllocationId] = useState<number | null>(null);
   const [deletingAllocationId, setDeletingAllocationId] = useState<number | null>(null);
   const [receivePreview, setReceivePreview] = useState<PurchaseOrderReceiveStockResult | null>(null);
@@ -168,7 +194,11 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
           });
       setSummaryMessage(
         `${enabled ? "Enabled" : "Disabled"} Reserve for ${updated.sku}` +
-        `${enabled ? ` with a ${qty(updated.reserve_deposit_percentage)}% deposit and uncapped draft demand.` : "."}`
+        `${enabled
+          ? ` with a ${updated.reserve_deposit_type === "fixed"
+            ? `$${qty(updated.reserve_deposit_fixed_amount)}`
+            : `${qty(updated.reserve_deposit_percentage)}%`} deposit and uncapped draft demand.`
+          : "."}`
       );
       await loadSummary();
     } catch (err) {
@@ -178,25 +208,54 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
     }
   };
 
-  const handleReservePercentage = async (lineSummary: PurchaseOrderPreorderLineSummary, value: string) => {
+  const handleReserveDepositType = async (lineSummary: PurchaseOrderPreorderLineSummary, depositType: ReserveDepositType) => {
     const allocation = lineSummary.allocations[0];
-    const percentage = Number(value);
-    if (!allocation || !Number.isFinite(percentage) || percentage <= 0 || percentage >= 100) {
-      setSummaryError("Reserve deposit percentage must be greater than 0 and less than 100.");
-      return;
-    }
-    if (percentage === Number(allocation.reserve_deposit_percentage)) return;
+    if (!allocation || allocation.reserve_deposit_type === depositType) return;
     setSummaryError(null);
     setSummaryMessage(null);
     setReserveUpdatingAllocationId(allocation.id);
     try {
-      const updated = await preordersApi.updateAllocation(allocation.id, {
-        reserve_deposit_percentage: percentage
-      });
-      setSummaryMessage(`Set the Reserve deposit for ${updated.sku} to ${qty(updated.reserve_deposit_percentage)}%.`);
+      const updated = await preordersApi.updateAllocation(allocation.id, { reserve_deposit_type: depositType });
+      setSummaryMessage(`Set the Reserve deposit type for ${updated.sku} to ${depositType === "fixed" ? "fixed amount" : "percentage"}.`);
       await loadSummary();
     } catch (err) {
-      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve deposit percentage");
+      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve deposit type");
+    } finally {
+      setReserveUpdatingAllocationId(null);
+    }
+  };
+
+  const handleReserveDepositValue = async (lineSummary: PurchaseOrderPreorderLineSummary, value: string) => {
+    const allocation = lineSummary.allocations[0];
+    const amount = Number(value);
+    const isPercentage = allocation?.reserve_deposit_type !== "fixed";
+    if (!allocation || !Number.isFinite(amount) || amount <= 0 || (isPercentage && amount >= 100)) {
+      setSummaryError(isPercentage
+        ? "Reserve deposit percentage must be greater than 0 and less than 100."
+        : "Fixed Reserve deposit must be greater than $0 and less than the product price.");
+      return;
+    }
+    const currentValue = isPercentage
+      ? Number(allocation.reserve_deposit_percentage)
+      : Number(allocation.reserve_deposit_fixed_amount);
+    if (amount === currentValue) return;
+    setSummaryError(null);
+    setSummaryMessage(null);
+    setReserveUpdatingAllocationId(allocation.id);
+    try {
+      const updated = await preordersApi.updateAllocation(
+        allocation.id,
+        isPercentage
+          ? { reserve_deposit_percentage: amount }
+          : { reserve_deposit_fixed_amount: amount }
+      );
+      setSummaryMessage(
+        `Set the Reserve deposit for ${updated.sku} to ` +
+        `${isPercentage ? `${qty(updated.reserve_deposit_percentage)}%` : `$${qty(updated.reserve_deposit_fixed_amount)}`}.`
+      );
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve deposit value");
     } finally {
       setReserveUpdatingAllocationId(null);
     }
@@ -261,6 +320,74 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
       setReceiveError(errorMessage(err, "Failed to book received stock"));
     } finally {
       setReceiveLoading(false);
+    }
+  };
+
+  const visibleLineEntries = filterPurchaseOrderLines(po.lines || [], lineFilter).sort((left, right) => {
+    const leftLineId = getPoLineId(left.line);
+    const rightLineId = getPoLineId(right.line);
+    const leftSummary = summary?.line_summaries.find((item) => Number(item.po_line_id) === leftLineId);
+    const rightSummary = summary?.line_summaries.find((item) => Number(item.po_line_id) === rightLineId);
+    const leftValue = lineSortValue(left.line, leftSummary, lineSortKey);
+    const rightValue = lineSortValue(right.line, rightSummary, lineSortKey);
+    const comparison = typeof leftValue === "number" && typeof rightValue === "number"
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue));
+    return lineSortDirection === "asc" ? comparison : -comparison;
+  });
+  const visibleLineIds = visibleLineEntries
+    .map(({ line }) => getPoLineId(line))
+    .filter((lineId): lineId is number => lineId !== null);
+  const allVisibleSelected = visibleLineIds.length > 0 && visibleLineIds.every((lineId) => selectedLineIds.includes(lineId));
+  const someVisibleSelected = visibleLineIds.some((lineId) => selectedLineIds.includes(lineId)) && !allVisibleSelected;
+
+  const handleLineSort = (key: LineSortKey) => {
+    if (lineSortKey === key) {
+      setLineSortDirection((direction) => direction === "asc" ? "desc" : "asc");
+    } else {
+      setLineSortKey(key);
+      setLineSortDirection("asc");
+    }
+  };
+
+  const handleSelectAllVisible = (checked: boolean) => {
+    setSelectedLineIds((current) => checked
+      ? Array.from(new Set([...current, ...visibleLineIds]))
+      : current.filter((lineId) => !visibleLineIds.includes(lineId))
+    );
+  };
+
+  const handleBulkReserveUpdate = async () => {
+    if (!po.id || selectedLineIds.length === 0) return;
+    const depositValue = Number(bulkDepositValue);
+    const appliesDeposit = bulkReserveEnabled && bulkDepositValue.trim() !== "";
+    if (appliesDeposit && (!Number.isFinite(depositValue) || depositValue <= 0 || (bulkDepositType === "percent" && depositValue >= 100))) {
+      setSummaryError(bulkDepositType === "percent"
+        ? "Bulk Reserve percentage must be greater than 0 and less than 100."
+        : "Bulk fixed Reserve deposit must be greater than $0.");
+      return;
+    }
+    setSummaryError(null);
+    setSummaryMessage(null);
+    setBulkReserveUpdating(true);
+    try {
+      const result = await preordersApi.bulkUpdateReserveAllocations({
+        po_id: po.id,
+        po_line_ids: selectedLineIds,
+        is_reserve_enabled: bulkReserveEnabled,
+        ...(appliesDeposit ? {
+          reserve_deposit_type: bulkDepositType,
+          ...(bulkDepositType === "percent"
+            ? { reserve_deposit_percentage: depositValue }
+            : { reserve_deposit_fixed_amount: depositValue })
+        } : {})
+      });
+      setSummaryMessage(`Updated Reserve settings for ${result.updated_count} selected line(s).`);
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to bulk update Reserve settings");
+    } finally {
+      setBulkReserveUpdating(false);
     }
   };
 
@@ -412,28 +539,100 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                 </Box>
               )}
               {summaryLoading && <Typography variant="body2" sx={{ mb: 1 }}>Loading preorder allocations...</Typography>}
+              <Stack direction={{ xs: "column", lg: "row" }} spacing={1} alignItems={{ lg: "center" }} sx={{ mb: 2 }}>
+                <TextField
+                  size="small"
+                  label="Filter SKU or Product Name"
+                  value={lineFilter}
+                  onChange={(event) => setLineFilter(event.target.value)}
+                  sx={{ minWidth: 280 }}
+                />
+                <TextField
+                  select
+                  size="small"
+                  label="Reserve state"
+                  value={bulkReserveEnabled ? "enable" : "disable"}
+                  onChange={(event) => setBulkReserveEnabled(event.target.value === "enable")}
+                  sx={{ minWidth: 150 }}
+                >
+                  <MenuItem value="enable">Enable Reserve</MenuItem>
+                  <MenuItem value="disable">Disable Reserve</MenuItem>
+                </TextField>
+                <TextField
+                  select
+                  size="small"
+                  label="Deposit type"
+                  value={bulkDepositType}
+                  onChange={(event) => setBulkDepositType(event.target.value as ReserveDepositType)}
+                  disabled={!bulkReserveEnabled}
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="percent">Percentage</MenuItem>
+                  <MenuItem value="fixed">Fixed $</MenuItem>
+                </TextField>
+                <TextField
+                  size="small"
+                  type="number"
+                  label={bulkDepositType === "percent" ? "Deposit %" : "Deposit $"}
+                  value={bulkDepositValue}
+                  onChange={(event) => setBulkDepositValue(event.target.value)}
+                  disabled={!bulkReserveEnabled}
+                  placeholder="NY default"
+                  slotProps={{ htmlInput: { min: 0.01, max: bulkDepositType === "percent" ? 99.99 : undefined, step: 0.01 } }}
+                  sx={{ width: 120 }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleBulkReserveUpdate}
+                  disabled={bulkReserveUpdating || selectedLineIds.length === 0}
+                >
+                  {bulkReserveUpdating ? "Applying..." : `Apply to ${selectedLineIds.length} selected`}
+                </Button>
+              </Stack>
               <Table size="small" aria-label="purchases">
                 <TableHead>
                   <TableRow>
-                    <TableCell>SKU</TableCell>
-                    <TableCell>Product Name</TableCell>
-                    <TableCell align="right">Qty</TableCell>
-                    <TableCell align="right">Preorder Allocated</TableCell>
-                    <TableCell align="right">Reserved</TableCell>
-                    <TableCell align="right">Available</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Reserve</TableCell>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        indeterminate={someVisibleSelected}
+                        onChange={(event) => handleSelectAllVisible(event.target.checked)}
+                        inputProps={{ "aria-label": "Select all visible PO lines" }}
+                      />
+                    </TableCell>
+                    <TableCell><TableSortLabel active={lineSortKey === "sku"} direction={lineSortKey === "sku" ? lineSortDirection : "asc"} onClick={() => handleLineSort("sku")}>SKU</TableSortLabel></TableCell>
+                    <TableCell><TableSortLabel active={lineSortKey === "product_name"} direction={lineSortKey === "product_name" ? lineSortDirection : "asc"} onClick={() => handleLineSort("product_name")}>Product Name</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "qty"} direction={lineSortKey === "qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("qty")}>Qty</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "allocated"} direction={lineSortKey === "allocated" ? lineSortDirection : "asc"} onClick={() => handleLineSort("allocated")}>Preorder Allocated</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "reserved"} direction={lineSortKey === "reserved" ? lineSortDirection : "asc"} onClick={() => handleLineSort("reserved")}>Reserved</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "available"} direction={lineSortKey === "available" ? lineSortDirection : "asc"} onClick={() => handleLineSort("available")}>Available</TableSortLabel></TableCell>
+                    <TableCell><TableSortLabel active={lineSortKey === "status"} direction={lineSortKey === "status" ? lineSortDirection : "asc"} onClick={() => handleLineSort("status")}>Status</TableSortLabel></TableCell>
+                    <TableCell><TableSortLabel active={lineSortKey === "reserve"} direction={lineSortKey === "reserve" ? lineSortDirection : "asc"} onClick={() => handleLineSort("reserve")}>Reserve</TableSortLabel></TableCell>
                     <TableCell align="right">Preorder Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {po.lines && po.lines.length > 0 ? po.lines.map((line, idx) => {
+                  {visibleLineEntries.length > 0 ? visibleLineEntries.map(({ line, originalIndex: idx }) => {
                     const poLineId = getPoLineId(line);
                     const lineSummary = summary?.line_summaries.find((item) => Number(item.po_line_id) === poLineId);
                     const totals = lineTotals(lineSummary);
                     const allocation = lineSummary?.allocations[0];
                     return (
-                      <TableRow key={idx}>
+                      <TableRow key={poLineId ?? idx} selected={poLineId !== null && selectedLineIds.includes(poLineId)}>
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={poLineId !== null && selectedLineIds.includes(poLineId)}
+                            disabled={poLineId === null}
+                            onChange={(event) => {
+                              if (poLineId === null) return;
+                              setSelectedLineIds((current) => event.target.checked
+                                ? Array.from(new Set([...current, poLineId]))
+                                : current.filter((lineId) => lineId !== poLineId)
+                              );
+                            }}
+                            inputProps={{ "aria-label": `Select ${line.sku || line.product_name}` }}
+                          />
+                        </TableCell>
                         <TableCell component="th" scope="row">
                           {wooProductEditUrl(line.edit_product_id || line.parent_product_id || line.product_id) && line.sku ? (
                             <Link
@@ -491,17 +690,37 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                               label="Reserve"
                             />
                             {allocation ? (
-                              <TextField
-                                key={`${allocation.id}-${allocation.reserve_deposit_percentage}`}
-                                type="number"
-                                size="small"
-                                defaultValue={allocation.reserve_deposit_percentage}
-                                onBlur={(event) => lineSummary && handleReservePercentage(lineSummary, event.target.value)}
-                                disabled={reserveUpdatingAllocationId === allocation.id}
-                                slotProps={{ htmlInput: { min: 0.01, max: 99.99, step: 0.01 } }}
-                                sx={{ width: 92 }}
-                                label="Deposit %"
-                              />
+                              <>
+                                <TextField
+                                  select
+                                  size="small"
+                                  value={allocation.reserve_deposit_type || "percent"}
+                                  onChange={(event) => lineSummary && handleReserveDepositType(lineSummary, event.target.value as ReserveDepositType)}
+                                  disabled={reserveUpdatingAllocationId === allocation.id}
+                                  sx={{ minWidth: 105 }}
+                                  label="Type"
+                                >
+                                  <MenuItem value="percent">Percent</MenuItem>
+                                  <MenuItem value="fixed">Fixed $</MenuItem>
+                                </TextField>
+                                <TextField
+                                  key={`${allocation.id}-${allocation.reserve_deposit_type}-${allocation.reserve_deposit_percentage}-${allocation.reserve_deposit_fixed_amount}`}
+                                  type="number"
+                                  size="small"
+                                  defaultValue={allocation.reserve_deposit_type === "fixed"
+                                    ? allocation.reserve_deposit_fixed_amount
+                                    : allocation.reserve_deposit_percentage}
+                                  onBlur={(event) => lineSummary && handleReserveDepositValue(lineSummary, event.target.value)}
+                                  disabled={reserveUpdatingAllocationId === allocation.id}
+                                  slotProps={{ htmlInput: {
+                                    min: 0.01,
+                                    max: allocation.reserve_deposit_type === "fixed" ? undefined : 99.99,
+                                    step: 0.01
+                                  } }}
+                                  sx={{ width: 92 }}
+                                  label={allocation.reserve_deposit_type === "fixed" ? "Deposit $" : "Deposit %"}
+                                />
+                              </>
                             ) : (
                               <Typography variant="caption" color="text.secondary">NY default</Typography>
                             )}
@@ -532,7 +751,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     );
                   }) : (
                     <TableRow>
-                      <TableCell colSpan={9}>No line items found.</TableCell>
+                      <TableCell colSpan={10}>No matching line items found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

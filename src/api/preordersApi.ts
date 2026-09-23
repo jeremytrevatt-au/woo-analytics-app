@@ -2,6 +2,7 @@ import { fetchJson } from "./httpClient";
 
 export type AllocationStatus = "active" | "paused" | "closed" | "cancelled";
 export type ReservationStatus = "reserved" | "consumed" | "released" | "cancelled";
+export type ReserveDepositType = "percent" | "fixed";
 
 export type PreorderAllocation = {
   id: number;
@@ -20,7 +21,9 @@ export type PreorderAllocation = {
   status: AllocationStatus;
   is_reserve_enabled: boolean;
   is_reserve_uncapped: boolean;
+  reserve_deposit_type: ReserveDepositType;
   reserve_deposit_percentage: number;
+  reserve_deposit_fixed_amount: number;
   is_reserve_deposit_custom: boolean;
   effective_status?: string;
   po_number?: string;
@@ -125,7 +128,9 @@ export type PreorderAllocationCreatePayload = {
   allocated_qty: number;
   status?: AllocationStatus;
   is_reserve_enabled?: boolean;
+  reserve_deposit_type?: ReserveDepositType;
   reserve_deposit_percentage?: number;
+  reserve_deposit_fixed_amount?: number;
   eta_date?: string;
   preorder_cutoff_date?: string | null;
   notes?: string;
@@ -135,7 +140,9 @@ export type PreorderAllocationUpdatePayload = {
   allocated_qty?: number;
   status?: AllocationStatus;
   is_reserve_enabled?: boolean;
+  reserve_deposit_type?: ReserveDepositType;
   reserve_deposit_percentage?: number;
+  reserve_deposit_fixed_amount?: number;
   eta_date?: string | null;
   preorder_cutoff_date?: string | null;
   notes?: string | null;
@@ -158,6 +165,20 @@ export type PreorderReservationUpdatePayload = {
 export type ManualHoldPayload = {
   qty: number;
   notes?: string | null;
+};
+
+export type BulkReserveAllocationUpdatePayload = {
+  po_id: number;
+  po_line_ids: number[];
+  is_reserve_enabled?: boolean;
+  reserve_deposit_type?: ReserveDepositType;
+  reserve_deposit_percentage?: number;
+  reserve_deposit_fixed_amount?: number;
+};
+
+export type BulkReserveAllocationUpdateResult = {
+  updated_count: number;
+  allocations: PreorderAllocation[];
 };
 
 export type PreorderAllocationFilters = {
@@ -224,6 +245,13 @@ export const preordersApi = {
 
   async updateAllocation(id: number, payload: PreorderAllocationUpdatePayload): Promise<PreorderAllocation> {
     return fetchJson<PreorderAllocation>(`/api/v1/preorders/allocations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async bulkUpdateReserveAllocations(payload: BulkReserveAllocationUpdatePayload): Promise<BulkReserveAllocationUpdateResult> {
+    return fetchJson<BulkReserveAllocationUpdateResult>("/api/v1/preorders/allocations/bulk-update", {
       method: "PUT",
       body: JSON.stringify(payload)
     });
