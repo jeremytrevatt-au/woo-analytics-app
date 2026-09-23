@@ -18,6 +18,12 @@ export type PreorderAllocation = {
   released_qty: number;
   available_qty: number;
   status: AllocationStatus;
+  effective_status?: string;
+  po_number?: string;
+  po_status?: string;
+  preorder_campaign?: string;
+  shipment_label?: string;
+  po_line_integrity?: "valid" | "missing" | "not_linked";
   eta_date: string | null;
   preorder_cutoff_date?: string | null;
   notes?: string;

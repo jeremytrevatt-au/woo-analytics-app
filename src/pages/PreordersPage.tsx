@@ -51,11 +51,17 @@ function dateLabel(value: string | null | undefined): string {
 }
 
 function statusColor(status: string): ChipProps["color"] {
-  if (status === "active" || status === "reserved") return "success";
-  if (status === "paused") return "warning";
-  if (status === "closed" || status === "consumed") return "info";
+  if (status === "active" || status === "reserved" || status === "available") return "success";
+  if (status === "paused" || status === "cutoff_passed") return "warning";
+  if (status === "closed" || status === "consumed" || status.startsWith("po_")) return "info";
+  if (status === "invalid_link") return "error";
   if (status === "cancelled" || status === "released") return "default";
   return "default";
+}
+
+function effectiveStatusLabel(status: string | undefined): string {
+  if (!status) return "-";
+  return status.replace(/^po_/, "PO: ").replaceAll("_", " ");
 }
 
 type ReservationDialogProps = {
@@ -348,6 +354,10 @@ function PreordersPage() {
       </Box>
 
       {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
+      <Alert severity="info">
+        Allocation status controls the allocation record. Effective availability also requires a valid PO line,
+        a Draft purchase order, an open cut-off date, and available quantity.
+      </Alert>
 
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
         <Card sx={{ flex: 1 }}>
@@ -387,8 +397,10 @@ function PreordersPage() {
             <TableRow>
               <TableCell>SKU</TableCell>
               <TableCell>Product</TableCell>
+              <TableCell>Shipment / PO</TableCell>
               <TableCell>PO Line</TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell>Allocation Status</TableCell>
+              <TableCell>Effective Availability</TableCell>
               <TableCell align="right">Allocated</TableCell>
               <TableCell align="right">Reserved</TableCell>
               <TableCell align="right">Consumed</TableCell>
@@ -405,7 +417,18 @@ function PreordersPage() {
                   <TableRow key={allocation.id}>
                     <TableCell>{allocation.sku || "-"}</TableCell>
                     <TableCell>{allocation.product_name}</TableCell>
-                    <TableCell>{allocation.po_line_id ?? "-"}</TableCell>
+                    <TableCell>
+                      <Stack spacing={0.25}>
+                        <Typography variant="body2">{allocation.shipment_label || allocation.po_number || "-"}</Typography>
+                        {allocation.po_status && <Typography variant="caption" color="text.secondary">PO {allocation.po_status}</Typography>}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <span>{allocation.po_line_id ?? "-"}</span>
+                        {allocation.po_line_integrity === "missing" && <Chip size="small" color="error" label="Missing link" />}
+                      </Stack>
+                    </TableCell>
                     <TableCell>
                       <TextField
                         select
@@ -418,6 +441,13 @@ function PreordersPage() {
                           <MenuItem key={item} value={item}>{item}</MenuItem>
                         ))}
                       </TextField>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={effectiveStatusLabel(allocation.effective_status)}
+                        color={statusColor(allocation.effective_status || "")}
+                      />
                     </TableCell>
                     <TableCell align="right">{qty(allocation.allocated_qty)}</TableCell>
                     <TableCell align="right">{qty(allocation.reserved_qty)}</TableCell>
@@ -451,7 +481,7 @@ function PreordersPage() {
             })}
             {allocations.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} align="center">No preorder allocations found.</TableCell>
+                <TableCell colSpan={13} align="center">No preorder allocations found.</TableCell>
               </TableRow>
             )}
           </TableBody>

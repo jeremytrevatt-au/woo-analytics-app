@@ -26,6 +26,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   lead_time_days: 0,
   eta_date: null,
   preorder_cutoff_date: null,
+  preorder_campaign: "",
   supplier_currency: "AUD",
   currency_conversion_rate: 1.0,
   m3: 0,
@@ -412,6 +413,17 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               margin="normal"
               helperText="Blank keeps preorders open while the PO remains Draft."
               InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Pre-order Shipment / Campaign"
+              value={formData.preorder_campaign || ""}
+              onChange={(e) => handleChange("preorder_campaign", e.target.value)}
+              margin="normal"
+              placeholder="e.g. GreenStalk Summer 2026"
+              helperText="Identifies which shipment owns its preorder allocations."
             />
           </Grid>
           <Grid item xs={12} sm={6}>

@@ -196,6 +196,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
         </TableCell>
         <TableCell>{po.po_number}</TableCell>
         <TableCell>{po.supplier_name || '-'}</TableCell>
+        <TableCell>{po.preorder_campaign || '-'}</TableCell>
         <TableCell>
           <Chip size="small" label={po.status} color={po.status === 'ordered' ? 'primary' : po.status === 'shipped' ? 'info' : 'default'} />
         </TableCell>
@@ -213,7 +214,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={9}>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={10}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 1 }}>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }} justifyContent="space-between" sx={{ mb: 1 }}>
@@ -455,6 +456,7 @@ function PurchaseOrdersPage() {
               <TableCell />
               <TableCell>PO Number</TableCell>
               <TableCell>Supplier</TableCell>
+              <TableCell>Pre-order Shipment</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Created Date</TableCell>
               <TableCell>ETA Date</TableCell>
@@ -469,7 +471,7 @@ function PurchaseOrdersPage() {
             ))}
             {data.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} align="center">No purchase orders found.</TableCell>
+                <TableCell colSpan={10} align="center">No purchase orders found.</TableCell>
               </TableRow>
             )}
           </TableBody>

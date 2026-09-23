@@ -28,6 +28,7 @@ export type PurchaseOrder = {
   lead_time_days: number;
   eta_date: string | null;
   preorder_cutoff_date: string | null;
+  preorder_campaign?: string;
   supplier_currency: string;
   currency_conversion_rate: number;
   m3: number;

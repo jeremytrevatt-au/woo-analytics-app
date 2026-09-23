@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, CircularProgress, Typography } from "@mui/material";
 import { purchaseOrdersApi, PurchaseOrder } from "../api/purchaseOrdersApi";
+import { mergePurchaseOrderLines, type StockPurchaseOrderSelection } from "../lib/addToPurchaseOrder";
 
 type Props = {
   open: boolean;
   onClose: (saved: boolean) => void;
-  selectedItems: any[]; // Items from Stock or Orders
+  selectedItems: StockPurchaseOrderSelection[];
 };
 
 export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
@@ -13,13 +14,15 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [selectedPoId, setSelectedPoId] = useState<string>("new");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setLoading(true);
+      setRequestError(null);
       purchaseOrdersApi.list("draft")
         .then(data => setPos(data))
-        .catch(err => console.error(err))
+        .catch(err => setRequestError(err instanceof Error ? err.message : "Failed to load draft purchase orders."))
         .finally(() => setLoading(false));
     }
   }, [open]);
@@ -34,16 +37,14 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
 
     setLoading(true);
     setValidationError(null);
+    setRequestError(null);
     try {
-      let poToUpdate: PurchaseOrder;
-      
       if (selectedPoId === "new") {
-        // Create new PO
-        const newPo = await purchaseOrdersApi.create({
-          po_number: `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 1000)}`,
+        await purchaseOrdersApi.create({
+          po_number: "",
           status: "draft",
           created_date: new Date().toISOString().slice(0, 19).replace("T", " "),
-          created_by: "System",
+          created_by: "Analytics Stock Page",
           shipping_type: "sea",
           lead_time_days: 0,
           eta_date: null,
@@ -58,41 +59,18 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
           product_cost_aud: 0,
           product_cost_adjustments_aud: 0,
           total_cost_aud: 0,
-          lines: []
+          lines: mergePurchaseOrderLines([], selectedItems)
         });
-        poToUpdate = newPo;
       } else {
-        poToUpdate = await purchaseOrdersApi.get(parseInt(selectedPoId));
+        const poToUpdate: PurchaseOrder = await purchaseOrdersApi.get(parseInt(selectedPoId));
+        const currentLines = poToUpdate.lines || [];
+        const mergedLines = mergePurchaseOrderLines(currentLines, selectedItems);
+        await purchaseOrdersApi.update(poToUpdate.id!, { lines: mergedLines });
       }
-
-      // Add lines
-      const currentLines = poToUpdate.lines || [];
-      const newLines = selectedItems.map(item => {
-        // Handle both Stock (product_id, sku, product_name) and Orders (product_id, sku, product_name, qty)
-        const qty = item.qty || 1; // Default to 1 if from stock
-        return {
-          product_id: item.product_id,
-          sku: item.sku || "",
-          product_name: item.product_name || item.name || "",
-          qty: qty
-        };
-      });
-
-      // Merge lines (if product already exists, add qty)
-      newLines.forEach(nl => {
-        const existing = currentLines.find(cl => cl.product_id === nl.product_id);
-        if (existing) {
-          existing.qty += nl.qty;
-        } else {
-          currentLines.push(nl);
-        }
-      });
-
-      await purchaseOrdersApi.update(poToUpdate.id!, { lines: currentLines });
       onClose(true);
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : "Failed to add to Purchase Order");
+      setRequestError(err instanceof Error ? err.message : "Failed to add to Purchase Order");
     } finally {
       setLoading(false);
     }
@@ -108,6 +86,11 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
         {validationError && (
           <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setValidationError(null)}>
             {validationError}
+          </Alert>
+        )}
+        {requestError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setRequestError(null)}>
+            {requestError}
           </Alert>
         )}
         
