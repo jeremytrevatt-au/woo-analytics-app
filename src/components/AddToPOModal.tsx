@@ -7,9 +7,10 @@ type Props = {
   open: boolean;
   onClose: (saved: boolean) => void;
   selectedItems: StockPurchaseOrderSelection[];
+  initialTarget?: "existing" | "new";
 };
 
-export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
+export default function AddToPOModal({ open, onClose, selectedItems, initialTarget = "existing" }: Props) {
   const [loading, setLoading] = useState(false);
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [selectedPoId, setSelectedPoId] = useState<string>("new");
@@ -20,12 +21,19 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
     if (open) {
       setLoading(true);
       setRequestError(null);
+      setValidationError(null);
+      setSelectedPoId(initialTarget === "new" ? "new" : "");
       purchaseOrdersApi.list("draft")
-        .then(data => setPos(data))
+        .then(data => {
+          setPos(data);
+          if (initialTarget === "existing") {
+            setSelectedPoId(data[0]?.id ? String(data[0].id) : "new");
+          }
+        })
         .catch(err => setRequestError(err instanceof Error ? err.message : "Failed to load draft purchase orders."))
         .finally(() => setLoading(false));
     }
-  }, [open]);
+  }, [initialTarget, open]);
 
   const handleSave = async () => {
     const blockedVariableParents = selectedItems.filter((item) => (item.product_type || item.type) === "variable" && !item.wsvi_group_id);
@@ -78,7 +86,7 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
 
   return (
     <Dialog open={open} onClose={() => onClose(false)} maxWidth="sm" fullWidth>
-      <DialogTitle>Add to Purchase Order</DialogTitle>
+      <DialogTitle>{selectedPoId === "new" ? "Create Purchase Order" : "Add to Existing Purchase Order"}</DialogTitle>
       <DialogContent dividers>
         <Typography variant="body2" sx={{ mb: 2 }}>
           Adding {selectedItems.length} item(s) to a Purchase Order.
@@ -116,8 +124,8 @@ export default function AddToPOModal({ open, onClose, selectedItems }: Props) {
       </DialogContent>
       <DialogActions>
         <Button onClick={() => onClose(false)}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={loading}>
-          {loading ? "Saving..." : "Save"}
+        <Button onClick={handleSave} variant="contained" disabled={loading || selectedPoId === ""}>
+          {loading ? "Saving..." : selectedPoId === "new" ? "Create PO" : "Add to PO"}
         </Button>
       </DialogActions>
     </Dialog>

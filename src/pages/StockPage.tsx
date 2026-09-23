@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Check } from "@mui/icons-material";
-import { Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, Card, CardContent, IconButton, useMediaQuery, useTheme, Menu, Checkbox, ListItemText } from "@mui/material";
+import { Alert, Stack, Typography, Grid, TextField, MenuItem, Tabs, Tab, Box, Button, Card, CardContent, IconButton, useMediaQuery, useTheme, Menu, Checkbox, ListItemText } from "@mui/material";
 import DataTablePanel from "../components/DataTablePanel";
 import LoadStateBlock from "../components/LoadStateBlock";
 import { useDashboardData } from "../hooks/useDashboardData";
@@ -298,6 +298,8 @@ function StockPage() {
   const stockLedger = useStockLedger(1, 200, ledgerReason === "all" ? null : ledgerReason, ledgerSearch);
 
   const [selectedStockRecords, setSelectedStockRecords] = useState<any[]>([]);
+  const [poSelectionMode, setPoSelectionMode] = useState(false);
+  const [addToPoTarget, setAddToPoTarget] = useState<"existing" | "new">("existing");
   const [bulkUpdateModalOpen, setBulkUpdateModalOpen] = useState(false);
   const [addToPoModalOpen, setAddToPoModalOpen] = useState(false);
   const [stocktakeRows, setStocktakeRows] = useState<any[]>([]);
@@ -388,8 +390,18 @@ function StockPage() {
     setAddToPoModalOpen(false);
     if (saved) {
       setSelectedStockRecords([]);
-      // Optionally refetch or show success message
+      setPoSelectionMode(false);
     }
+  };
+
+  const openAddToPo = (target: "existing" | "new") => {
+    setAddToPoTarget(target);
+    setAddToPoModalOpen(true);
+  };
+
+  const cancelPoSelection = () => {
+    setSelectedStockRecords([]);
+    setPoSelectionMode(false);
   };
 
   useEffect(() => {
@@ -932,13 +944,21 @@ function StockPage() {
                       </MenuItem>
                     ))}
                   </Menu>
-                  <Button 
-                    variant="outlined" 
-                    disabled={selectedStockRecords.length === 0}
-                    onClick={() => setAddToPoModalOpen(true)}
-                  >
-                    Add to PO ({selectedStockRecords.length})
-                  </Button>
+                  {!poSelectionMode ? (
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        setSelectedStockRecords([]);
+                        setPoSelectionMode(true);
+                      }}
+                    >
+                      Select Products for Purchase Order
+                    </Button>
+                  ) : (
+                    <Button variant="outlined" color="inherit" onClick={cancelPoSelection}>
+                      Cancel PO Selection
+                    </Button>
+                  )}
                   <Button 
                     variant="contained" 
                     disabled={selectedStockRecords.length === 0}
@@ -947,6 +967,42 @@ function StockPage() {
                     Bulk Update Product Fields ({selectedStockRecords.length})
                   </Button>
                 </Box>
+                {poSelectionMode && (
+                  <Box
+                    sx={{
+                      position: "sticky",
+                      top: 8,
+                      zIndex: 5,
+                      mb: 2,
+                      p: 1.5,
+                      border: 1,
+                      borderColor: "primary.main",
+                      borderRadius: 1,
+                      bgcolor: "background.paper",
+                      boxShadow: 2,
+                    }}
+                  >
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "stretch", sm: "center" }}>
+                      <Alert severity="info" sx={{ flex: 1, py: 0 }}>
+                        Select product or variation rows below. {selectedStockRecords.length} selected.
+                      </Alert>
+                      <Button
+                        variant="outlined"
+                        disabled={selectedStockRecords.length === 0}
+                        onClick={() => openAddToPo("existing")}
+                      >
+                        Add to Existing PO
+                      </Button>
+                      <Button
+                        variant="contained"
+                        disabled={selectedStockRecords.length === 0}
+                        onClick={() => openAddToPo("new")}
+                      >
+                        Create New PO
+                      </Button>
+                    </Stack>
+                  </Box>
+                )}
                 <DataTablePanel
                   title="Stock Items"
                   rows={unifiedRows as any}
@@ -957,6 +1013,7 @@ function StockPage() {
                   onPageChange={setPage}
                   getLinkUrl={(row, col) => col.key === "product_id" ? `https://naturalyield.com.au/wp-admin/post.php?post=${row.parent_id || row.product_id}&action=edit` : null}
                   selectable
+                  selectionLabel={poSelectionMode ? "Select for PO" : "Select"}
                   selectedRows={selectedStockRecords}
                   onSelectionChange={setSelectedStockRecords}
                   rowIdKey="product_id"
@@ -1233,6 +1290,7 @@ function StockPage() {
           open={addToPoModalOpen}
           onClose={handleAddToPoSuccess}
           selectedItems={selectedStockRecords}
+          initialTarget={addToPoTarget}
         />
       )}
     </Stack>

@@ -35,6 +35,7 @@ type Props = {
   getLinkUrl?: (row: any, col: TableColumn) => string | null;
   renderExpandedRow?: (row: any) => React.ReactNode;
   selectable?: boolean;
+  selectionLabel?: string;
   selectedRows?: any[];
   onSelectionChange?: (selected: any[]) => void;
   rowIdKey?: string;
@@ -43,7 +44,7 @@ type Props = {
   expandOnRowClick?: boolean;
 };
 
-function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow, selectable, selectedRows = [], onSelectionChange, rowIdKey = "id", stickyHeader = false, maxHeight, expandOnRowClick = false }: Props) {
+function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, totalCount, onPageChange, getLinkUrl, renderExpandedRow, selectable, selectionLabel, selectedRows = [], onSelectionChange, rowIdKey = "id", stickyHeader = false, maxHeight, expandOnRowClick = false }: Props) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const { filters, updateFilter } = useFilters();
@@ -151,13 +152,17 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
               <TableHead>
                 <TableRow>
                   {selectable && (
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        color="primary"
-                        indeterminate={isSomeSelected}
-                        checked={isAllSelected}
-                        onChange={handleSelectAll}
-                      />
+                    <TableCell>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Checkbox
+                          color="primary"
+                          indeterminate={isSomeSelected}
+                          checked={isAllSelected}
+                          onChange={handleSelectAll}
+                          inputProps={{ "aria-label": selectionLabel ? `Select all ${selectionLabel}` : "Select all rows" }}
+                        />
+                        {selectionLabel && <Typography variant="caption" fontWeight={700}>{selectionLabel}</Typography>}
+                      </Stack>
                     </TableCell>
                   )}
                   {renderExpandedRow && <TableCell width={40} />}
@@ -194,6 +199,7 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
                           color="primary"
                           checked={isItemSelected}
                           onChange={(event) => handleSelectRow(event, row)}
+                          inputProps={{ "aria-label": `Select ${String(row.sku || row.product_name || row[rowIdKey])}` }}
                         />
                       </TableCell>
                     )}
