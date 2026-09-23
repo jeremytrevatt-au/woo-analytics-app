@@ -146,21 +146,56 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
     }
   };
 
-  const handleReserveEnabled = async (lineSummary: PurchaseOrderPreorderLineSummary, enabled: boolean) => {
+  const handleReserveEnabled = async (line: PurchaseOrderLine, lineSummary: PurchaseOrderPreorderLineSummary | undefined, enabled: boolean) => {
+    const allocation = lineSummary?.allocations[0];
+    const poLineId = getPoLineId(line);
+    if (!allocation && !poLineId) {
+      setSummaryError("This PO line does not have a saved line ID yet.");
+      return;
+    }
+    setSummaryError(null);
+    setSummaryMessage(null);
+    setReserveUpdatingAllocationId(allocation?.id ?? -Number(poLineId));
+    try {
+      const updated = allocation
+        ? await preordersApi.updateAllocation(allocation.id, { is_reserve_enabled: enabled })
+        : await preordersApi.createAllocation({
+            po_line_id: Number(poLineId),
+            allocated_qty: Math.max(0, Number(line.qty || 0)),
+            status: "active",
+            is_reserve_enabled: enabled
+          });
+      setSummaryMessage(
+        `${enabled ? "Enabled" : "Disabled"} Reserve for ${updated.sku}` +
+        `${enabled ? ` with a ${qty(updated.reserve_deposit_percentage)}% deposit and uncapped draft demand.` : "."}`
+      );
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve availability");
+    } finally {
+      setReserveUpdatingAllocationId(null);
+    }
+  };
+
+  const handleReservePercentage = async (lineSummary: PurchaseOrderPreorderLineSummary, value: string) => {
     const allocation = lineSummary.allocations[0];
-    if (!allocation) return;
+    const percentage = Number(value);
+    if (!allocation || !Number.isFinite(percentage) || percentage <= 0 || percentage >= 100) {
+      setSummaryError("Reserve deposit percentage must be greater than 0 and less than 100.");
+      return;
+    }
+    if (percentage === Number(allocation.reserve_deposit_percentage)) return;
     setSummaryError(null);
     setSummaryMessage(null);
     setReserveUpdatingAllocationId(allocation.id);
     try {
-      await preordersApi.updateAllocation(allocation.id, {
-        is_reserve_enabled: enabled,
-        reserve_deposit_percentage: 20
+      const updated = await preordersApi.updateAllocation(allocation.id, {
+        reserve_deposit_percentage: percentage
       });
-      setSummaryMessage(`${enabled ? "Enabled" : "Disabled"} Reserve (20%) for ${allocation.sku}.`);
+      setSummaryMessage(`Set the Reserve deposit for ${updated.sku} to ${qty(updated.reserve_deposit_percentage)}%.`);
       await loadSummary();
     } catch (err) {
-      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve availability");
+      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve deposit percentage");
     } finally {
       setReserveUpdatingAllocationId(null);
     }
@@ -246,7 +281,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                 <Box>
                   <Typography variant="h6" component="div">Line Items</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Preorder allocation is managed directly from the purchase order lines.
+                    Reserve demand is uncapped while the PO is draft. Set each line quantity to at least its paid Reserve demand before submitting the PO.
                   </Typography>
                 </Box>
                 <Button size="small" variant="contained" onClick={handleBulkAllocate} disabled={!po.id || summaryLoading || bulkAllocating}>
@@ -393,7 +428,11 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                         <TableCell align="right">{qty(totals.allocated)}</TableCell>
                         <TableCell align="right">{qty(totals.reserved)}</TableCell>
                         <TableCell align="right">
-                          <Chip size="small" label={qty(totals.available)} color={totals.available > 0 ? "success" : "default"} />
+                          <Chip
+                            size="small"
+                            label={allocation?.is_reserve_uncapped ? "Uncapped" : qty(totals.available)}
+                            color={allocation?.is_reserve_uncapped || totals.available > 0 ? "success" : "default"}
+                          />
                         </TableCell>
                         <TableCell>
                           {allocation ? (
@@ -413,17 +452,38 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                           )}
                         </TableCell>
                         <TableCell>
-                          <FormControlLabel
-                            control={
-                              <Checkbox
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  size="small"
+                                  checked={Boolean(allocation?.is_reserve_enabled)}
+                                  disabled={
+                                    !poLineId ||
+                                    reserveUpdatingAllocationId === (allocation?.id ?? -Number(poLineId)) ||
+                                    (po.status !== "draft" && !allocation?.is_reserve_enabled)
+                                  }
+                                  onChange={(event) => handleReserveEnabled(line, lineSummary, event.target.checked)}
+                                />
+                              }
+                              label="Reserve"
+                            />
+                            {allocation ? (
+                              <TextField
+                                key={`${allocation.id}-${allocation.reserve_deposit_percentage}`}
+                                type="number"
                                 size="small"
-                                checked={Boolean(allocation?.is_reserve_enabled)}
-                                disabled={!allocation || reserveUpdatingAllocationId === allocation.id}
-                                onChange={(event) => lineSummary && handleReserveEnabled(lineSummary, event.target.checked)}
+                                defaultValue={allocation.reserve_deposit_percentage}
+                                onBlur={(event) => lineSummary && handleReservePercentage(lineSummary, event.target.value)}
+                                disabled={reserveUpdatingAllocationId === allocation.id}
+                                slotProps={{ htmlInput: { min: 0.01, max: 99.99, step: 0.01 } }}
+                                sx={{ width: 92 }}
+                                label="Deposit %"
                               />
-                            }
-                            label="20% deposit"
-                          />
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">NY default</Typography>
+                            )}
+                          </Stack>
                         </TableCell>
                         <TableCell align="right">
                           <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!poLineId || Number(line.qty || 0) <= 0}>

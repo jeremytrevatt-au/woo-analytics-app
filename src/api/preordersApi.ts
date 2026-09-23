@@ -19,7 +19,9 @@ export type PreorderAllocation = {
   available_qty: number;
   status: AllocationStatus;
   is_reserve_enabled: boolean;
+  is_reserve_uncapped: boolean;
   reserve_deposit_percentage: number;
+  is_reserve_deposit_custom: boolean;
   effective_status?: string;
   po_number?: string;
   po_status?: string;
