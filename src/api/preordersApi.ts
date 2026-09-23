@@ -18,6 +18,8 @@ export type PreorderAllocation = {
   released_qty: number;
   available_qty: number;
   status: AllocationStatus;
+  is_reserve_enabled: boolean;
+  reserve_deposit_percentage: number;
   effective_status?: string;
   po_number?: string;
   po_status?: string;
@@ -120,6 +122,8 @@ export type PreorderAllocationCreatePayload = {
   product_name?: string;
   allocated_qty: number;
   status?: AllocationStatus;
+  is_reserve_enabled?: boolean;
+  reserve_deposit_percentage?: number;
   eta_date?: string;
   preorder_cutoff_date?: string | null;
   notes?: string;
@@ -128,6 +132,8 @@ export type PreorderAllocationCreatePayload = {
 export type PreorderAllocationUpdatePayload = {
   allocated_qty?: number;
   status?: AllocationStatus;
+  is_reserve_enabled?: boolean;
+  reserve_deposit_percentage?: number;
   eta_date?: string | null;
   preorder_cutoff_date?: string | null;
   notes?: string | null;

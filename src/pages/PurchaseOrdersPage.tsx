@@ -53,6 +53,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
   const [bulkAllocating, setBulkAllocating] = useState(false);
+  const [reserveUpdatingAllocationId, setReserveUpdatingAllocationId] = useState<number | null>(null);
   const [receivePreview, setReceivePreview] = useState<PurchaseOrderReceiveStockResult | null>(null);
   const [receiveLoading, setReceiveLoading] = useState(false);
   const [receiveError, setReceiveError] = useState<string | null>(null);
@@ -142,6 +143,26 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
       await loadSummary();
     } catch (err) {
       setSummaryError(err instanceof Error ? err.message : "Failed to update preorder allocation status");
+    }
+  };
+
+  const handleReserveEnabled = async (lineSummary: PurchaseOrderPreorderLineSummary, enabled: boolean) => {
+    const allocation = lineSummary.allocations[0];
+    if (!allocation) return;
+    setSummaryError(null);
+    setSummaryMessage(null);
+    setReserveUpdatingAllocationId(allocation.id);
+    try {
+      await preordersApi.updateAllocation(allocation.id, {
+        is_reserve_enabled: enabled,
+        reserve_deposit_percentage: 20
+      });
+      setSummaryMessage(`${enabled ? "Enabled" : "Disabled"} Reserve (20%) for ${allocation.sku}.`);
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve availability");
+    } finally {
+      setReserveUpdatingAllocationId(null);
     }
   };
 
@@ -344,6 +365,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     <TableCell align="right">Reserved</TableCell>
                     <TableCell align="right">Available</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell>Reserve</TableCell>
                     <TableCell align="right">Preorder Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -390,6 +412,19 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                             <Chip size="small" label="not allocated" />
                           )}
                         </TableCell>
+                        <TableCell>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={Boolean(allocation?.is_reserve_enabled)}
+                                disabled={!allocation || reserveUpdatingAllocationId === allocation.id}
+                                onChange={(event) => lineSummary && handleReserveEnabled(lineSummary, event.target.checked)}
+                              />
+                            }
+                            label="20% deposit"
+                          />
+                        </TableCell>
                         <TableCell align="right">
                           <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!poLineId || Number(line.qty || 0) <= 0}>
                             {allocation ? "Set Full Qty" : "Allocate Line"}
@@ -399,7 +434,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     );
                   }) : (
                     <TableRow>
-                      <TableCell colSpan={8}>No line items found.</TableCell>
+                      <TableCell colSpan={9}>No line items found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
