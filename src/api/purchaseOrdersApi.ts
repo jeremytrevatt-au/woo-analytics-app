@@ -58,6 +58,7 @@ export type PurchaseOrderReceiveLinePreview = {
   received_qty: number;
   manual_hold_qty: number;
   order_reserved_qty: number;
+  reserve_order_reserved_qty?: number;
   stock_delta: number;
   stock_before: number;
   expected_stock_after: number;
@@ -70,6 +71,7 @@ export type PurchaseOrderReceiveLinePreview = {
   allocation_ids: number[];
   manual_reservation_ids: number[];
   order_reservation_ids: number[];
+  reserve_order_reservation_ids?: number[];
 };
 
 export type PurchaseOrderReceiveBlockingError = {
@@ -88,9 +90,15 @@ export type PurchaseOrderReceiveStockResult = {
   receipt_id?: number;
   lines: PurchaseOrderReceiveLinePreview[];
   eligible_orders: Array<{ order_id: number; reservation_ids: number[] }>;
+  reserve_orders: Array<{ order_id: number; status: string }>;
   blocked_orders: Array<Record<string, unknown>>;
   blocking_errors: PurchaseOrderReceiveBlockingError[];
   processed_order_ids?: number[];
+  reserve_invoice_results?: {
+    invoiced_order_ids: number[];
+    balance_order_ids: number[];
+    errors: Array<{ order_id: number; error_code: string; error_message: string }>;
+  };
 };
 
 export const purchaseOrdersApi = {

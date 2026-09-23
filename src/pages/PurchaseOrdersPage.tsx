@@ -169,7 +169,11 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
     try {
       const result = await purchaseOrdersApi.receiveStock(po.id, { dry_run: false, book_stock: true, process_preorders: processPreordersOnReceipt });
       setReceivePreview(result);
-      setReceiveMessage(`Stock booked${result.receipt_id ? ` with receipt ${result.receipt_id}` : ""}. Processed ${result.processed_order_ids?.length ?? 0} preorder order(s).`);
+      setReceiveMessage(
+        `Stock booked${result.receipt_id ? ` with receipt ${result.receipt_id}` : ""}. ` +
+        `Processed ${result.processed_order_ids?.length ?? 0} preorder order(s) and issued ` +
+        `${result.reserve_invoice_results?.balance_order_ids.length ?? 0} Reserve balance invoice(s).`
+      );
       await loadSummary();
     } catch (err) {
       const errorPreview = receivePreviewFromError(err);
@@ -237,7 +241,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                           disabled={receiveLoading}
                         />
                       }
-                      label="Move eligible PreOrder orders to Processing"
+                      label="Move eligible PreOrder orders to Processing (Reserve balances are invoiced automatically)"
                     />
                     <Button size="small" variant="outlined" onClick={handlePreviewReceiveStock} disabled={!po.id || receiveLoading}>
                       Preview Stock Receipt
@@ -275,6 +279,15 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     </Alert>
                   )}
                   {receivePreview.blocked_orders.length > 0 && <Alert severity="info" sx={{ my: 1 }}>{receivePreview.blocked_orders.length} preorder order(s) are not ready to process yet.</Alert>}
+                  {(receivePreview.reserve_invoice_results?.errors.length ?? 0) > 0 && (
+                    <Alert severity="error" sx={{ my: 1 }}>
+                      {receivePreview.reserve_invoice_results!.errors.map((error) => (
+                        <Typography key={`${error.order_id}-${error.error_code}`} variant="body2">
+                          Reserve order {error.order_id}: {error.error_code} - {error.error_message}
+                        </Typography>
+                      ))}
+                    </Alert>
+                  )}
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -283,6 +296,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                         <TableCell>WSVI Group</TableCell>
                         <TableCell align="right">Received</TableCell>
                         <TableCell align="right">Manual Hold</TableCell>
+                        <TableCell align="right">Reserve Qty</TableCell>
                         <TableCell align="right">Stock Before</TableCell>
                         <TableCell align="right">Delta</TableCell>
                         <TableCell align="right">Expected After</TableCell>
@@ -306,6 +320,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                           <TableCell>{line.wsvi_group_name || line.wsvi_group_id || "-"}</TableCell>
                           <TableCell align="right">{qty(line.received_qty)}</TableCell>
                           <TableCell align="right">{qty(line.manual_hold_qty)}</TableCell>
+                          <TableCell align="right">{qty(line.reserve_order_reserved_qty ?? 0)}</TableCell>
                           <TableCell align="right">{qty(line.stock_before)}</TableCell>
                           <TableCell align="right">{qty(line.stock_delta)}</TableCell>
                           <TableCell align="right">{qty(line.stock_after ?? line.expected_stock_after)}</TableCell>
@@ -314,7 +329,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     </TableBody>
                   </Table>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Eligible PreOrder orders: {receivePreview.eligible_orders.length}. Blocked PreOrder orders: {receivePreview.blocked_orders.length}.
+                    Eligible PreOrder orders: {receivePreview.eligible_orders.length}. Blocked PreOrder orders: {receivePreview.blocked_orders.length}. Reserve orders in this receipt: {receivePreview.reserve_orders?.length ?? 0}.
                   </Typography>
                 </Box>
               )}
