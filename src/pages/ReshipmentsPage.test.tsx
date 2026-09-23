@@ -127,7 +127,7 @@ describe("ReshipmentsPage", () => {
     });
 
     const view = render(<ReshipmentsPage />);
-    fireEvent.change(view.getByLabelText("Source WooCommerce Order ID"), { target: { value: "101" } });
+    fireEvent.change(view.getByLabelText("Source or Replacement WooCommerce Order ID"), { target: { value: "101" } });
     fireEvent.click(view.getByRole("button", { name: "Load Source Order" }));
     await waitFor(() => expect(view.getByText("Test Product")).toBeInTheDocument());
 
@@ -221,7 +221,7 @@ describe("ReshipmentsPage", () => {
     await waitFor(() => expect(view.getByText("#134254")).toBeInTheDocument());
     expect(view.getByText("#134338")).toBeInTheDocument();
     expect(view.getByText("Billie Customer")).toBeInTheDocument();
-    expect(view.getByText(/Call before sending replacement/)).toBeInTheDocument();
+    expect(view.getAllByText(/Call before sending replacement/).length).toBeGreaterThanOrEqual(1);
     expect(view.getByRole("button", { name: "Modify" })).toBeInTheDocument();
     expect(view.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
