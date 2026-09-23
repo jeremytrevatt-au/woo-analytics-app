@@ -54,6 +54,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
   const [bulkAllocating, setBulkAllocating] = useState(false);
   const [reserveUpdatingAllocationId, setReserveUpdatingAllocationId] = useState<number | null>(null);
+  const [deletingAllocationId, setDeletingAllocationId] = useState<number | null>(null);
   const [receivePreview, setReceivePreview] = useState<PurchaseOrderReceiveStockResult | null>(null);
   const [receiveLoading, setReceiveLoading] = useState(false);
   const [receiveError, setReceiveError] = useState<string | null>(null);
@@ -198,6 +199,27 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
       setSummaryError(err instanceof Error ? err.message : "Failed to update Reserve deposit percentage");
     } finally {
       setReserveUpdatingAllocationId(null);
+    }
+  };
+
+  const handleUnallocateLine = async (lineSummary: PurchaseOrderPreorderLineSummary) => {
+    const allocation = lineSummary.allocations[0];
+    if (!allocation) return;
+    const confirmed = window.confirm(
+      `Unallocate ${allocation.sku} from this purchase order? You can then remove the product from the PO.`
+    );
+    if (!confirmed) return;
+    setSummaryError(null);
+    setSummaryMessage(null);
+    setDeletingAllocationId(allocation.id);
+    try {
+      await preordersApi.deleteAllocation(allocation.id);
+      setSummaryMessage(`Unallocated ${allocation.sku}. The product can now be removed from the PO.`);
+      await loadSummary();
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to unallocate PO line");
+    } finally {
+      setDeletingAllocationId(null);
     }
   };
 
@@ -486,9 +508,25 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                           </Stack>
                         </TableCell>
                         <TableCell align="right">
-                          <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!poLineId || Number(line.qty || 0) <= 0}>
-                            {allocation ? "Set Full Qty" : "Allocate Line"}
-                          </Button>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button size="small" onClick={() => handleSetLineFullQty(line, lineSummary)} disabled={!poLineId || Number(line.qty || 0) <= 0}>
+                              {allocation ? "Set Full Qty" : "Allocate Line"}
+                            </Button>
+                            {allocation && lineSummary && (
+                              <Button
+                                size="small"
+                                color="error"
+                                onClick={() => handleUnallocateLine(lineSummary)}
+                                disabled={
+                                  deletingAllocationId === allocation.id ||
+                                  Number(allocation.reserved_qty || 0) > 0 ||
+                                  Number(allocation.consumed_qty || 0) > 0
+                                }
+                              >
+                                {deletingAllocationId === allocation.id ? "Unallocating..." : "Unallocate"}
+                              </Button>
+                            )}
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     );
