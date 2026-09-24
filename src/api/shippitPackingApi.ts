@@ -82,6 +82,17 @@ export type PackingShippitOrderResponse = {
   message?: string;
   ny_parcel_update_status?: string;
   ny_packing_update_status?: string;
+  is_reserve_order?: boolean;
+  reserve_state?: string | null;
+  can_finalise_reserve_shipping?: boolean;
+  reserve_invoice_result?: {
+    order_id: number;
+    balance_order_ids: number[];
+    estimated_incl_tax: number;
+    final_incl_tax: number;
+    invoice_dispatched_at: string;
+    idempotent: boolean;
+  };
 };
 
 export async function previewPackingQuote(

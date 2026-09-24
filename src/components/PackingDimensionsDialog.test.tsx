@@ -244,4 +244,66 @@ describe("PackingDimensionsDialog", () => {
 
     await waitFor(() => expect(view.getByText(/Australia Post \(Parcel Post\): The destination suburb/)).toBeInTheDocument());
   });
+
+  it("finalises a Reserve balance from a selected packed shipping quote", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 106,
+      has_shippit_order: false,
+      can_edit: false,
+      is_reserve_order: true,
+      reserve_state: "awaiting_shipping_quote",
+      can_finalise_reserve_shipping: true,
+      parcels: [],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 0.4, length_cm: 25, width_cm: 15, height_cm: 10 },
+      ],
+      destination,
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 25,
+      body: {
+        response: [{
+          courier_name: "Australia Post",
+          courier_type: "au_post",
+          quotes: [{ service_level: "Parcel Post", price: 14.95 }],
+        }],
+      },
+    });
+    apiMocks.updatePackingShippitOrder.mockResolvedValue({
+      order_id: 106,
+      has_shippit_order: false,
+      can_edit: false,
+      can_finalise_reserve_shipping: false,
+      parcels: [],
+      destination,
+      reserve_invoice_result: {
+        order_id: 106,
+        balance_order_ids: [206],
+        estimated_incl_tax: 12,
+        final_incl_tax: 14.95,
+        invoice_dispatched_at: "2026-09-24 00:30:00",
+        idempotent: false,
+      },
+    });
+
+    const view = render(
+      <PackingDimensionsDialog open order={{ order_id: 106 }} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() => expect(view.getByText(/awaiting its final packed shipping quote/)).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Finalise Shipping & Send Invoice" })).toBeEnabled());
+    fireEvent.click(view.getByRole("button", { name: "Finalise Shipping & Send Invoice" }));
+
+    await waitFor(() => expect(apiMocks.updatePackingShippitOrder).toHaveBeenCalledWith(
+      106,
+      [{ qty: 1, weight_kg: 0.4, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      expect.objectContaining({ courier_type: "au_post", service_level: "Parcel Post", price: 14.95 }),
+    ));
+    expect(await view.findByText(/Final shipping \$14.95 was added/)).toBeInTheDocument();
+  });
 });

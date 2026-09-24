@@ -286,6 +286,8 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   }, [open, order]);
 
   const canEditShippitOrder = Boolean(shippitOrder?.has_shippit_order && shippitOrder.can_edit);
+  const canFinaliseReserveShipping = Boolean(shippitOrder?.can_finalise_reserve_shipping);
+  const canSubmitQuote = canEditShippitOrder || canFinaliseReserveShipping;
   const hasShippitOrder = Boolean(shippitOrder?.has_shippit_order);
 
   const validateParcels = (parsedParcels: PackingQuoteParcel[]) => {
@@ -391,7 +393,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   };
 
   const handleSubmitSelectedQuote = async () => {
-    if (!order?.order_id || !canEditShippitOrder || !selectedQuote) return;
+    if (!order?.order_id || !canSubmitQuote || !selectedQuote) return;
     const parsedParcels = parseParcels(parcels);
     if (!validateParcels(parsedParcels)) return;
 
@@ -403,7 +405,12 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
       if (Array.isArray(response.parcels) && response.parcels.length > 0) {
         setParcels(buildParcelsFromShippitOrder(response.parcels));
       }
-      setMessage({ type: "success", text: `Selected quote submitted to Shippit: ${selectedQuote.label}.` });
+      setMessage({
+        type: "success",
+        text: canFinaliseReserveShipping
+          ? `Final shipping ${formatPrice(selectedQuote.price)} was added to the Reserve balance and the customer invoice was sent.`
+          : `Selected quote submitted to Shippit: ${selectedQuote.label}.`,
+      });
     } catch (error: unknown) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to submit selected quote to Shippit." });
     } finally {
@@ -438,6 +445,11 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                 Shippit {shippitOrder.shippit_tracking_number || "order"} is {shippitOrder.shippit_state || "unknown"}.
                 {shippitOrder.courier_allocation ? ` Current courier: ${shippitOrder.courier_allocation}.` : ""}
                 {canEditShippitOrder ? " Parcel and quote changes can be saved." : " Parcel changes are read-only in this state."}
+              </Alert>
+            ) : null}
+            {canFinaliseReserveShipping ? (
+              <Alert severity="warning">
+                This Reserve order is awaiting its final packed shipping quote. Submitting a quote will add it to the balance and send the customer invoice.
               </Alert>
             ) : null}
 
@@ -576,8 +588,8 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
           <Button variant="outlined" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order}>
             {loading ? "Requesting Quote..." : "Get Shippit Quotes"}
           </Button>
-          <Button variant="contained" onClick={handleSubmitSelectedQuote} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder || !selectedQuote}>
-            {savingOrder ? "Submitting..." : "Submit Selected Quote"}
+          <Button variant="contained" onClick={handleSubmitSelectedQuote} disabled={savingOrder || loadingExistingOrder || !canSubmitQuote || !selectedQuote}>
+            {savingOrder ? "Submitting..." : canFinaliseReserveShipping ? "Finalise Shipping & Send Invoice" : "Submit Selected Quote"}
           </Button>
         </DialogActions>
       </Dialog>
