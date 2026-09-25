@@ -104,6 +104,14 @@ export interface PsiCollector {
     title?: string | null;
     display_value?: string | null;
   };
+  attempts?: number | null;
+  upstream_status?: number | null;
+  upstream_error?: {
+    code?: number;
+    status?: string;
+    message?: string;
+    reason?: string;
+  };
   error?: string | null;
 }
 

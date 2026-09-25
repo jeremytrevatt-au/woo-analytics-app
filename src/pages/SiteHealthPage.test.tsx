@@ -190,4 +190,54 @@ describe("SiteHealthPage", () => {
     expect(screen.getByText("No WordPress health report loaded.")).toBeInTheDocument();
     expect(screen.queryByText("Healthy")).not.toBeInTheDocument();
   });
+
+  it("distinguishes an unavailable Lighthouse run from CrUX origin fallback", async () => {
+    vi.mocked(runWebAudit).mockResolvedValue({
+      ...audit,
+      collectors: {
+        psi: {
+          status: "unavailable",
+          error: "PageSpeed Insights did not return a Lighthouse result.",
+          attempts: 2,
+          upstream_status: 400,
+          upstream_error: {
+            status: "INVALID_ARGUMENT",
+            reason: "badRequest",
+          },
+        },
+        crux: {
+          status: "available",
+          records: {
+            page: {
+              status: "no_data",
+              metrics: {},
+              collection_period: null,
+            },
+            origin: {
+              status: "available",
+              metrics: {
+                LCP: {
+                  percentiles: { p75: 4517 },
+                  histogram: [],
+                },
+              },
+              collection_period: {
+                start: "2026-08-27",
+                end: "2026-09-23",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    render(<SiteHealthPage />);
+    await screen.findByText("HTTPS enabled");
+    fireEvent.click(screen.getByRole("button", { name: "Run Google Audit" }));
+
+    expect(await screen.findByText(/No Lighthouse score is available/)).toBeInTheDocument();
+    expect(screen.getByText(/HTTP 400 · INVALID_ARGUMENT · badRequest/)).toBeInTheDocument();
+    expect(screen.getByText(/has no page-level CrUX sample/)).toBeInTheDocument();
+    expect(screen.getByText(/not this page alone/)).toBeInTheDocument();
+  });
 });

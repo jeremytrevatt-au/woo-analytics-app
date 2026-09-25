@@ -72,9 +72,24 @@ function StatusMessage({ name, status, error }: { name: string; status: Collecto
 }
 
 function PsiResults({ psi }: { psi: PsiCollector }) {
+  const upstreamDiagnostic = [
+    psi.upstream_status ? `HTTP ${psi.upstream_status}` : null,
+    psi.upstream_error?.status,
+    psi.upstream_error?.reason,
+    psi.upstream_error?.message,
+  ].filter(Boolean).join(" · ");
+
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <StatusMessage name="PageSpeed Insights" status={psi.status} error={psi.error} />
+      {psi.status === "unavailable" ? (
+        <Alert severity="warning">
+          No Lighthouse score is available for this audit. Do not interpret CrUX origin data below as a
+          page-specific Lighthouse result.
+          {upstreamDiagnostic ? ` Upstream diagnostic: ${upstreamDiagnostic}.` : ""}
+          {psi.attempts ? ` Attempts: ${psi.attempts}.` : ""}
+        </Alert>
+      ) : null}
       {psi.document_status && psi.document_status.score !== 1 ? (
         <Alert severity="warning">
           Lighthouse did not confirm a successful page response. This can indicate an authentication challenge,
@@ -232,6 +247,13 @@ export default function WebAuditPanel({
             <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 3 }}>CrUX field data</Typography>
             <Stack spacing={2} sx={{ mt: 1 }}>
               <StatusMessage name="CrUX collector" status={result.collectors.crux.status} />
+              {result.collectors.crux.records?.page?.status === "no_data"
+                && result.collectors.crux.records?.origin?.status === "available" ? (
+                  <Alert severity="warning">
+                    This URL has no page-level CrUX sample. The Origin section describes all measured visits to
+                    {` ${result.url_host}`} over the collection period, not this page alone.
+                  </Alert>
+                ) : null}
               <CruxRecordResults scope="Page" record={result.collectors.crux.records?.page} />
               <CruxRecordResults scope="Origin" record={result.collectors.crux.records?.origin} />
             </Stack>
