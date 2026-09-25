@@ -36,6 +36,9 @@ export type FulfillmentPreview = {
     order_id: number;
     has_tracking: boolean;
     tracking_number: string | null;
+    state?: string | null;
+    requires_cancellation?: boolean;
+    is_history?: boolean;
   }>;
   requires_cancellation: boolean;
   address_fingerprint: string;
@@ -56,12 +59,15 @@ export type FulfillmentOperation = {
   }>;
 };
 
-export async function previewFulfillment(orderIds: number[]): Promise<FulfillmentPreview> {
+export async function previewFulfillment(
+  orderIds: number[],
+  items: Array<{ order_id: number; order_item_id: number; quantity: number }> = [],
+): Promise<FulfillmentPreview> {
   return fetchJson<FulfillmentPreview>("/api/v1/packing/fulfillment/preview", {
     method: "POST",
     body: JSON.stringify({
       order_ids: orderIds,
-      items: [],
+      items,
       parcels: [],
     }),
   });

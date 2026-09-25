@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Chip, Stack, Typography } from "@mui/material";
 
 export type PackingAttribute = {
   label: string;
@@ -85,16 +85,29 @@ function PackingLineDetails({
   fulfilledQuantity,
 }: PackingLineDetailsProps) {
   const parsed = parsePackingProduct(description);
-  const showFulfillmentProgress = Number(fulfilledQuantity || 0) > 0;
+  const ordered = Number(orderedQuantity ?? quantity);
+  const fulfilled = Number(fulfilledQuantity || 0);
+  const remaining = Number(quantity);
+  const showFulfillmentProgress = fulfilled > 0;
+  const isFullyShipped = ordered > 0 && remaining <= 0 && fulfilled >= ordered;
 
   return (
     <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-      <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
-        {quantity} x {parsed.productName}
-      </Typography>
+      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
+          {isFullyShipped ? ordered : remaining} x {parsed.productName}
+        </Typography>
+        <Chip
+          size="small"
+          label={isFullyShipped ? "Shipped" : `Remaining: ${remaining}`}
+          color={isFullyShipped ? "success" : "warning"}
+          variant={isFullyShipped ? "outlined" : "filled"}
+          sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
+        />
+      </Stack>
       {showFulfillmentProgress && (
         <Typography variant="caption" color="success.main" fontWeight={700}>
-          Ordered {orderedQuantity ?? quantity} · previously fulfilled {fulfilledQuantity} · remaining {quantity}
+          Ordered {ordered} · previously shipped {fulfilled} · remaining {remaining}
         </Typography>
       )}
       {parsed.attributes.map((attribute, index) => {

@@ -70,7 +70,22 @@ describe("PackingLineDetails", () => {
       screen.getByText("2 x Bootstrap Farmer 6 Cell Plug Tray Inserts"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ordered 4 · previously fulfilled 2 · remaining 2"),
+      screen.getByText("Ordered 4 · previously shipped 2 · remaining 2"),
     ).toBeInTheDocument();
+  });
+
+  it("labels a fully fulfilled line as shipped instead of showing zero quantity", () => {
+    render(
+      <PackingLineDetails
+        description="Previously packed product"
+        quantity={0}
+        orderedQuantity={3}
+        fulfilledQuantity={3}
+        sku="SHIPPED-3"
+      />,
+    );
+
+    expect(screen.getByText("3 x Previously packed product")).toBeInTheDocument();
+    expect(screen.getByText("Shipped")).toBeInTheDocument();
   });
 });

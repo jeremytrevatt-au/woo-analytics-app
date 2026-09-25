@@ -36,6 +36,7 @@ type QueueGroup = {
 function PackingPage() {
   const { rows, currentUser, isLoading, error, refetch, updateOrderStatus } = usePackingOrders(1, 100);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+  const [showShippedLines, setShowShippedLines] = useState<Record<string, boolean>>({});
   const [packingSaving, setPackingSaving] = useState<Record<number, boolean>>({});
   const [packingActionError, setPackingActionError] = useState<string | null>(null);
   const [refreshingOrders, setRefreshingOrders] = useState(false);
@@ -404,6 +405,17 @@ function PackingPage() {
       || Boolean(orderCrmProfile?.preferred_handling_notes);
     const canChangePackingStatus = currentStatus !== "packing"
       || String(packedBy || "").toLowerCase() === currentUser.toLowerCase();
+    const orderLines = Array.isArray(order.lines) ? order.lines : [];
+    const remainingLines = orderLines.filter((line: any) => Number(line.remaining_quantity ?? line.qty ?? 0) > 0);
+    const shippedLines = orderLines.filter((line: any) => Number(line.remaining_quantity ?? line.qty ?? 0) <= 0);
+    const visibleLines = showShippedLines[order.order_id]
+      ? [...remainingLines, ...shippedLines]
+      : remainingLines;
+    const shippedUnits = Number(order.fulfillment?.fulfilled_quantity ?? 0);
+    const remainingUnits = Number(order.fulfillment?.remaining_quantity ?? orderLines.reduce(
+      (total: number, line: any) => total + Number(line.qty || 0),
+      0,
+    ));
 
     let borderColor = 'divider';
     if (currentStatus === 'packed') borderColor = 'success.main';
@@ -575,9 +587,35 @@ function PackingPage() {
                 </Stack>
               </Box>
             )}
-            {order.lines && order.lines.map((line: any, idx: number) => {
+            {order.fulfillment && (
+              <Alert severity={remainingUnits > 0 ? "info" : "success"} sx={{ mb: 1.5 }}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} justifyContent="space-between">
+                  <Typography variant="body2" fontWeight={700}>
+                    {shippedUnits} shipped · {remainingUnits} remaining
+                  </Typography>
+                  {shippedLines.length > 0 && (
+                    <Button
+                      size="small"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowShippedLines(previous => ({
+                          ...previous,
+                          [order.order_id]: !previous[order.order_id],
+                        }));
+                      }}
+                    >
+                      {showShippedLines[order.order_id]
+                        ? "Hide shipped items"
+                        : `Show ${shippedLines.length} shipped item${shippedLines.length === 1 ? "" : "s"}`}
+                    </Button>
+                  )}
+                </Stack>
+              </Alert>
+            )}
+            {visibleLines.map((line: any, idx: number) => {
               const isParentBundle = !!line.is_bundle_parent || (!!line.bundle_cart_key && !line.bundled_by);
               const isChildItem = !!line.bundled_by;
+              const isFullyShipped = Number(line.remaining_quantity ?? line.qty ?? 0) <= 0;
               const key = lineKey(order.order_id, line.order_item_id);
               const stockOverride = stockOverrides[key];
               const reportedStockQty = stockOverride?.stock_qty ?? line.reported_stock_qty ?? line.stock_qty;
@@ -596,9 +634,10 @@ function PackingPage() {
                 <Box key={idx} sx={{ 
                   mb: 1, 
                   pb: 1, 
-                  borderBottom: idx < order.lines.length - 1 ? '1px dashed' : 'none', 
+                  borderBottom: idx < visibleLines.length - 1 ? '1px dashed' : 'none',
                   borderColor: 'divider',
-                  bgcolor: isParentBundle ? 'action.hover' : 'transparent',
+                  bgcolor: isFullyShipped ? 'success.50' : isParentBundle ? 'action.hover' : 'transparent',
+                  opacity: isFullyShipped ? 0.72 : 1,
                   borderRadius: isParentBundle ? 1 : 0,
                   py: isParentBundle ? 1 : 0,
                 }}>

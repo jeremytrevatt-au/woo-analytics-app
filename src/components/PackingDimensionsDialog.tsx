@@ -260,7 +260,11 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
           country: response.destination.country || "AU",
         } : emptyDestination);
         setDestinationSanitised(Boolean(response.destination_sanitised));
-        if (response.has_shippit_order && Array.isArray(response.parcels) && response.parcels.length > 0) {
+        const hasRemainingLines = (response.line_states ?? []).some(line => line.remaining_quantity > 0);
+        const useRemainingRecommendations = order?.order_status === "wc-partial-shipped"
+          && hasRemainingLines
+          && response.shippit_state !== "order_placed";
+        if (response.has_shippit_order && !useRemainingRecommendations && Array.isArray(response.parcels) && response.parcels.length > 0) {
           setParcels(buildParcelsFromShippitOrder(response.parcels));
           setMessage({
             type: "info",
@@ -273,8 +277,10 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
           setParcels(recommendedParcels.length > 0 ? recommendedParcels : [createBlankParcel()]);
           setMessage({
             type: recommendedParcels.length > 0 ? "info" : "warning",
-            text: recommendedParcels.length > 0
-              ? `No existing Shippit order found. Loaded ${recommendedParcels.length} parcel(s) from the authoritative NY Shipping rules for the remaining order quantities; check before quoting.`
+            text: recommendedParcels.length > 0 && useRemainingRecommendations
+              ? `Historical Shippit shipment ${response.tracking_number || response.shippit_tracking_number || ""} is ${response.shippit_state || "closed"}. Loaded ${recommendedParcels.length} new parcel recommendation(s) for the remaining quantities only.`
+              : recommendedParcels.length > 0
+                ? `No existing Shippit order found. Loaded ${recommendedParcels.length} parcel(s) from the authoritative NY Shipping rules for the remaining order quantities; check before quoting.`
               : response.message || "No existing Shippit order found, and NY Shipping could not calculate complete parcel dimensions. Enter parcel dimensions manually before quoting.",
           });
         }

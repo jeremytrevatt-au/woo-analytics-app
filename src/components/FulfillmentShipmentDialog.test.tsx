@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFulfillment, previewFulfillment } from "../api/fulfillmentApi";
+import { createFulfillment, previewFulfillment, quoteFulfillment } from "../api/fulfillmentApi";
 import FulfillmentShipmentDialog from "./FulfillmentShipmentDialog";
 
 vi.mock("../api/fulfillmentApi", () => ({
   previewFulfillment: vi.fn(),
+  quoteFulfillment: vi.fn(),
   createFulfillment: vi.fn(),
 }));
 
@@ -29,10 +30,31 @@ describe("FulfillmentShipmentDialog", () => {
         sku: "SKU-1",
         name: "Test Product",
       }],
-      parcels: [],
-      existing_shippit: [{ order_id: 101, has_tracking: false, tracking_number: null }],
+      parcels: [{ qty: 1, weight_kg: 3, length_cm: 20, width_cm: 10, height_cm: 5 }],
+      existing_shippit: [{
+        order_id: 101,
+        has_tracking: true,
+        tracking_number: "OLD-COMPLETED",
+        state: "completed",
+        is_history: true,
+        requires_cancellation: false,
+      }],
       requires_cancellation: false,
       address_fingerprint: "safe",
+    });
+    vi.mocked(quoteFulfillment).mockResolvedValue({
+      name: "partial",
+      method: "POST",
+      url: "https://example.test",
+      status_code: 200,
+      duration_ms: 10,
+      body: {
+        response: [{
+          courier_type: "standard",
+          courier_name: "Carrier",
+          quotes: [{ price: 12.5 }],
+        }],
+      },
     });
     vi.mocked(createFulfillment).mockResolvedValue({
       operation_id: "00000000-0000-4000-8000-000000000001",
@@ -64,13 +86,19 @@ describe("FulfillmentShipmentDialog", () => {
     );
 
     await waitFor(() => expect(view.getByText(/Test Product/)).toBeInTheDocument());
-    fireEvent.click(view.getByRole("button", { name: "Create shipment" }));
+    expect(view.getByText(/OLD-COMPLETED \(completed\)/)).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "Get shipping quotes" }));
+    await waitFor(() => expect(view.getByText(/Carrier — \$12.50/)).toBeInTheDocument());
+    fireEvent.click(view.getByText(/Carrier — \$12.50/));
+    fireEvent.click(view.getByRole("button", { name: "Create quoted shipment" }));
 
     await waitFor(() => expect(createFulfillment).toHaveBeenCalledOnce());
     expect(createFulfillment).toHaveBeenCalledWith(expect.objectContaining({
       order_ids: [101],
       items: [{ order_id: 101, order_item_id: 55, quantity: 2 }],
       parcels: [{ qty: 1, weight_kg: 3, length_cm: 20, width_cm: 10, height_cm: 5 }],
+      cancel_existing_shipments: false,
+      quote_selection: expect.objectContaining({ courier_type: "standard", price: 12.5 }),
     }));
     expect(onCompleted).toHaveBeenCalledOnce();
     expect(await view.findByText(/tracking TRACK-1/)).toBeInTheDocument();

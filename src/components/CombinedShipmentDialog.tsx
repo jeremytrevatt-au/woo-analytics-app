@@ -22,7 +22,8 @@ import {
   previewFulfillment,
   quoteFulfillment,
 } from "../api/fulfillmentApi";
-import type { PackingQuoteResponse, PackingQuoteSelection } from "../api/shippitPackingApi";
+import type { PackingQuoteResponse } from "../api/shippitPackingApi";
+import { fulfillmentQuoteOptions } from "../lib/fulfillmentQuotes";
 
 type Props = {
   open: boolean;
@@ -31,53 +32,17 @@ type Props = {
   onCompleted: () => void;
 };
 
-type QuoteOption = PackingQuoteSelection & { id: string; label: string };
-
-function quoteOptions(response: PackingQuoteResponse | null): QuoteOption[] {
-  const body = response?.body as { response?: unknown; quotes?: unknown } | unknown[] | undefined;
-  const carriers = Array.isArray(body)
-    ? body
-    : body && Array.isArray((body as { response?: unknown }).response)
-      ? (body as { response: unknown[] }).response
-      : body && Array.isArray((body as { quotes?: unknown }).quotes)
-        ? (body as { quotes: unknown[] }).quotes
-        : [];
-  const options: QuoteOption[] = [];
-  carriers.forEach((carrier, carrierIndex) => {
-    if (!carrier || typeof carrier !== "object") return;
-    const carrierData = carrier as Record<string, unknown>;
-    const rows = Array.isArray(carrierData.quotes) ? carrierData.quotes : [carrierData];
-    rows.forEach((row, rowIndex) => {
-      if (!row || typeof row !== "object") return;
-      const quote = row as Record<string, unknown>;
-      const courierType = String(carrierData.courier_type || quote.courier_type || "");
-      const serviceLevel = String(carrierData.service_level || quote.service_level || "");
-      const price = Number(quote.price);
-      if ((!courierType && !serviceLevel) || !Number.isFinite(price) || price <= 0) return;
-      options.push({
-        id: `${carrierIndex}-${rowIndex}-${courierType}-${serviceLevel}`,
-        label: String(carrierData.courier_name || quote.courier_name || courierType || serviceLevel),
-        courier_type: courierType || null,
-        service_level: serviceLevel || null,
-        price,
-        estimated_transit_time: typeof quote.estimated_transit_time === "string" ? quote.estimated_transit_time : null,
-      });
-    });
-  });
-  return options.sort((left, right) => Number(left.price) - Number(right.price));
-}
-
 export default function CombinedShipmentDialog({ open, orders, onClose, onCompleted }: Props) {
   const orderIds = useMemo(() => orders.map(order => Number(order.order_id)), [orders]);
   const [preview, setPreview] = useState<FulfillmentPreview | null>(null);
-  const [parcel, setParcel] = useState<FulfillmentParcel>({ qty: 1, weight_kg: 0, length_cm: 0, width_cm: 0, height_cm: 0 });
+  const [parcels, setParcels] = useState<FulfillmentParcel[]>([]);
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [approveCancellation, setApproveCancellation] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const options = useMemo(() => quoteOptions(quote), [quote]);
+  const options = useMemo(() => fulfillmentQuoteOptions(quote), [quote]);
   const selectedQuote = options.find(option => option.id === selectedQuoteId) ?? null;
 
   useEffect(() => {
@@ -90,14 +55,7 @@ export default function CombinedShipmentDialog({ open, orders, onClose, onComple
     previewFulfillment(orderIds)
       .then(result => {
         setPreview(result);
-        const lines = orders.flatMap(order => Array.isArray(order.lines) ? order.lines : []);
-        setParcel({
-          qty: 1,
-          weight_kg: Number((lines.reduce((total, line) => total + Number(line.product_weight || 0) * Number(line.qty || 0), 0) / 1000).toFixed(3)),
-          length_cm: Math.max(0, ...lines.map(line => Number(line.product_length || 0))),
-          width_cm: Math.max(0, ...lines.map(line => Number(line.product_width || 0))),
-          height_cm: lines.reduce((total, line) => total + Number(line.product_height || 0), 0),
-        });
+        setParcels(result.parcels);
       })
       .catch(error => setError(error instanceof Error ? error.message : "Failed to load combined shipment."))
       .finally(() => setLoading(false));
@@ -108,16 +66,17 @@ export default function CombinedShipmentDialog({ open, orders, onClose, onComple
     order_item_id: item.order_item_id,
     quantity: item.remaining_quantity,
   })) ?? [];
-  const parcelValid = Object.values(parcel).every(value => Number(value) > 0);
+  const parcelsValid = parcels.length > 0
+    && parcels.every(parcel => Object.values(parcel).every(value => Number(value) > 0));
 
   const requestQuote = async () => {
-    if (!preview || !parcelValid) return;
+    if (!preview || !parcelsValid) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await quoteFulfillment({ order_ids: orderIds, items, parcels: [parcel] });
+      const result = await quoteFulfillment({ order_ids: orderIds, items, parcels });
       setQuote(result);
-      setSelectedQuoteId(quoteOptions(result)[0]?.id ?? null);
+      setSelectedQuoteId(fulfillmentQuoteOptions(result)[0]?.id ?? null);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Combined quote failed.");
     } finally {
@@ -134,7 +93,7 @@ export default function CombinedShipmentDialog({ open, orders, onClose, onComple
         operation_id: crypto.randomUUID(),
         order_ids: orderIds,
         items,
-        parcels: [parcel],
+        parcels,
         quote_selection: selectedQuote,
         cancel_existing_shipments: approveCancellation,
         notify_customer: false,
@@ -155,25 +114,46 @@ export default function CombinedShipmentDialog({ open, orders, onClose, onComple
         <Stack spacing={2}>
           <Alert severity="info">{orderIds.map(id => `#${id}`).join(", ")} will share one physical Shippit shipment and tracking number.</Alert>
           {error && <Alert severity="error">{error}</Alert>}
-          <Typography variant="subtitle2">Combined physical parcel — weight kg and L W H cm</Typography>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-            {(["weight_kg", "length_cm", "width_cm", "height_cm"] as const).map(field => (
+          <Typography variant="subtitle2">Combined physical parcels — authoritative remaining quantities</Typography>
+          {parcels.map((parcel, parcelIndex) => (
+            <Stack key={`combined-parcel:${parcelIndex}`} direction={{ xs: "column", sm: "row" }} spacing={1}>
               <TextField
-                key={field}
-                label={{ weight_kg: "Weight kg", length_cm: "L cm", width_cm: "W cm", height_cm: "H cm" }[field]}
+                label="Qty"
                 type="number"
-                value={parcel[field]}
+                value={parcel.qty}
                 onChange={event => {
-                  setParcel(previous => ({ ...previous, [field]: Number(event.target.value) }));
+                  setParcels(previous => previous.map((entry, index) => index === parcelIndex
+                    ? { ...entry, qty: Number(event.target.value) }
+                    : entry));
                   setQuote(null);
                   setSelectedQuoteId(null);
                 }}
-                inputProps={{ min: 0, step: "any" }}
+                inputProps={{ min: 1, step: 1 }}
                 fullWidth
               />
-            ))}
-          </Stack>
-          <Button variant="outlined" onClick={requestQuote} disabled={loading || !parcelValid}>
+              {(["weight_kg", "length_cm", "width_cm", "height_cm"] as const).map(field => (
+                <TextField
+                  key={field}
+                  label={{ weight_kg: "Weight kg", length_cm: "L cm", width_cm: "W cm", height_cm: "H cm" }[field]}
+                  type="number"
+                  value={parcel[field]}
+                  onChange={event => {
+                    setParcels(previous => previous.map((entry, index) => index === parcelIndex
+                      ? { ...entry, [field]: Number(event.target.value) }
+                      : entry));
+                    setQuote(null);
+                    setSelectedQuoteId(null);
+                  }}
+                  inputProps={{ min: 0, step: "any" }}
+                  fullWidth
+                />
+              ))}
+            </Stack>
+          ))}
+          {!parcelsValid && (
+            <Alert severity="warning">Authoritative parcel dimensions are incomplete; enter measured values before quoting.</Alert>
+          )}
+          <Button variant="outlined" onClick={requestQuote} disabled={loading || !parcelsValid}>
             {loading ? "Requesting quotes…" : "Get combined shipment quotes"}
           </Button>
           {options.map(option => (

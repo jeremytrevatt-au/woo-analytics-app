@@ -26,7 +26,7 @@ describe("CombinedShipmentDialog", () => {
         { order_id: 101, order_item_id: 1, quantity: 1, ordered_quantity: 1, refunded_quantity: 0, fulfilled_quantity: 0, remaining_quantity: 1, sku: "A", name: "A" },
         { order_id: 102, order_item_id: 2, quantity: 1, ordered_quantity: 1, refunded_quantity: 0, fulfilled_quantity: 0, remaining_quantity: 1, sku: "B", name: "B" },
       ],
-      parcels: [],
+      parcels: [{ qty: 1, weight_kg: 0.2, length_cm: 10, width_cm: 10, height_cm: 4 }],
       existing_shippit: [
         { order_id: 101, has_tracking: true, tracking_number: "OLD-1" },
         { order_id: 102, has_tracking: true, tracking_number: "OLD-2" },

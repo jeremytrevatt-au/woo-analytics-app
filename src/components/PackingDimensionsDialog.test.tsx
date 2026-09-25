@@ -247,6 +247,38 @@ describe("PackingDimensionsDialog", () => {
     await waitFor(() => expect(view.getByText(/Australia Post \(Parcel Post\): The destination suburb/)).toBeInTheDocument());
   });
 
+  it("uses remaining recommendations instead of a completed historical shipment parcel", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 134299,
+      has_shippit_order: true,
+      can_edit: false,
+      tracking_number: "PPOE5pjz86DmL",
+      shippit_state: "completed",
+      parcels: [
+        { qty: 1, weight_g: 9000, length_cm: 90, width_cm: 60, height_cm: 50 },
+      ],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 0.72, length_cm: 15, width_cm: 10, height_cm: 20 },
+      ],
+      line_states: [
+        { order_item_id: 16292, ordered_quantity: 2, fulfilled_quantity: 0, remaining_quantity: 2 },
+      ],
+      destination,
+    });
+
+    const view = render(
+      <PackingDimensionsDialog
+        open
+        order={{ order_id: 134299, order_status: "wc-partial-shipped" }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText(/Historical Shippit shipment PPOE5pjz86DmL is completed/)).toBeInTheDocument());
+    expect(view.getByDisplayValue("720")).toBeInTheDocument();
+    expect(view.queryByDisplayValue("9000")).not.toBeInTheDocument();
+  });
+
   it("finalises a Reserve balance from a selected packed shipping quote", async () => {
     apiMocks.getPackingShippitOrder.mockResolvedValue({
       order_id: 106,
