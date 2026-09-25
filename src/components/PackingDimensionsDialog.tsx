@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -17,7 +17,13 @@ import {
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { getPackingShippitOrder, previewPackingQuote, updatePackingShippitOrder } from "../api/shippitPackingApi";
+import {
+  bookPackingShippitOrder,
+  getPackingShippitOrder,
+  previewPackingQuote,
+  printPackingShippitLabel,
+  updatePackingShippitOrder,
+} from "../api/shippitPackingApi";
 import type { PackingDestination, PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
 
 type ParcelDraft = {
@@ -213,8 +219,10 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const [message, setMessage] = useState<{ type: "success" | "error" | "warning" | "info"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
-  const [savingOrder, setSavingOrder] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<"save" | "submit" | "book" | "print" | null>(null);
+  const actionInProgressRef = useRef(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [submittedQuoteId, setSubmittedQuoteId] = useState<string | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [destination, setDestination] = useState<PackingDestination>(emptyDestination);
   const [destinationSanitised, setDestinationSanitised] = useState(false);
@@ -228,8 +236,10 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     setShippitOrder(null);
     setMessage(null);
     setLoadingExistingOrder(false);
-    setSavingOrder(false);
+    setActionInProgress(null);
+    actionInProgressRef.current = false;
     setSelectedQuoteId(null);
+    setSubmittedQuoteId(null);
     setDebugOpen(false);
     setDestination(emptyDestination);
     setDestinationSanitised(false);
@@ -289,6 +299,35 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const canFinaliseReserveShipping = Boolean(shippitOrder?.can_finalise_reserve_shipping);
   const canSubmitQuote = canEditShippitOrder || canFinaliseReserveShipping;
   const hasShippitOrder = Boolean(shippitOrder?.has_shippit_order);
+  const isMutating = actionInProgress !== null;
+  const trackingNumber = shippitOrder?.tracking_number || shippitOrder?.shippit_tracking_number;
+  const shippitStatus = shippitOrder?.shippit_status || shippitOrder?.shippit_state;
+  const quoteSelectionPending = Boolean(selectedQuoteId && submittedQuoteId !== selectedQuoteId);
+  const canBook = Boolean(shippitOrder?.can_book && !quoteSelectionPending);
+  const canPrintLabel = Boolean(shippitOrder?.can_print_label);
+  const hasUpdatedQuote = Boolean(
+    !quoteSelectionPending
+    && (submittedQuoteId || shippitOrder?.can_book || shippitOrder?.can_print_label || shippitOrder?.booking_status),
+  );
+
+  const beginAction = (action: "save" | "submit" | "book" | "print") => {
+    if (actionInProgressRef.current) return false;
+    actionInProgressRef.current = true;
+    setActionInProgress(action);
+    return true;
+  };
+
+  const finishAction = () => {
+    actionInProgressRef.current = false;
+    setActionInProgress(null);
+  };
+
+  const mergePackingResponse = (response: PackingShippitOrderResponse) => {
+    setShippitOrder(previous => previous ? { ...previous, ...response } : response);
+    if (Array.isArray(response.parcels) && response.parcels.length > 0) {
+      setParcels(buildParcelsFromShippitOrder(response.parcels));
+    }
+  };
 
   const validateParcels = (parsedParcels: PackingQuoteParcel[]) => {
     if (hasInvalidParcel(parsedParcels)) {
@@ -316,6 +355,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     setDestinationSanitised(false);
     setQuote(null);
     setSelectedQuoteId(null);
+    setSubmittedQuoteId(null);
   };
 
   const validateDestination = () => {
@@ -333,14 +373,17 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
 
   const updateParcel = (id: string, field: keyof Omit<ParcelDraft, "id">, value: string) => {
     setParcels(previous => previous.map(parcel => parcel.id === id ? { ...parcel, [field]: value } : parcel));
+    setSubmittedQuoteId(null);
   };
 
   const addParcel = () => {
     setParcels(previous => [...previous, createBlankParcel()]);
+    setSubmittedQuoteId(null);
   };
 
   const removeParcel = (id: string) => {
     setParcels(previous => previous.length > 1 ? previous.filter(parcel => parcel.id !== id) : previous);
+    setSubmittedQuoteId(null);
   };
 
   const handleQuote = async () => {
@@ -352,6 +395,7 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     setLoading(true);
     setMessage(null);
     setQuote(null);
+    setSubmittedQuoteId(null);
     try {
       const response = await previewPackingQuote(Number(order.order_id), parsedParcels, destination);
       setQuote(response);
@@ -375,20 +419,18 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     if (!order?.order_id || !canEditShippitOrder) return;
     const parsedParcels = parseParcels(parcels);
     if (!validateParcels(parsedParcels)) return;
+    if (!beginAction("save")) return;
 
-    setSavingOrder(true);
     setMessage(null);
     try {
       const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels, null);
-      setShippitOrder(response);
-      if (Array.isArray(response.parcels) && response.parcels.length > 0) {
-        setParcels(buildParcelsFromShippitOrder(response.parcels));
-      }
+      mergePackingResponse(response);
+      setSubmittedQuoteId(null);
       setMessage({ type: "success", text: "Existing Shippit order parcel dimensions were updated." });
     } catch (error: unknown) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update existing Shippit order." });
     } finally {
-      setSavingOrder(false);
+      finishAction();
     }
   };
 
@@ -396,15 +438,13 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     if (!order?.order_id || !canSubmitQuote || !selectedQuote) return;
     const parsedParcels = parseParcels(parcels);
     if (!validateParcels(parsedParcels)) return;
+    if (!beginAction("submit")) return;
 
-    setSavingOrder(true);
     setMessage(null);
     try {
       const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels, selectedQuote);
-      setShippitOrder(response);
-      if (Array.isArray(response.parcels) && response.parcels.length > 0) {
-        setParcels(buildParcelsFromShippitOrder(response.parcels));
-      }
+      mergePackingResponse(response);
+      setSubmittedQuoteId(selectedQuote.id);
       setMessage({
         type: "success",
         text: canFinaliseReserveShipping
@@ -414,7 +454,43 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     } catch (error: unknown) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to submit selected quote to Shippit." });
     } finally {
-      setSavingOrder(false);
+      finishAction();
+    }
+  };
+
+  const handleBookShipment = async () => {
+    if (!order?.order_id || !canBook || !beginAction("book")) return;
+
+    setMessage(null);
+    try {
+      const response = await bookPackingShippitOrder(Number(order.order_id));
+      mergePackingResponse(response);
+      setMessage({
+        type: "success",
+        text: response.message || "Shipment booking was confirmed.",
+      });
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to book the shipment." });
+    } finally {
+      finishAction();
+    }
+  };
+
+  const handlePrintLabel = async () => {
+    if (!order?.order_id || !canPrintLabel || !beginAction("print")) return;
+
+    setMessage(null);
+    try {
+      const response = await printPackingShippitLabel(Number(order.order_id));
+      mergePackingResponse(response);
+      setMessage({
+        type: "success",
+        text: response.message || "Shipping label was sent to the printer.",
+      });
+    } catch (error: unknown) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to print the shipping label." });
+    } finally {
+      finishAction();
     }
   };
 
@@ -483,6 +559,36 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
               <Alert severity={message.type}>
                 {message.text}
               </Alert>
+            ) : null}
+
+            {!loadingExistingOrder ? (
+              <Box sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Shipment sequence</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} useFlexGap>
+                  <Chip
+                    label={hasUpdatedQuote ? "1. Quote selected and updated" : "1. Select and submit quote"}
+                    color={hasUpdatedQuote ? "success" : "default"}
+                    variant={hasUpdatedQuote ? "filled" : "outlined"}
+                  />
+                  <Chip
+                    label={shippitOrder?.booking_status ? `2. Booking: ${shippitOrder.booking_status}` : "2. Book / Confirm Shipment"}
+                    color={canPrintLabel ? "success" : canBook ? "primary" : "default"}
+                    variant={canPrintLabel || canBook ? "filled" : "outlined"}
+                  />
+                  <Chip
+                    label="3. Print Shipping Label"
+                    color={canPrintLabel ? "primary" : "default"}
+                    variant={canPrintLabel ? "filled" : "outlined"}
+                  />
+                </Stack>
+                {trackingNumber || shippitStatus || shippitOrder?.booking_status ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    {trackingNumber ? `Tracking: ${trackingNumber}. ` : ""}
+                    {shippitStatus ? `Shippit status: ${shippitStatus}. ` : ""}
+                    {shippitOrder?.booking_status ? `Booking status: ${shippitOrder.booking_status}.` : ""}
+                  </Typography>
+                ) : null}
+              </Box>
             ) : null}
 
             {!loadingExistingOrder ? (
@@ -580,17 +686,25 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
             ) : null}
           </Stack>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ flexWrap: "wrap" }}>
           <Button onClick={onClose}>Close</Button>
-          <Button variant="outlined" onClick={handleSaveShippitOrder} disabled={savingOrder || loadingExistingOrder || !canEditShippitOrder}>
-            {savingOrder ? "Saving..." : "Save Parcels"}
+          <Button variant="outlined" onClick={handleSaveShippitOrder} disabled={isMutating || loadingExistingOrder || !canEditShippitOrder}>
+            {actionInProgress === "save" ? "Saving..." : "Save Parcels"}
           </Button>
-          <Button variant="outlined" onClick={handleQuote} disabled={loading || loadingExistingOrder || !order}>
+          <Button variant="outlined" onClick={handleQuote} disabled={loading || isMutating || loadingExistingOrder || !order}>
             {loading ? "Requesting Quote..." : "Get Shippit Quotes"}
           </Button>
-          <Button variant="contained" onClick={handleSubmitSelectedQuote} disabled={savingOrder || loadingExistingOrder || !canSubmitQuote || !selectedQuote}>
-            {savingOrder ? "Submitting..." : canFinaliseReserveShipping ? "Finalise Shipping & Send Invoice" : "Submit Selected Quote"}
+          <Button variant="contained" onClick={handleSubmitSelectedQuote} disabled={isMutating || loadingExistingOrder || !canSubmitQuote || !selectedQuote}>
+            {actionInProgress === "submit" ? "Submitting..." : canFinaliseReserveShipping ? "Finalise Shipping & Send Invoice" : "Submit Selected Quote"}
           </Button>
+          <Button variant="contained" color="secondary" onClick={handleBookShipment} disabled={isMutating || loadingExistingOrder || !canBook}>
+            {actionInProgress === "book" ? "Booking..." : "Book / Confirm Shipment"}
+          </Button>
+          {canPrintLabel ? (
+            <Button variant="contained" color="success" onClick={handlePrintLabel} disabled={isMutating || loadingExistingOrder}>
+              {actionInProgress === "print" ? "Printing..." : "Print Shipping Label"}
+            </Button>
+          ) : null}
         </DialogActions>
       </Dialog>
 

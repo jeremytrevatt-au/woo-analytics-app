@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PackingDimensionsDialog from "./PackingDimensionsDialog";
 
 const apiMocks = vi.hoisted(() => ({
+  bookPackingShippitOrder: vi.fn(),
   getPackingShippitOrder: vi.fn(),
   previewPackingQuote: vi.fn(),
+  printPackingShippitLabel: vi.fn(),
   updatePackingShippitOrder: vi.fn(),
 }));
 
@@ -305,5 +307,121 @@ describe("PackingDimensionsDialog", () => {
       expect.objectContaining({ courier_type: "au_post", service_level: "Parcel Post", price: 14.95 }),
     ));
     expect(await view.findByText(/Final shipping \$14.95 was added/)).toBeInTheDocument();
+  });
+
+  it("requires quote update before booking and only offers printing when the label is available", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 107,
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: false,
+      can_print_label: false,
+      parcels: [{ qty: 1, weight_g: 700, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 25,
+      body: {
+        response: [{
+          courier_name: "Couriers Please",
+          courier_type: "couriers_please",
+          quotes: [{ service_level: "Standard", price: 11.5 }],
+        }],
+      },
+    });
+    apiMocks.updatePackingShippitOrder.mockResolvedValue({
+      order_id: 107,
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: true,
+      can_print_label: false,
+      tracking_number: "PP107",
+      shippit_status: "pending",
+      parcels: [{ qty: 1, weight_g: 700, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+    apiMocks.bookPackingShippitOrder.mockResolvedValue({
+      order_id: 107,
+      has_shippit_order: true,
+      can_edit: false,
+      can_book: false,
+      can_print_label: true,
+      tracking_number: "PP107",
+      shippit_status: "booked",
+      booking_status: "confirmed",
+      parcels: [],
+    });
+    apiMocks.printPackingShippitLabel.mockResolvedValue({
+      order_id: 107,
+      has_shippit_order: true,
+      can_edit: false,
+      can_book: false,
+      can_print_label: true,
+      tracking_number: "PP107",
+      shippit_status: "booked",
+      booking_status: "confirmed",
+      parcels: [],
+      message: "Label queued for Warehouse Printer.",
+    });
+
+    const view = render(
+      <PackingDimensionsDialog open order={{ order_id: 107 }} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() => expect(view.getByRole("button", { name: "Get Shippit Quotes" })).toBeEnabled());
+    expect(view.getByRole("button", { name: "Book / Confirm Shipment" })).toBeDisabled();
+    expect(view.queryByRole("button", { name: "Print Shipping Label" })).not.toBeInTheDocument();
+
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Submit Selected Quote" })).toBeEnabled());
+    fireEvent.click(view.getByRole("button", { name: "Submit Selected Quote" }));
+
+    await waitFor(() => expect(view.getByRole("button", { name: "Book / Confirm Shipment" })).toBeEnabled());
+    expect(apiMocks.updatePackingShippitOrder).toHaveBeenCalledWith(
+      107,
+      [{ qty: 1, weight_kg: 0.7, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      expect.objectContaining({ courier_type: "couriers_please", service_level: "Standard", price: 11.5 }),
+    );
+
+    fireEvent.click(view.getByRole("button", { name: "Book / Confirm Shipment" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Print Shipping Label" })).toBeEnabled());
+    expect(apiMocks.bookPackingShippitOrder).toHaveBeenCalledWith(107);
+    expect(view.getByText(/Tracking: PP107.*Shippit status: booked.*Booking status: confirmed/)).toBeInTheDocument();
+
+    fireEvent.click(view.getByRole("button", { name: "Print Shipping Label" }));
+    await waitFor(() => expect(apiMocks.printPackingShippitLabel).toHaveBeenCalledWith(107));
+    expect(await view.findByText("Label queued for Warehouse Printer.")).toBeInTheDocument();
+  });
+
+  it("prevents duplicate booking requests and shows the server error", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 108,
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: true,
+      can_print_label: false,
+      parcels: [{ qty: 1, weight_g: 700, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+    apiMocks.bookPackingShippitOrder.mockRejectedValue(
+      new Error("API request failed (409): Shipment has already been booked."),
+    );
+
+    const view = render(
+      <PackingDimensionsDialog open order={{ order_id: 108 }} onClose={vi.fn()} />,
+    );
+
+    const bookButton = view.getByRole("button", { name: "Book / Confirm Shipment" });
+    await waitFor(() => expect(bookButton).toBeEnabled());
+    fireEvent.click(bookButton);
+    fireEvent.click(bookButton);
+
+    await waitFor(() => expect(apiMocks.bookPackingShippitOrder).toHaveBeenCalledTimes(1));
+    expect(await view.findByText("API request failed (409): Shipment has already been booked.")).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Print Shipping Label" })).not.toBeInTheDocument();
   });
 });

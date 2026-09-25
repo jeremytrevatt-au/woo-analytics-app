@@ -47,6 +47,11 @@ export type PackingShippitOrderResponse = {
   source_carrier?: string | null;
   has_shippit_order: boolean;
   can_edit: boolean;
+  tracking_number?: string | null;
+  shippit_status?: string | null;
+  booking_status?: string | null;
+  can_book?: boolean;
+  can_print_label?: boolean;
   shippit_tracking_number?: string | null;
   tracking_source?: string | null;
   shippit_state?: string | null;
@@ -122,5 +127,17 @@ export async function updatePackingShippitOrder(
   return fetchJson<PackingShippitOrderResponse>(`/api/v1/shippit/packing/order/${orderId}`, {
     method: "PUT",
     body: JSON.stringify({ parcels, quote_selection: quoteSelection ?? undefined }),
+  });
+}
+
+export async function bookPackingShippitOrder(orderId: number): Promise<PackingShippitOrderResponse> {
+  return fetchJson<PackingShippitOrderResponse>(`/api/v1/shippit/packing/order/${orderId}/book`, {
+    method: "POST",
+  });
+}
+
+export async function printPackingShippitLabel(orderId: number): Promise<PackingShippitOrderResponse> {
+  return fetchJson<PackingShippitOrderResponse>(`/api/v1/shippit/packing/order/${orderId}/print-label`, {
+    method: "POST",
   });
 }
