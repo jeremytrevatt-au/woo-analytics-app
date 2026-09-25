@@ -54,4 +54,23 @@ describe("PackingLineDetails", () => {
     expect(screen.getByText("GS-PLANTER-5-BA-SS")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /stunning-stone colour swatch/i })).toBeInTheDocument();
   });
+
+  it("shows prior fulfillment and the quantity still requiring packing", () => {
+    render(
+      <PackingLineDetails
+        description="Bootstrap Farmer 6 Cell Plug Tray Inserts"
+        quantity={2}
+        orderedQuantity={4}
+        fulfilledQuantity={2}
+        sku="BSF-INS-06-BK-12"
+      />,
+    );
+
+    expect(
+      screen.getByText("2 x Bootstrap Farmer 6 Cell Plug Tray Inserts"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ordered 4 · previously fulfilled 2 · remaining 2"),
+    ).toBeInTheDocument();
+  });
 });

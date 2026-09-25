@@ -72,16 +72,31 @@ type PackingLineDetailsProps = {
   quantity: number | string;
   sku: string;
   skuActions?: ReactNode;
+  orderedQuantity?: number;
+  fulfilledQuantity?: number;
 };
 
-function PackingLineDetails({ description, quantity, sku, skuActions }: PackingLineDetailsProps) {
+function PackingLineDetails({
+  description,
+  quantity,
+  sku,
+  skuActions,
+  orderedQuantity,
+  fulfilledQuantity,
+}: PackingLineDetailsProps) {
   const parsed = parsePackingProduct(description);
+  const showFulfillmentProgress = Number(fulfilledQuantity || 0) > 0;
 
   return (
     <Stack spacing={0.25} sx={{ minWidth: 0 }}>
       <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
         {quantity} x {parsed.productName}
       </Typography>
+      {showFulfillmentProgress && (
+        <Typography variant="caption" color="success.main" fontWeight={700}>
+          Ordered {orderedQuantity ?? quantity} · previously fulfilled {fulfilledQuantity} · remaining {quantity}
+        </Typography>
+      )}
       {parsed.attributes.map((attribute, index) => {
         const swatchColour = findPackingColourSwatch(attribute);
         return (

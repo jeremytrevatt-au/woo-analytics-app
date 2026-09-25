@@ -627,8 +627,10 @@ function PackingPage() {
                         >
                           <PackingLineDetails
                             description={line.product_name || line.category || ""}
-                            quantity={line.qty}
+                            quantity={line.remaining_quantity ?? line.qty}
                             sku={line.sku || ""}
+                            orderedQuantity={line.ordered_quantity ?? line.qty}
+                            fulfilledQuantity={line.fulfilled_quantity ?? 0}
                             skuActions={(
                               <>
                                 {isParentBundle && (
