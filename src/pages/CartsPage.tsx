@@ -155,8 +155,9 @@ export default function CartsPage() {
           </ToggleButtonGroup>
           {view === "carts" ? (
             <FormControl size="small" sx={{ minWidth: 210 }}>
-              <InputLabel>Status</InputLabel>
+              <InputLabel id="cart-status-filter-label">Status</InputLabel>
               <Select
+                labelId="cart-status-filter-label"
                 label="Status"
                 value={status}
                 onChange={(event) => {
