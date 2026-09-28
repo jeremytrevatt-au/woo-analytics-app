@@ -24,6 +24,7 @@ const navItems = [
   { label: "Purchase Orders", to: "/purchase-orders" },
   { label: "Returns", to: "/returns" },
   { label: "Reshipments", to: "/reshipments" },
+  { label: "Carts", to: "/carts" },
   { label: "NY Chat", to: "/chat" },
   { label: "Document Templates", to: "/document-templates" },
   { label: "Print Jobs", to: "/print-jobs" },

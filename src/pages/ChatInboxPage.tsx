@@ -39,6 +39,7 @@ import {
   ChatMessage,
 } from "../types/chat";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
+import CartDetail from "../components/CartDetail";
 import { chatCustomerLabel } from "../lib/chatIdentity";
 import { wordpressStorefrontUrl } from "../config/wordpress";
 
@@ -353,6 +354,26 @@ function ChatInboxPage() {
           )}
         </Paper>
       </Box>
+
+      {selected && (
+        selected.nya_cart_id
+        || selected.nya_visitor_id
+        || selected.woo_customer_id
+      ) ? (
+        <Accordion defaultExpanded>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography fontWeight={700}>Customer cart</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <CartDetail
+              cartId={selected.nya_cart_id}
+              visitorId={selected.nya_visitor_id}
+              customerId={selected.woo_customer_id}
+              title="Authoritative WordPress cart"
+            />
+          </AccordionDetails>
+        </Accordion>
+      ) : null}
 
       {selected?.woo_customer_id ? (
         <Accordion>

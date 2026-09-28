@@ -8,6 +8,8 @@ export type ChatConversation = {
   updated_at?: string | null;
   wordpress_user_id?: number | null;
   woo_customer_id?: number | null;
+  nya_visitor_id?: string | null;
+  nya_cart_id?: string | null;
   assigned_operator_email?: string | null;
   unread_count?: number;
   customer_page_path?: string | null;

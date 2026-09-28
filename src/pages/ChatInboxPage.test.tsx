@@ -10,6 +10,11 @@ import {
   uploadChatAttachment,
   updateChatConversation,
 } from "../api/chatApi";
+import {
+  getCart,
+  getLatestCustomerCart,
+  getLatestVisitorCart,
+} from "../api/cartsApi";
 import ChatInboxPage from "./ChatInboxPage";
 
 vi.mock("../api/chatApi", () => ({
@@ -29,6 +34,12 @@ vi.mock("../config/wordpress", () => ({
   ),
 }));
 
+vi.mock("../api/cartsApi", () => ({
+  getCart: vi.fn(),
+  getLatestCustomerCart: vi.fn(),
+  getLatestVisitorCart: vi.fn(),
+}));
+
 const conversation = {
   id: "conversation-1",
   channel: "website_chat",
@@ -39,6 +50,8 @@ const conversation = {
   customer_display_name: "NYA-Staging-Admin",
   customer_page_path: "/shop/sample-product",
   customer_page_title: "Sample product",
+  nya_cart_id: "11111111-2222-4333-8444-555555555555",
+  nya_visitor_id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
 };
 
 describe("ChatInboxPage", () => {
@@ -81,6 +94,33 @@ describe("ChatInboxPage", () => {
     });
     vi.mocked(updateChatConversation).mockResolvedValue(conversation);
     vi.mocked(markChatConversationRead).mockResolvedValue(undefined);
+    vi.mocked(getCart).mockResolvedValue({
+      cart_id: conversation.nya_cart_id,
+      visitor_id: conversation.nya_visitor_id,
+      is_marketing_eligible: false,
+      sequence: 1,
+      status: "active",
+      updated_at: "2026-09-19T07:01:00Z",
+      currency: "AUD",
+      item_count: 1,
+      subtotal: 10,
+      discount_total: 0,
+      shipping_total: 0,
+      tax_total: 1,
+      total: 11,
+      order_id: null,
+      lines: [{
+        product_id: 10,
+        variation_id: 0,
+        sku: "TEA-1",
+        product_name: "Test Tea",
+        quantity: 1,
+        unit_total: 10,
+        line_subtotal: 10,
+        line_total: 10,
+        metadata: {},
+      }],
+    });
 
     const view = render(<MemoryRouter><ChatInboxPage /></MemoryRouter>);
 
@@ -90,6 +130,11 @@ describe("ChatInboxPage", () => {
       "href",
       "https://staging.naturalyield.com.au/shop/sample-product",
     );
+    expect(await view.findByText("Test Tea")).toBeInTheDocument();
+    expect(view.getByText("Not marketing eligible")).toBeInTheDocument();
+    expect(getCart).toHaveBeenCalledWith(conversation.nya_cart_id);
+    expect(getLatestVisitorCart).not.toHaveBeenCalled();
+    expect(getLatestCustomerCart).not.toHaveBeenCalled();
 
     fireEvent.change(view.getByLabelText("Reply"), {
       target: { value: "Yes, we can help." },
