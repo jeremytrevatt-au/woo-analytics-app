@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getPackingOrders } from "../api/analyticsApi";
+import type { PackingSyncState } from "../api/analyticsApi";
 import { useFilters } from "./useFilters";
 
 const PACKING_REFRESH_INTERVAL_MS = 5000;
@@ -7,6 +8,7 @@ const PACKING_REFRESH_INTERVAL_MS = 5000;
 type PackingOrdersState = {
   rows: any[];
   currentUser: string;
+  syncState: PackingSyncState | null;
   isLoading: boolean;
   error: string | null;
 };
@@ -14,6 +16,7 @@ type PackingOrdersState = {
 const initialState: PackingOrdersState = {
   rows: [],
   currentUser: "",
+  syncState: null,
   isLoading: true,
   error: null,
 };
@@ -35,6 +38,7 @@ export function usePackingOrders(page = 1, pageSize = 100) {
       setState({
         rows: response.records,
         currentUser: response.currentUser,
+        syncState: response.syncState,
         isLoading: false,
         error: null,
       });

@@ -34,7 +34,7 @@ type QueueGroup = {
 };
 
 function PackingPage() {
-  const { rows, currentUser, isLoading, error, refetch, updateOrderStatus } = usePackingOrders(1, 100);
+  const { rows, currentUser, syncState, isLoading, error, refetch, updateOrderStatus } = usePackingOrders(1, 100);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [showShippedLines, setShowShippedLines] = useState<Record<string, boolean>>({});
   const [packingSaving, setPackingSaving] = useState<Record<number, boolean>>({});
@@ -895,6 +895,27 @@ function PackingPage() {
     });
   };
 
+  const syncCompletedAt = syncState?.completedAt ? new Date(syncState.completedAt) : null;
+  const syncAgeMinutes = syncCompletedAt
+    ? Math.max(0, Math.floor((Date.now() - syncCompletedAt.getTime()) / 60000))
+    : null;
+  const syncLabel = !syncState
+    ? "Freshness unavailable"
+    : syncState.status === "started"
+      ? "Synchronization in progress"
+      : syncState.status === "failed"
+        ? "Latest synchronization failed"
+        : syncAgeMinutes === 0
+          ? "Synchronized less than a minute ago"
+          : `Synchronized ${syncAgeMinutes} minute${syncAgeMinutes === 1 ? "" : "s"} ago`;
+  const syncColor = !syncState || syncState.status === "failed" || (
+    syncAgeMinutes !== null && syncAgeMinutes >= 20
+  )
+    ? "warning"
+    : syncState.status === "started"
+      ? "info"
+      : "success";
+
   return (
     <Stack spacing={3}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
@@ -905,6 +926,13 @@ function PackingPage() {
           <Typography variant="body2" color="text.secondary">
             Manage orders ready for fulfillment.
           </Typography>
+          <Chip
+            size="small"
+            color={syncColor}
+            variant="outlined"
+            label={syncLabel}
+            sx={{ mt: 1 }}
+          />
         </Box>
         <Button
           variant="outlined"

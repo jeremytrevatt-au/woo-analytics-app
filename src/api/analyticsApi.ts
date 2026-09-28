@@ -59,6 +59,17 @@ type PaginatedResponse<T> = {
 
 export type PackingOrdersResponse = PaginatedRecords & {
   currentUser: string;
+  syncState: PackingSyncState | null;
+};
+
+export type PackingSyncState = {
+  status: "started" | "completed" | "failed";
+  triggerType: string;
+  eventId: string | null;
+  orderId: number | null;
+  startedAt: string;
+  completedAt: string | null;
+  errorType: string | null;
 };
 
 type OrdersRow = {
@@ -707,14 +718,34 @@ export async function getPackingOrders(
     filter.statuses.forEach(status => params.append("statuses", status));
   }
 
-  const response = await fetchJson<PaginatedResponse<any> & { current_user?: string }>(`/api/v1/packing/orders?${params.toString()}`);
+  const response = await fetchJson<PaginatedResponse<any> & {
+    current_user?: string;
+    sync_state?: {
+      status: "started" | "completed" | "failed";
+      trigger_type: string;
+      event_id: string | null;
+      order_id: number | null;
+      started_at: string;
+      completed_at: string | null;
+      error_type: string | null;
+    } | null;
+  }>(`/api/v1/packing/orders?${params.toString()}`);
   return {
     records: response.records,
     columns: response.columns || [],
     page: response.page,
     pageSize: response.page_size,
     totalCount: response.total_count,
-    currentUser: response.current_user || "packing_team_user"
+    currentUser: response.current_user || "packing_team_user",
+    syncState: response.sync_state ? {
+      status: response.sync_state.status,
+      triggerType: response.sync_state.trigger_type,
+      eventId: response.sync_state.event_id,
+      orderId: response.sync_state.order_id,
+      startedAt: response.sync_state.started_at,
+      completedAt: response.sync_state.completed_at,
+      errorType: response.sync_state.error_type,
+    } : null,
   };
 }
 

@@ -20,6 +20,7 @@ import ReturnsPage from "./pages/ReturnsPage";
 import ReshipmentsPage from "./pages/ReshipmentsPage";
 import ChatInboxPage from "./pages/ChatInboxPage";
 import SiteHealthPage from "./pages/SiteHealthPage";
+import AppUpdateBanner from "./components/AppUpdateBanner";
 
 import SuppliersPage from "./pages/SuppliersPage";
 
@@ -28,6 +29,7 @@ function App() {
     <FiltersProvider>
       <ProductIndexProvider>
         <Box sx={{ minHeight: "100vh" }}>
+          <AppUpdateBanner />
           <DashboardLayout>
               <Routes>
                 <Route path="/" element={<OverviewPage />} />
