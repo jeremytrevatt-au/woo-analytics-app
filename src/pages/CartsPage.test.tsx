@@ -35,7 +35,9 @@ const cart = {
   total: 11,
   order_id: null,
   is_abandoned: true,
+  abandoned_at: "2026-09-28T11:00:00Z",
   is_recovery_eligible: true,
+  recovery_eligible_at: "2026-09-28T14:00:00Z",
 };
 
 describe("CartsPage", () => {
