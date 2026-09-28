@@ -100,7 +100,7 @@ describe("CartsPage", () => {
       perPage: 25,
     });
 
-    fireEvent.mouseDown(view.getByLabelText("Status"));
+    fireEvent.mouseDown(view.getByRole("combobox", { name: "Status" }));
     fireEvent.click(await view.findByRole("option", { name: "Abandoned" }));
     await waitFor(() => expect(listCarts).toHaveBeenLastCalledWith({
       status: "abandoned",

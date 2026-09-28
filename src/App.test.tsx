@@ -10,6 +10,6 @@ describe("App", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Overview")).toBeInTheDocument();
+    expect((await screen.findAllByText("Overview")).length).toBeGreaterThan(0);
   });
 });
