@@ -736,3 +736,17 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Observe the administrator pilot.
    2. Keep public Chat activation behind the separate approval gate.
+
+## 2026-09-21 20:58 UTC — Chat Inbox readability
+
+1. TODOs completed:
+   1. Replaced the dark-green operator message background with a neutral grey.
+   2. Added explicit neutral borders and readable text colour while preserving right alignment.
+   3. Passed the complete frontend test, lint and production-build suite in Cloud Build.
+2. Git build reference:
+   1. Production Inbox candidate: `bb6e607`.
+3. New understandings/learnings:
+   1. The theme's `primary.light` token resolves too dark for message-body text in the production palette.
+4. Understood next steps (remaining TODOs):
+   1. Build and deploy the immutable production image directly without a staging deployment.
+   2. Verify operator-message contrast through the production Inbox.
