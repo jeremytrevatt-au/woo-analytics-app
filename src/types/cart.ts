@@ -1,5 +1,5 @@
 export type CartStatus = "active" | "empty" | "checkout_started" | "converted";
-export type CartStatusFilter = CartStatus | "abandoned";
+export type CartStatusFilter = CartStatus | "abandoned" | "suspected_automation";
 
 export type CartLine = {
   id?: number;
@@ -40,6 +40,9 @@ export type CartSnapshot = {
   abandoned_at?: string | null;
   is_recovery_eligible?: boolean;
   recovery_eligible_at?: string | null;
+  is_suspected_automation?: boolean;
+  automation_reason?: string | null;
+  automation_flagged_at?: string | null;
   lines?: CartLine[];
 };
 
@@ -61,4 +64,5 @@ export type CartSummary = {
   abandoned: number;
   recovery_eligible: number;
   recovery_value: number;
+  suspected_automation: number;
 };

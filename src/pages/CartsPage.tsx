@@ -115,7 +115,7 @@ export default function CartsPage() {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(6, 1fr)" },
+          gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(7, 1fr)" },
           gap: 2,
         }}
       >
@@ -124,6 +124,10 @@ export default function CartsPage() {
         <SummaryCard label="Checkout started" value={summary?.checkout_started} />
         <SummaryCard label="Abandoned" value={summary?.abandoned} />
         <SummaryCard label="Recovery eligible" value={summary?.recovery_eligible} />
+        <SummaryCard
+          label="Suspected automation"
+          value={summary?.suspected_automation}
+        />
         <SummaryCard
           label="Recovery value"
           value={summary ? formatMoney(summary.recovery_value, "AUD") : undefined}
@@ -170,6 +174,7 @@ export default function CartsPage() {
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="checkout_started">Checkout started</MenuItem>
                 <MenuItem value="abandoned">Abandoned</MenuItem>
+                <MenuItem value="suspected_automation">Suspected automation</MenuItem>
                 <MenuItem value="empty">Empty</MenuItem>
                 <MenuItem value="converted">Converted</MenuItem>
               </Select>
@@ -274,8 +279,20 @@ function CartTable({
               <TableCell>
                 <Chip
                   size="small"
-                  color={cart.is_abandoned ? "warning" : "default"}
-                  label={cart.is_abandoned ? "abandoned" : formatStatus(cart.status)}
+                  color={
+                    cart.is_suspected_automation
+                      ? "error"
+                      : cart.is_abandoned
+                        ? "warning"
+                        : "default"
+                  }
+                  label={
+                    cart.is_suspected_automation
+                      ? "suspected automation"
+                      : cart.is_abandoned
+                        ? "abandoned"
+                        : formatStatus(cart.status)
+                  }
                 />
               </TableCell>
               <TableCell>{cartIdentityLabel(cart)}</TableCell>

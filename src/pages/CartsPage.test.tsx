@@ -49,6 +49,7 @@ describe("CartsPage", () => {
       abandoned: 2,
       recovery_eligible: 1,
       recovery_value: 11,
+      suspected_automation: 477,
     });
     vi.mocked(listCarts).mockResolvedValue({
       items: [cart],
@@ -104,6 +105,15 @@ describe("CartsPage", () => {
     fireEvent.click(await view.findByRole("option", { name: "Abandoned" }));
     await waitFor(() => expect(listCarts).toHaveBeenLastCalledWith({
       status: "abandoned",
+      page: 1,
+      perPage: 25,
+    }));
+    expect(view.getByText("477")).toBeInTheDocument();
+
+    fireEvent.mouseDown(view.getByRole("combobox", { name: "Status" }));
+    fireEvent.click(await view.findByRole("option", { name: "Suspected automation" }));
+    await waitFor(() => expect(listCarts).toHaveBeenLastCalledWith({
+      status: "suspected_automation",
       page: 1,
       perPage: 25,
     }));
