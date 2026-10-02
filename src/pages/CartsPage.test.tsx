@@ -138,7 +138,7 @@ describe("CartsPage", () => {
     expect(view.queryByRole("columnheader", { name: "Marketing" })).not.toBeInTheDocument();
     expect(view.queryByRole("columnheader", { name: "Recovery" })).not.toBeInTheDocument();
     expect(view.getByText("Identified customer")).toBeInTheDocument();
-    expect(view.getByText(/^Abandoned /)).toBeInTheDocument();
+    expect(view.getByText(/^Abandoned \d/)).toBeInTheDocument();
     expect(view.getByText(/^Stale · /)).toBeInTheDocument();
     expect(getCartsSummary).toHaveBeenCalled();
     expect(listCarts).toHaveBeenCalledWith({
