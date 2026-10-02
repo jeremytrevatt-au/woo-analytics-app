@@ -40,6 +40,16 @@ vi.mock("../api/cartsApi", () => ({
   getLatestVisitorCart: vi.fn(),
 }));
 
+vi.mock("../components/VisitorJourneyPanel", () => ({
+  default: ({
+    visitorId,
+    customerId,
+  }: {
+    visitorId?: string | null;
+    customerId?: number | null;
+  }) => <div>Journey references: {visitorId ?? "none"} / {customerId ?? "none"}</div>,
+}));
+
 const conversation = {
   id: "conversation-1",
   channel: "website_chat",
@@ -142,6 +152,9 @@ describe("ChatInboxPage", () => {
       "https://staging.naturalyield.com.au/shop/sample-product",
     );
     expect(await view.findByText("Test Tea")).toBeInTheDocument();
+    expect(view.getByText(
+      `Journey references: ${conversation.nya_visitor_id} / none`,
+    )).toBeInTheDocument();
     expect(view.getByText("Not marketing eligible")).toBeInTheDocument();
     expect(getCart).toHaveBeenCalledWith(conversation.nya_cart_id);
     expect(getLatestVisitorCart).not.toHaveBeenCalled();

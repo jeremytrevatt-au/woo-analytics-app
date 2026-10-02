@@ -40,6 +40,7 @@ import {
 } from "../types/chat";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import CartDetail from "../components/CartDetail";
+import VisitorJourneyPanel from "../components/VisitorJourneyPanel";
 import { chatCustomerLabel } from "../lib/chatIdentity";
 import { wordpressStorefrontUrl } from "../config/wordpress";
 
@@ -359,6 +360,15 @@ function ChatInboxPage() {
         </Paper>
       </Box>
 
+      {selected && (selected.nya_visitor_id || selected.woo_customer_id) ? (
+        <VisitorJourneyPanel
+          key={selected.id}
+          visitorId={selected.nya_visitor_id}
+          customerId={selected.woo_customer_id}
+          defaultExpanded
+        />
+      ) : null}
+
       {selected && (
         selected.nya_cart_id
         || selected.nya_visitor_id
@@ -374,6 +384,7 @@ function ChatInboxPage() {
               visitorId={selected.nya_visitor_id}
               customerId={selected.woo_customer_id}
               title="Authoritative WordPress cart"
+              showJourney={false}
             />
           </AccordionDetails>
         </Accordion>

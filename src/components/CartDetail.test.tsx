@@ -13,6 +13,12 @@ vi.mock("../api/cartsApi", () => ({
   getLatestVisitorCart: vi.fn(),
 }));
 
+vi.mock("./VisitorJourneyPanel", () => ({
+  default: ({ visitorId }: { visitorId?: string | null }) => (
+    <div>Journey visitor: {visitorId}</div>
+  ),
+}));
+
 const cart = {
   cart_id: "11111111-2222-4333-8444-555555555555",
   visitor_id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
@@ -67,6 +73,7 @@ describe("CartDetail", () => {
     expect(view.getByText("Not classified")).toBeInTheDocument();
     expect(view.getByText("Recovery eligibility not classified")).toBeInTheDocument();
     expect(view.getByText("Not recorded")).toBeInTheDocument();
+    expect(view.getByText(`Journey visitor: ${cart.visitor_id}`)).toBeInTheDocument();
     expect(getCart).toHaveBeenCalledWith(cart.cart_id);
     expect(getLatestVisitorCart).not.toHaveBeenCalled();
     expect(getLatestCustomerCart).not.toHaveBeenCalled();

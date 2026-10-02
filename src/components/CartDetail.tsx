@@ -29,6 +29,7 @@ import {
   STALE_CART_SNAPSHOT_MINUTES,
 } from "../lib/cartPresentation";
 import { AuthoritativeCart, CartSnapshot } from "../types/cart";
+import VisitorJourneyPanel from "./VisitorJourneyPanel";
 
 type Props = {
   cartId?: string | null;
@@ -36,6 +37,7 @@ type Props = {
   customerId?: number | null;
   title?: string;
   analysisSnapshot?: CartSnapshot | null;
+  showJourney?: boolean;
 };
 
 export default function CartDetail({
@@ -44,6 +46,7 @@ export default function CartDetail({
   customerId,
   title = "Cart details",
   analysisSnapshot,
+  showJourney = true,
 }: Props) {
   const [cart, setCart] = useState<AuthoritativeCart | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,8 +128,9 @@ export default function CartDetail({
   const stale = isCartSnapshotStale(stateSnapshot);
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Stack spacing={2}>
+    <Stack spacing={2}>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={2}>
         <Box>
           <Typography variant="h6">{title}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>
@@ -197,8 +201,15 @@ export default function CartDetail({
           <CartValue label="Shipping" value={formatMoney(cart.shipping_total, cart.currency)} />
           <CartValue label="Tax" value={formatMoney(cart.tax_total, cart.currency)} />
         </Stack>
-      </Stack>
-    </Paper>
+        </Stack>
+      </Paper>
+      {showJourney ? (
+        <VisitorJourneyPanel
+          visitorId={cart.visitor_id || analysisSnapshot?.visitor_id}
+          customerId={cart.customer_id ?? analysisSnapshot?.customer_id}
+        />
+      ) : null}
+    </Stack>
   );
 }
 
