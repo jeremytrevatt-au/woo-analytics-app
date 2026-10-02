@@ -14,6 +14,7 @@ const snapshot: CartSnapshot = {
   visitor_id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   customer_analytics_key: "a".repeat(64),
   is_marketing_eligible: true,
+  recovery_contact_basis: "explicit_consent",
   sequence: 1,
   status: "active",
   occurred_at: "2026-09-28T10:00:00Z",
@@ -35,11 +36,16 @@ const snapshot: CartSnapshot = {
 describe("cartPresentation", () => {
   it("presents identity and explicit marketing state", () => {
     expect(cartIdentityLabel(snapshot)).toBe("Identified customer");
-    expect(cartMarketingLabel(snapshot)).toBe("Marketing eligible");
+    expect(cartMarketingLabel(snapshot)).toBe("Explicit marketing consent");
     expect(cartMarketingLabel({
       ...snapshot,
       is_marketing_eligible: false,
-    })).toBe("Not marketing eligible");
+      recovery_contact_basis: "none",
+    })).toBe("No recovery contact permission");
+    expect(cartMarketingLabel({
+      ...snapshot,
+      recovery_contact_basis: "existing_customer",
+    })).toBe("Existing customer relationship");
   });
 
   it("uses occurred_at rather than projection updated_at for staleness", () => {

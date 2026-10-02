@@ -13,6 +13,15 @@ export function cartIdentityLabel(cart: CartSnapshot): string {
 }
 
 export function cartMarketingLabel(cart: CartSnapshot): string {
+  if (cart.recovery_contact_basis === "explicit_consent") {
+    return "Explicit marketing consent";
+  }
+  if (cart.recovery_contact_basis === "existing_customer") {
+    return "Existing customer relationship";
+  }
+  if (cart.recovery_contact_basis === "none") {
+    return "No recovery contact permission";
+  }
   return cart.is_marketing_eligible
     ? "Marketing eligible"
     : "Not marketing eligible";

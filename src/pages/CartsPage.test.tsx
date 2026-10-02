@@ -175,7 +175,7 @@ describe("CartsPage", () => {
     fireEvent.click(view.getByRole("button", { name: "View" }));
     expect(await view.findByText("Test Tea")).toBeInTheDocument();
     expect(view.getByText(cart.cart_id)).toBeInTheDocument();
-    expect(view.getByText("Marketing eligible")).toBeInTheDocument();
+    expect(view.getByText("Explicit marketing consent")).toBeInTheDocument();
     expect(view.getByText(/^Recovery eligible \d/)).toBeInTheDocument();
     expect(getCart).toHaveBeenCalledWith(cart.cart_id);
   });
