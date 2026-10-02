@@ -152,6 +152,14 @@ export default function CartDetail({
           <CartValue label="Abandonment" value={cartAbandonmentLabel(stateSnapshot)} />
           <CartValue label="Recovery" value={cartRecoveryLabel(stateSnapshot)} />
           <CartValue label="Visitor ID" value={cart.visitor_id} />
+          <CartValue
+            label="Last activity"
+            value={
+              cart.last_activity_at
+                ? `${formatLocation(cart.last_activity_context)} · ${formatDate(cart.last_activity_at)}`
+                : "Not recorded"
+            }
+          />
         </Stack>
         <Divider />
         <Table size="small" aria-label="Cart line items">
@@ -217,4 +225,8 @@ function formatDate(value: string): string {
 
 function formatStatus(value: string): string {
   return value.replaceAll("_", " ");
+}
+
+function formatLocation(value?: string | null): string {
+  return value ? formatStatus(value) : "Unknown location";
 }

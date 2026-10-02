@@ -56,4 +56,23 @@ describe("cartPresentation", () => {
       is_abandoned: undefined,
     })).toBe("Not classified");
   });
+
+  it("uses backend recovery reasons and safely derives legacy reasons", () => {
+    expect(cartRecoveryLabel({
+      ...snapshot,
+      is_recovery_eligible: false,
+      recovery_contact_basis: "none",
+      recovery_ineligibility_reasons: ["policy", "time"],
+    })).toBe(
+      "Recovery ineligible · No explicit consent or existing customer relationship; Recovery waiting period has not elapsed",
+    );
+
+    expect(cartRecoveryLabel({
+      ...snapshot,
+      is_recovery_eligible: false,
+      recovery_contact_basis: undefined,
+      is_marketing_eligible: false,
+      customer_analytics_key: null,
+    })).toContain("No identified customer");
+  });
 });

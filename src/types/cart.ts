@@ -1,5 +1,9 @@
 export type CartStatus = "active" | "empty" | "checkout_started" | "converted";
 export type CartStatusFilter = CartStatus | "abandoned" | "suspected_automation";
+export type RecoveryContactBasis =
+  | "none"
+  | "explicit_consent"
+  | "existing_customer";
 
 export type CartLine = {
   id?: number;
@@ -20,6 +24,11 @@ export type CartSnapshot = {
   customer_id?: number | null;
   customer_analytics_key?: string | null;
   is_marketing_eligible: boolean;
+  recovery_contact_basis?: RecoveryContactBasis;
+  recovery_ineligibility_reasons?: string[];
+  last_activity_at?: string | null;
+  last_activity_context?: string | null;
+  last_activity_object_id?: number | null;
   sequence: number;
   status: CartStatus;
   event_id?: string;
@@ -65,4 +74,40 @@ export type CartSummary = {
   recovery_eligible: number;
   recovery_value: number;
   suspected_automation: number;
+};
+
+export type CartAnalysisBreakdown = {
+  cart_count: number;
+  cart_value: number;
+  converted_cart_count?: number;
+  outcome_cart_count?: number;
+  abandonment_rate?: number | null;
+};
+
+export type CartLifecycleAnalysis = CartAnalysisBreakdown & {
+  lifecycle_stage: string;
+};
+
+export type CartLocationAnalysis = CartAnalysisBreakdown & {
+  context: string;
+};
+
+export type CartValueBandAnalysis = CartAnalysisBreakdown & {
+  value_band: string;
+};
+
+export type AbandonedProductAnalysis = CartAnalysisBreakdown & {
+  product_id: number;
+  variation_id: number;
+  sku: string | null;
+  name: string | null;
+  item_count: number;
+};
+
+export type CartAbandonmentAnalysis = {
+  summary: CartAnalysisBreakdown;
+  lifecycle_stages: CartLifecycleAnalysis[];
+  last_location_contexts: CartLocationAnalysis[];
+  value_bands: CartValueBandAnalysis[];
+  top_products: AbandonedProductAnalysis[];
 };

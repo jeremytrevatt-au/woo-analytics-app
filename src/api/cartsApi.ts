@@ -1,6 +1,7 @@
 import { fetchJson } from "./httpClient";
 import {
   AuthoritativeCart,
+  CartAbandonmentAnalysis,
   CartListResponse,
   CartStatusFilter,
   CartSummary,
@@ -29,6 +30,12 @@ export function listCarts({
 
 export function getCartsSummary(): Promise<CartSummary> {
   return fetchJson<CartSummary>("/api/v1/carts/summary");
+}
+
+export function getCartAbandonmentAnalysis(): Promise<CartAbandonmentAnalysis> {
+  return fetchJson<CartAbandonmentAnalysis>(
+    "/api/v1/carts/abandonment-analysis",
+  );
 }
 
 export function listCartRecoveryCandidates({

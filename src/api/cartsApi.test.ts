@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCart,
+  getCartAbandonmentAnalysis,
   getCartsSummary,
   getLatestCustomerCart,
   getLatestVisitorCart,
@@ -22,6 +23,7 @@ describe("cartsApi", () => {
   it("builds list, summary, and recovery requests through fetchJson", async () => {
     await listCarts({ status: "abandoned", page: 2, perPage: 25 });
     await getCartsSummary();
+    await getCartAbandonmentAnalysis();
     await listCartRecoveryCandidates({ page: 3, perPage: 10 });
 
     expect(fetchJson).toHaveBeenNthCalledWith(
@@ -31,6 +33,10 @@ describe("cartsApi", () => {
     expect(fetchJson).toHaveBeenNthCalledWith(2, "/api/v1/carts/summary");
     expect(fetchJson).toHaveBeenNthCalledWith(
       3,
+      "/api/v1/carts/abandonment-analysis",
+    );
+    expect(fetchJson).toHaveBeenNthCalledWith(
+      4,
       "/api/v1/carts/recovery-candidates?page=3&per_page=10",
     );
   });

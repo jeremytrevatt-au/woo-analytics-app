@@ -64,7 +64,9 @@ describe("CartDetail", () => {
     expect(view.getByText("Woo customer #42")).toBeInTheDocument();
     expect(view.getByText("Marketing eligible")).toBeInTheDocument();
     expect(view.getByText(/Stale snapshot:/)).toBeInTheDocument();
-    expect(view.getAllByText("Not classified")).toHaveLength(2);
+    expect(view.getByText("Not classified")).toBeInTheDocument();
+    expect(view.getByText("Recovery eligibility not classified")).toBeInTheDocument();
+    expect(view.getByText("Not recorded")).toBeInTheDocument();
     expect(getCart).toHaveBeenCalledWith(cart.cart_id);
     expect(getLatestVisitorCart).not.toHaveBeenCalled();
     expect(getLatestCustomerCart).not.toHaveBeenCalled();
