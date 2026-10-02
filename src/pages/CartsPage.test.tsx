@@ -220,6 +220,10 @@ describe("CartsPage", () => {
     }));
 
     const view = render(<CartsPage />);
+    const analysisToggle = view.getByRole("button", { name: /Abandonment analysis/ });
+    expect(analysisToggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(analysisToggle);
+    expect(analysisToggle).toHaveAttribute("aria-expanded", "true");
     expect(view.getByText("Loading abandonment analysis…")).toBeInTheDocument();
 
     resolveAnalysis({

@@ -1,4 +1,7 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -20,6 +23,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useCallback, useEffect, useState } from "react";
 import {
   getCartsSummary,
@@ -420,80 +424,86 @@ function AbandonmentAnalysisSection({
   error: string | null;
 }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="h6">Abandonment analysis</Typography>
-      <Typography variant="body2" color="text.secondary" mb={2}>
-        Operational abandoned carts, excluding suspected automation.
-      </Typography>
-      {loading ? (
-        <Stack direction="row" alignItems="center" spacing={1} py={2}>
-          <CircularProgress size={22} />
-          <Typography variant="body2">Loading abandonment analysis…</Typography>
-        </Stack>
-      ) : error ? (
-        <Alert severity="warning">{error}</Alert>
-      ) : analysis ? (
-        <Stack spacing={2}>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <AnalysisTotal
-              label="Abandoned carts"
-              value={String(analysis.summary.cart_count)}
-            />
-            <AnalysisTotal
-              label="Abandoned value"
-              value={formatMoney(analysis.summary.cart_value, "AUD")}
-            />
-            <AnalysisTotal
-              label="Observed abandonment rate"
-              value={formatRate(analysis.summary.abandonment_rate)}
-            />
-            <AnalysisTotal
-              label="Completed carts in comparison"
-              value={String(analysis.summary.converted_cart_count ?? 0)}
-            />
+    <Accordion variant="outlined" disableGutters>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box>
+          <Typography variant="h6">Abandonment analysis</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Operational abandoned carts, excluding suspected automation.
+          </Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        {loading ? (
+          <Stack direction="row" alignItems="center" spacing={1} py={2}>
+            <CircularProgress size={22} />
+            <Typography variant="body2">Loading abandonment analysis…</Typography>
           </Stack>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
-              gap: 2,
-            }}
-          >
-            <AnalysisBreakdown
-              title="Lifecycle stage"
-              rows={analysis.lifecycle_stages.map((row) => ({
-                label: formatStatus(row.lifecycle_stage),
-                values: row,
-              }))}
-            />
-            <AnalysisBreakdown
-              title="Last normalized location"
-              rows={analysis.last_location_contexts.map((row) => ({
-                label: formatStatus(row.context),
-                values: row,
-              }))}
-            />
-            <AnalysisBreakdown
-              title="Value bands"
-              rows={analysis.value_bands.map((row) => ({
-                label: formatValueBand(row.value_band),
-                values: row,
-              }))}
-            />
-            <AnalysisBreakdown
-              title="Top abandoned products"
-              rows={analysis.top_products.map((row) => ({
-                label: row.name || row.sku || `Product #${row.product_id}`,
-                values: row,
-                detail: `${row.item_count} item${row.item_count === 1 ? "" : "s"}`,
-              }))}
-            />
-          </Box>
-        </Stack>
-      ) : (
-        <Typography color="text.secondary">No abandonment analysis is available.</Typography>
-      )}
-    </Paper>
+        ) : error ? (
+          <Alert severity="warning">{error}</Alert>
+        ) : analysis ? (
+          <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <AnalysisTotal
+                label="Abandoned carts"
+                value={String(analysis.summary.cart_count)}
+              />
+              <AnalysisTotal
+                label="Abandoned value"
+                value={formatMoney(analysis.summary.cart_value, "AUD")}
+              />
+              <AnalysisTotal
+                label="Observed abandonment rate"
+                value={formatRate(analysis.summary.abandonment_rate)}
+              />
+              <AnalysisTotal
+                label="Completed carts in comparison"
+                value={String(analysis.summary.converted_cart_count ?? 0)}
+              />
+            </Stack>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+                gap: 2,
+              }}
+            >
+              <AnalysisBreakdown
+                title="Lifecycle stage"
+                rows={analysis.lifecycle_stages.map((row) => ({
+                  label: formatStatus(row.lifecycle_stage),
+                  values: row,
+                }))}
+              />
+              <AnalysisBreakdown
+                title="Last normalized location"
+                rows={analysis.last_location_contexts.map((row) => ({
+                  label: formatStatus(row.context),
+                  values: row,
+                }))}
+              />
+              <AnalysisBreakdown
+                title="Value bands"
+                rows={analysis.value_bands.map((row) => ({
+                  label: formatValueBand(row.value_band),
+                  values: row,
+                }))}
+              />
+              <AnalysisBreakdown
+                title="Top abandoned products"
+                rows={analysis.top_products.map((row) => ({
+                  label: row.name || row.sku || `Product #${row.product_id}`,
+                  values: row,
+                  detail: `${row.item_count} item${row.item_count === 1 ? "" : "s"}`,
+                }))}
+              />
+            </Box>
+          </Stack>
+        ) : (
+          <Typography color="text.secondary">No abandonment analysis is available.</Typography>
+        )}
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
