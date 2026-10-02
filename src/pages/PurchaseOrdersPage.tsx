@@ -6,7 +6,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
+import { parsePurchaseOrderReceiveStockResult, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -26,8 +26,15 @@ function receivePreviewFromError(error: unknown): PurchaseOrderReceiveStockResul
   if (!(error instanceof ApiRequestError)) {
     return null;
   }
-  const body = error.responseBody as { detail?: { preview?: PurchaseOrderReceiveStockResult } } | null;
-  return body?.detail?.preview ?? null;
+  const body = error.responseBody as { detail?: { preview?: unknown } } | null;
+  if (!body?.detail?.preview) {
+    return null;
+  }
+  try {
+    return parsePurchaseOrderReceiveStockResult(body.detail.preview);
+  } catch {
+    return null;
+  }
 }
 
 function errorMessage(error: unknown, fallback: string): string {

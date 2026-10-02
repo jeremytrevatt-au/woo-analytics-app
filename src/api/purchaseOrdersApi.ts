@@ -101,6 +101,43 @@ export type PurchaseOrderReceiveStockResult = {
   };
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function parsePurchaseOrderReceiveStockResult(
+  value: unknown,
+): PurchaseOrderReceiveStockResult {
+  if (!isRecord(value)) {
+    throw new Error("Invalid receive-stock response. Reload the purchase order before retrying any stock booking.");
+  }
+  for (const field of [
+    "lines",
+    "eligible_orders",
+    "reserve_orders",
+    "blocked_orders",
+    "blocking_errors",
+  ]) {
+    if (!Array.isArray(value[field])) {
+      throw new Error(`Invalid receive-stock response field: ${field}. Reload the purchase order before retrying any stock booking.`);
+    }
+  }
+  if (value.processed_order_ids !== undefined && !Array.isArray(value.processed_order_ids)) {
+    throw new Error("Invalid receive-stock response field: processed_order_ids. Reload the purchase order before retrying any stock booking.");
+  }
+  if (value.reserve_invoice_results !== undefined) {
+    if (!isRecord(value.reserve_invoice_results)) {
+      throw new Error("Invalid receive-stock response field: reserve_invoice_results. Reload the purchase order before retrying any stock booking.");
+    }
+    for (const field of ["invoiced_order_ids", "balance_order_ids", "errors"]) {
+      if (!Array.isArray(value.reserve_invoice_results[field])) {
+        throw new Error(`Invalid receive-stock response field: reserve_invoice_results.${field}. Reload the purchase order before retrying any stock booking.`);
+      }
+    }
+  }
+  return value as unknown as PurchaseOrderReceiveStockResult;
+}
+
 export const purchaseOrdersApi = {
   async list(status?: string, productId?: number): Promise<PurchaseOrder[]> {
     const params = new URLSearchParams();
@@ -139,10 +176,11 @@ export const purchaseOrdersApi = {
   },
 
   async receiveStock(id: number, payload: { dry_run: boolean; book_stock?: boolean; process_preorders?: boolean; notes?: string }): Promise<PurchaseOrderReceiveStockResult> {
-    return fetchJson<PurchaseOrderReceiveStockResult>(`/api/v1/purchase-orders/${id}/receive-stock`, {
+    const response = await fetchJson<unknown>(`/api/v1/purchase-orders/${id}/receive-stock`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+    return parsePurchaseOrderReceiveStockResult(response);
   }
 };
