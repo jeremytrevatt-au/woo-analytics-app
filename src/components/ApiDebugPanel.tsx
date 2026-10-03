@@ -50,7 +50,7 @@ function ApiDebugPanel() {
   const open = Boolean(anchorEl);
   const id = open ? 'api-debug-popover' : undefined;
 
-  const errorCount = state.events.filter(e => e.statusCode && e.statusCode >= 400).length;
+  const errorCount = state.events.filter(isApiDebugError).length;
 
   const handleCopyEvent = (event: ApiDebugEvent, clickEvent: React.MouseEvent<HTMLButtonElement>) => {
     clickEvent.stopPropagation();
@@ -66,6 +66,7 @@ function ApiDebugPanel() {
         durationMs: event.durationMs ?? null,
         body: event.responseBody ?? null,
         error: event.error ?? null,
+        outcome: event.outcome ?? null,
       },
     };
     void navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
@@ -137,8 +138,14 @@ function ApiDebugPanel() {
                       {event.statusCode ? (
                         <Chip
                           size="small"
-                          color={event.statusCode >= 400 ? "error" : "success"}
-                          label={String(event.statusCode)}
+                          color={event.outcome === "expected_not_found"
+                            ? "info"
+                            : event.statusCode >= 400
+                              ? "error"
+                              : "success"}
+                          label={event.outcome === "expected_not_found"
+                            ? `${event.statusCode} · no journey`
+                            : String(event.statusCode)}
                         />
                       ) : null}
                       <Button
@@ -156,6 +163,10 @@ function ApiDebugPanel() {
                     {event.error ? (
                       <Typography variant="caption" color="error.main" display="block" sx={{ userSelect: 'text', wordBreak: 'break-all', mt: 0.5 }}>
                         {event.error}
+                      </Typography>
+                    ) : event.outcome === "expected_not_found" ? (
+                      <Typography variant="caption" color="info.main" display="block">
+                        Expected outcome: no journey has been recorded for this identity.
                       </Typography>
                     ) : null}
                   </Box>
@@ -179,6 +190,15 @@ function ApiDebugPanel() {
       </Popover>
     </>
   );
+}
+
+export function isApiDebugError(event: ApiDebugEvent): boolean {
+  return Boolean(event.error)
+    || (
+      event.outcome !== "expected_not_found"
+      && event.statusCode !== undefined
+      && event.statusCode >= 400
+    );
 }
 
 function formatDebugBody(value: unknown): string {

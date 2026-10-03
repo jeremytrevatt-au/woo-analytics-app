@@ -201,4 +201,5 @@ export type ApiDebugEvent = {
   durationMs?: number;
   responseBody?: unknown;
   error?: string;
+  outcome?: "expected_not_found";
 };

@@ -48,38 +48,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const debugUrl = isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url;
   const debugRequestBody = isSensitiveRequest ? redactSensitivePayload(init?.body) : init?.body ? String(init.body) : undefined;
 
+  let response: Response;
   try {
-    const response = await fetch(url, finalInit);
-    const textBody = await response.text();
-    let parsedBody: unknown = textBody;
-    try {
-      parsedBody = textBody ? JSON.parse(textBody) : null;
-    } catch {
-      // keep raw string payload
-    }
-
-    const event: ApiDebugEvent = {
-      id: crypto.randomUUID(),
-      timestamp,
-      method,
-      url: debugUrl,
-      requestBody: debugRequestBody,
-      statusCode: response.status,
-      durationMs: Math.round(performance.now() - startedAt),
-      responseBody: isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody
-    };
-    pushApiDebugEvent(event);
-    mirrorDebugEvent(baseUrl, path, event);
-
-    if (!response.ok) {
-      throw new ApiRequestError(
-        buildErrorMessage(response.status, debugUrl, parsedBody, textBody),
-        response.status,
-        debugUrl,
-        isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody,
-      );
-    }
-    return parsedBody as T;
+    response = await fetch(url, finalInit);
   } catch (error) {
     const event: ApiDebugEvent = {
       id: crypto.randomUUID(),
@@ -94,6 +65,47 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     mirrorDebugEvent(baseUrl, path, event);
     throw error;
   }
+
+  const textBody = await response.text();
+  let parsedBody: unknown = textBody;
+  try {
+    parsedBody = textBody ? JSON.parse(textBody) : null;
+  } catch {
+    // keep raw string payload
+  }
+
+  const event: ApiDebugEvent = {
+    id: crypto.randomUUID(),
+    timestamp,
+    method,
+    url: debugUrl,
+    requestBody: debugRequestBody,
+    statusCode: response.status,
+    durationMs: Math.round(performance.now() - startedAt),
+    responseBody: isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody,
+    outcome: expectedApiOutcome(path, response.status),
+  };
+  pushApiDebugEvent(event);
+  mirrorDebugEvent(baseUrl, path, event);
+
+  if (!response.ok) {
+    throw new ApiRequestError(
+      buildErrorMessage(response.status, debugUrl, parsedBody, textBody),
+      response.status,
+      debugUrl,
+      isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody,
+    );
+  }
+  return parsedBody as T;
+}
+
+export function expectedApiOutcome(
+  path: string,
+  status: number,
+): ApiDebugEvent["outcome"] | undefined {
+  return status === 404 && path.startsWith("/api/v1/journeys/")
+    ? "expected_not_found"
+    : undefined;
 }
 
 function buildErrorMessage(status: number, url: string, parsedBody: unknown, textBody: string): string {

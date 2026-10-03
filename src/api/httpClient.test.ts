@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { ApiDebugEvent } from "../types/analytics";
-import { redactCouponDebugEvent, redactJourneyDebugEvent } from "./httpClient";
+import {
+  expectedApiOutcome,
+  redactCouponDebugEvent,
+  redactJourneyDebugEvent,
+} from "./httpClient";
+
+describe("expected API outcomes", () => {
+  it("classifies only journey 404 responses as expected not-found outcomes", () => {
+    expect(expectedApiOutcome("/api/v1/journeys/visitor/visitor-1", 404))
+      .toBe("expected_not_found");
+    expect(expectedApiOutcome("/api/v1/journeys/customer/42", 404))
+      .toBe("expected_not_found");
+    expect(expectedApiOutcome("/api/v1/journeys/visitor/visitor-1", 500))
+      .toBeUndefined();
+    expect(expectedApiOutcome("/api/v1/carts/cart-1", 404)).toBeUndefined();
+  });
+});
 
 describe("journey Cloud Logging redaction", () => {
   it("redacts journey identities without mutating the local debug event", () => {
