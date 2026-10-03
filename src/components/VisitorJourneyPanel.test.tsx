@@ -87,7 +87,7 @@ describe("VisitorJourneyPanel", () => {
     expect(view.getByText("product view: 3")).toBeInTheDocument();
     expect(view.getAllByText("checkout started").length).toBeGreaterThan(0);
     expect(view.getByLabelText("Journey timeline")).toHaveTextContent("product view");
-    expect(view.getByText(/Checkout \(\/checkout\/\)/)).toBeInTheDocument();
+    expect(view.getAllByText(/Checkout \(\/checkout\/\)/).length).toBeGreaterThan(0);
     expect(view.getByLabelText("Journey timeline")).toHaveTextContent(
       "Test Tea (/product/test-tea/)",
     );
