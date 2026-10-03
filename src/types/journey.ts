@@ -35,3 +35,22 @@ export type JourneyResponse = {
   profile: JourneyProfile;
   events: JourneyEventSummary[];
 };
+
+export type JourneyStage =
+  | "unengaged"
+  | "exploring"
+  | "considering"
+  | "cart_intent"
+  | "checkout_intent"
+  | "converted";
+
+export type JourneyLinkage = "all" | "customer" | "cart" | "unlinked";
+
+export type JourneySort = "score_desc" | "recent_desc";
+
+export type JourneyListResponse = {
+  items: JourneyProfile[];
+  page: number;
+  per_page: number;
+  total: number;
+};

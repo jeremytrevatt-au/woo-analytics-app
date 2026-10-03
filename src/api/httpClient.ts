@@ -69,7 +69,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       responseBody: isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody
     };
     pushApiDebugEvent(event);
-    mirrorDebugEvent(baseUrl, event);
+    mirrorDebugEvent(baseUrl, path, event);
 
     if (!response.ok) {
       throw new ApiRequestError(
@@ -91,7 +91,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       error: error instanceof Error ? error.message : String(error)
     };
     pushApiDebugEvent(event);
-    mirrorDebugEvent(baseUrl, event);
+    mirrorDebugEvent(baseUrl, path, event);
     throw error;
   }
 }
@@ -145,15 +145,62 @@ function extractShippitNestedError(detail: unknown): string | null {
   return code ? `Shippit error ${code}: ${message}` : `Shippit error: ${message}`;
 }
 
-function mirrorDebugEvent(baseUrl: string, event: ApiDebugEvent): void {
+function mirrorDebugEvent(baseUrl: string, path: string, event: ApiDebugEvent): void {
+  const mirroredEvent = path.startsWith("/api/v1/journeys")
+    ? redactJourneyDebugEvent(event)
+    : event;
   fetch(`${baseUrl}/api/v1/diagnostics/frontend-event`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(event)
+    body: JSON.stringify(mirroredEvent)
   }).catch(() => {
     // diagnostics mirror should not block the primary call
   });
+}
+
+export function redactJourneyDebugEvent(event: ApiDebugEvent): ApiDebugEvent {
+  return {
+    ...event,
+    url: redactJourneyText(event.url),
+    requestBody: redactJourneyPayload(event.requestBody),
+    responseBody: redactJourneyPayload(event.responseBody),
+    error: event.error ? redactJourneyText(event.error) : event.error,
+  };
+}
+
+function redactJourneyPayload(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactJourneyPayload);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => {
+        const normalized = key.toLowerCase();
+        if (
+          normalized === "visitor_id"
+          || normalized === "cart_id"
+          || normalized === "customer_id"
+          || normalized === "customer_analytics_key"
+        ) {
+          return [key, "[redacted]"];
+        }
+        return [key, redactJourneyPayload(child)];
+      }),
+    );
+  }
+  return value;
+}
+
+function redactJourneyText(value: string): string {
+  return value
+    .replace(/(\/journeys\/visitor\/)[^/?\s:]+/gi, "$1[redacted]")
+    .replace(/(\/journeys\/customer\/)\d+/gi, "$1[redacted]")
+    .replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      "[redacted]",
+    )
+    .replace(/\b[0-9a-f]{64}\b/gi, "[redacted]");
 }
 
 function redactSensitivePayload(value: unknown): unknown {

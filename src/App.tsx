@@ -21,6 +21,7 @@ import ReshipmentsPage from "./pages/ReshipmentsPage";
 import ChatInboxPage from "./pages/ChatInboxPage";
 import SiteHealthPage from "./pages/SiteHealthPage";
 import CartsPage from "./pages/CartsPage";
+import VisitorJourneysPage from "./pages/VisitorJourneysPage";
 import AppUpdateBanner from "./components/AppUpdateBanner";
 
 import SuppliersPage from "./pages/SuppliersPage";
@@ -46,6 +47,7 @@ function App() {
                 <Route path="/returns" element={<ReturnsPage />} />
                 <Route path="/reshipments" element={<ReshipmentsPage />} />
                 <Route path="/carts" element={<CartsPage />} />
+                <Route path="/journeys" element={<VisitorJourneysPage />} />
                 <Route path="/chat" element={<ChatInboxPage />} />
                 <Route path="/document-templates" element={<DocumentTemplatesPage />} />
                 <Route path="/print-jobs" element={<PrintJobsPage />} />
