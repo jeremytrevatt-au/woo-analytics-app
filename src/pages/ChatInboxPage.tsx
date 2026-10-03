@@ -40,6 +40,7 @@ import {
 } from "../types/chat";
 import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import CartDetail from "../components/CartDetail";
+import CouponDialog from "../components/CouponDialog";
 import VisitorJourneyPanel from "../components/VisitorJourneyPanel";
 import { chatCustomerLabel } from "../lib/chatIdentity";
 import { wordpressStorefrontUrl } from "../config/wordpress";
@@ -297,10 +298,19 @@ function ChatInboxPage() {
                     key={message.id}
                     aria-label={`${message.sender_type} message`}
                     sx={{
-                      alignSelf: message.sender_type === "operator" ? "flex-end" : "flex-start",
-                      bgcolor: message.sender_type === "operator" ? "grey.200" : "background.paper",
+                      alignSelf: message.sender_type === "operator"
+                        ? "flex-end"
+                        : message.sender_type === "system"
+                          ? "center"
+                          : "flex-start",
+                      bgcolor: message.sender_type === "operator"
+                        ? "grey.200"
+                        : message.sender_type === "system"
+                          ? "action.hover"
+                          : "background.paper",
                       border: 1,
                       borderColor: "divider",
+                      borderStyle: message.sender_type === "system" ? "dashed" : "solid",
                       borderRadius: 2,
                       color: "text.primary",
                       px: 1.5,
@@ -351,6 +361,13 @@ function ChatInboxPage() {
                     onChange={(event) => setAttachment(event.target.files?.[0] ?? null)}
                   />
                 </Button>
+                <CouponDialog
+                  conversationId={selected.id}
+                  customerId={selected.woo_customer_id}
+                  cartId={selected.nya_cart_id}
+                  visitorId={selected.nya_visitor_id}
+                  buttonLabel="Coupon"
+                />
                 <Button variant="contained" onClick={() => void handleReply()} disabled={saving || (!reply.trim() && !attachment)}>
                   Send
                 </Button>

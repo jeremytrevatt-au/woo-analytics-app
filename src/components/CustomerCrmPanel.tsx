@@ -31,6 +31,7 @@ import {
 } from "../api/crmApi";
 import { formatCurrency } from "../lib/format";
 import CustomerEmailHistorySection from "./CustomerEmailHistorySection";
+import CouponDialog from "./CouponDialog";
 
 type Props = CrmCustomerIdentity & {
   customerName?: string;
@@ -244,9 +245,17 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={1}>
-          <Typography variant="subtitle1" fontWeight={700}>
-            {displayName}
-          </Typography>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            gap={1}
+          >
+            <Typography variant="subtitle1" fontWeight={700}>
+              {displayName}
+            </Typography>
+            <CouponDialog customerId={identity.customer_id} />
+          </Stack>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             {profileData?.customer_key ? <Chip size="small" label={profileData.customer_key} /> : null}
             {profileData?.billing_email ? <Chip size="small" label={profileData.billing_email} /> : null}

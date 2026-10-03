@@ -23,12 +23,14 @@ import { JourneyResponse } from "../types/journey";
 type Props = {
   visitorId?: string | null;
   customerId?: number | null;
+  customerName?: string | null;
   defaultExpanded?: boolean;
 };
 
 export default function VisitorJourneyPanel({
   visitorId,
   customerId,
+  customerName,
   defaultExpanded = false,
 }: Props) {
   const [journey, setJourney] = useState<JourneyResponse | null>(null);
@@ -119,7 +121,11 @@ export default function VisitorJourneyPanel({
         ) : error ? (
           <Alert severity="warning">{error}</Alert>
         ) : journey ? (
-          <JourneyContent journey={journey} referencedCustomerId={customerId} />
+          <JourneyContent
+            journey={journey}
+            referencedCustomerId={customerId}
+            customerName={customerName}
+          />
         ) : (
           <Alert severity="info">No journey data is available.</Alert>
         )}
@@ -131,9 +137,11 @@ export default function VisitorJourneyPanel({
 function JourneyContent({
   journey,
   referencedCustomerId,
+  customerName,
 }: {
   journey: JourneyResponse;
   referencedCustomerId?: number | null;
+  customerName?: string | null;
 }) {
   const { profile } = journey;
   const linkedCustomerId = profile.customer_id ?? referencedCustomerId;
@@ -159,11 +167,17 @@ function JourneyContent({
         <JourneyValue label="Confidence" value={formatLabel(profile.confidence)} />
         <JourneyValue
           label="Linked customer"
-          value={linkedCustomerId ? `WooCommerce #${linkedCustomerId}` : "Not linked"}
+          value={linkedCustomerId
+            ? customerName || `WooCommerce #${linkedCustomerId}`
+            : "Not linked"}
         />
         <JourneyValue
-          label="Last activity"
-          value={`${formatLabel(profile.last_context)} · ${formatDate(profile.last_seen_at)}`}
+          label="Last seen"
+          value={`${formatPageLocation(
+            profile.last_page_title,
+            profile.last_page_path,
+            profile.last_context,
+          )} · ${formatDate(profile.last_seen_at)}`}
         />
         <JourneyValue
           label="Last object"
@@ -217,7 +231,11 @@ function JourneyContent({
                 </Typography>
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                {formatLabel(event.context.type)}
+                {formatPageLocation(
+                  event.context.page_title,
+                  event.context.page_path,
+                  event.context.type,
+                )}
                 {event.context.object_id !== null ? ` #${event.context.object_id}` : ""}
                 {` · ${formatLabel(event.intent.stage)} · score ${formatNumber(event.intent.score)}`}
               </Typography>
@@ -265,4 +283,13 @@ function formatNumber(value: number): string {
 function formatDate(value: string): string {
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? value : new Date(timestamp).toLocaleString();
+}
+
+function formatPageLocation(
+  title?: string | null,
+  path?: string | null,
+  context?: string | null,
+): string {
+  if (title && path) return `${title} (${path})`;
+  return title || path || (context ? formatLabel(context) : "Unknown location");
 }

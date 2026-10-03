@@ -25,6 +25,8 @@ const journey: JourneyResponse = {
     event_counts: { product_view: 3, checkout_started: 1 },
     last_context: "checkout",
     last_object_id: 99,
+    last_page_path: "/checkout/",
+    last_page_title: "Checkout",
     first_seen_at: "2026-10-01T00:00:00Z",
     last_seen_at: "2026-10-01T02:00:00Z",
     expires_at: "2026-11-01T00:00:00Z",
@@ -34,7 +36,12 @@ const journey: JourneyResponse = {
       event_id: "event-2",
       event_type: "checkout_started",
       occurred_at: "2026-10-01T02:00:00Z",
-      context: { type: "checkout", object_id: 99 },
+      context: {
+        type: "checkout",
+        object_id: 99,
+        page_path: "/checkout/",
+        page_title: "Checkout",
+      },
       intent: {
         stage: "checkout_intent",
         score: 87,
@@ -46,7 +53,12 @@ const journey: JourneyResponse = {
       event_id: "event-1",
       event_type: "product_view",
       occurred_at: "2026-10-01T01:00:00Z",
-      context: { type: "product", object_id: 12 },
+      context: {
+        type: "product",
+        object_id: 12,
+        page_path: "/product/test-tea/",
+        page_title: "Test Tea",
+      },
       intent: {
         stage: "considering",
         score: 50,
@@ -75,6 +87,10 @@ describe("VisitorJourneyPanel", () => {
     expect(view.getByText("product view: 3")).toBeInTheDocument();
     expect(view.getAllByText("checkout started").length).toBeGreaterThan(0);
     expect(view.getByLabelText("Journey timeline")).toHaveTextContent("product view");
+    expect(view.getByText(/Checkout \(\/checkout\/\)/)).toBeInTheDocument();
+    expect(view.getByLabelText("Journey timeline")).toHaveTextContent(
+      "Test Tea (/product/test-tea/)",
+    );
     expect(getVisitorJourney).toHaveBeenCalledWith("visitor-1");
     expect(getCustomerJourney).not.toHaveBeenCalled();
   });

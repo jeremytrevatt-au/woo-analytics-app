@@ -159,6 +159,12 @@ function parseProfile(
   if (!isOptionalObjectId(value.last_object_id)) {
     issues.push(`${prefix}.last_object_id must be a string, number, or null`);
   }
+  if (!isOptionalString(value.last_page_path)) {
+    issues.push(`${prefix}.last_page_path must be a string or null`);
+  }
+  if (!isOptionalString(value.last_page_title)) {
+    issues.push(`${prefix}.last_page_title must be a string or null`);
+  }
 
   if (issues.some((issue) => issue.startsWith(prefix))) return null;
   return value as JourneyProfile;
@@ -185,6 +191,8 @@ function parseEvent(
     || !("object_id" in context)
     || context.object_id === undefined
     || !isOptionalObjectId(context.object_id)
+    || !isOptionalString(context.page_path)
+    || !isOptionalString(context.page_title)
   ) {
     issues.push(`${prefix}.context is malformed`);
   }

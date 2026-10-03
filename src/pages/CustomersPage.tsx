@@ -33,7 +33,7 @@ function CustomersPage() {
             pageSize={pageSize}
             totalCount={totalCount}
             onPageChange={setPage}
-            getLinkUrl={(row, col) => col.key === "customer_id" ? `https://naturalyield.com.au/wp-admin/user-edit.php?user_id=${row.customer_id}` : null}
+            getLinkUrl={(row, col) => col.key === "customer_id" ? `/customers/${row.customer_id}` : null}
             renderExpandedRow={(row) => (
               <CustomerCrmPanel
                 customer_id={Number(row.customer_id)}

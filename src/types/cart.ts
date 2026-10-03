@@ -29,6 +29,8 @@ export type CartSnapshot = {
   last_activity_at?: string | null;
   last_activity_context?: string | null;
   last_activity_object_id?: number | null;
+  last_activity_page_path?: string | null;
+  last_activity_page_title?: string | null;
   sequence: number;
   status: CartStatus;
   event_id?: string;

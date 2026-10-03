@@ -1,16 +1,22 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import {
   getCart,
   getLatestCustomerCart,
   getLatestVisitorCart,
 } from "../api/cartsApi";
+import { getCrmCustomerProfile } from "../api/crmApi";
 import CartDetail from "./CartDetail";
 
 vi.mock("../api/cartsApi", () => ({
   getCart: vi.fn(),
   getLatestCustomerCart: vi.fn(),
   getLatestVisitorCart: vi.fn(),
+}));
+
+vi.mock("../api/crmApi", () => ({
+  getCrmCustomerProfile: vi.fn(),
 }));
 
 vi.mock("./VisitorJourneyPanel", () => ({
@@ -57,17 +63,47 @@ describe("CartDetail", () => {
 
   it("uses the opaque cart ID before visitor or customer resolution", async () => {
     vi.mocked(getCart).mockResolvedValue(cart);
+    vi.mocked(getCrmCustomerProfile).mockResolvedValue({
+      profile: {
+        customer_id: 42,
+        customer_name: "Taylor Green",
+        billing_first_name: "Taylor",
+        billing_last_name: "Green",
+        order_count: 2,
+        lifetime_value: 100,
+      },
+      profile_extension: {
+        id: 1,
+        customer_id: 42,
+        tags: [],
+        flags: [],
+        preferred_handling_notes: "",
+        last_reviewed_date: null,
+        next_follow_up_date: null,
+        created_by: 1,
+        updated_by: 1,
+        created_at: null,
+        updated_at: null,
+      },
+      orders: [],
+      notes: [],
+    });
 
     const view = render(
-      <CartDetail
-        cartId={cart.cart_id}
-        visitorId={cart.visitor_id}
-        customerId={42}
-      />,
+      <MemoryRouter>
+        <CartDetail
+          cartId={cart.cart_id}
+          visitorId={cart.visitor_id}
+          customerId={42}
+        />
+      </MemoryRouter>,
     );
 
     expect(await view.findByText("Test Tea")).toBeInTheDocument();
-    expect(view.getByText("Woo customer #42")).toBeInTheDocument();
+    expect(await view.findByRole("link", { name: "Taylor Green" })).toHaveAttribute(
+      "href",
+      "/customers/42",
+    );
     expect(view.getByText("Marketing eligible")).toBeInTheDocument();
     expect(view.getByText(/Stale snapshot:/)).toBeInTheDocument();
     expect(view.getByText("Not classified")).toBeInTheDocument();
@@ -82,7 +118,7 @@ describe("CartDetail", () => {
   it("resolves by visitor only when no cart ID exists", async () => {
     vi.mocked(getLatestVisitorCart).mockResolvedValue(cart);
 
-    render(<CartDetail visitorId={cart.visitor_id} customerId={42} />);
+    render(<MemoryRouter><CartDetail visitorId={cart.visitor_id} customerId={42} /></MemoryRouter>);
 
     await waitFor(() => expect(getLatestVisitorCart).toHaveBeenCalledWith(cart.visitor_id));
     expect(getLatestCustomerCart).not.toHaveBeenCalled();
@@ -91,7 +127,7 @@ describe("CartDetail", () => {
   it("resolves by customer only when cart and visitor IDs are absent", async () => {
     vi.mocked(getLatestCustomerCart).mockResolvedValue(cart);
 
-    render(<CartDetail customerId={42} />);
+    render(<MemoryRouter><CartDetail customerId={42} /></MemoryRouter>);
 
     await waitFor(() => expect(getLatestCustomerCart).toHaveBeenCalledWith(42));
     expect(getCart).not.toHaveBeenCalled();
@@ -102,7 +138,9 @@ describe("CartDetail", () => {
     vi.mocked(getCart).mockRejectedValue(new Error("Cart not found"));
 
     const view = render(
-      <CartDetail cartId={cart.cart_id} visitorId={cart.visitor_id} />,
+      <MemoryRouter>
+        <CartDetail cartId={cart.cart_id} visitorId={cart.visitor_id} />
+      </MemoryRouter>,
     );
 
     expect(await view.findByText("Cart not found")).toBeInTheDocument();

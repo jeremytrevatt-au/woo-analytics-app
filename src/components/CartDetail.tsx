@@ -3,6 +3,7 @@ import {
   Box,
   CircularProgress,
   Divider,
+  Link,
   Paper,
   Stack,
   Table,
@@ -13,11 +14,13 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import {
   getCart,
   getLatestCustomerCart,
   getLatestVisitorCart,
 } from "../api/cartsApi";
+import { getCrmCustomerProfile } from "../api/crmApi";
 import {
   cartAbandonmentLabel,
   cartIdentityLabel,
@@ -28,7 +31,9 @@ import {
   isCartSnapshotStale,
   STALE_CART_SNAPSHOT_MINUTES,
 } from "../lib/cartPresentation";
+import { crmCustomerDisplayName } from "../lib/customerIdentity";
 import { AuthoritativeCart, CartSnapshot } from "../types/cart";
+import CouponDialog from "./CouponDialog";
 import VisitorJourneyPanel from "./VisitorJourneyPanel";
 
 type Props = {
@@ -51,6 +56,9 @@ export default function CartDetail({
   const [cart, setCart] = useState<AuthoritativeCart | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState<string | null>(null);
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -99,6 +107,41 @@ export default function CartDetail({
     };
   }, [cartId, visitorId, customerId]);
 
+  useEffect(() => {
+    let active = true;
+    const linkedCustomerId = cart?.customer_id;
+    setCustomerName(null);
+    setCustomerError(null);
+    if (!linkedCustomerId) {
+      setCustomerLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setCustomerLoading(true);
+    void getCrmCustomerProfile({ customer_id: linkedCustomerId })
+      .then((response) => {
+        if (active) {
+          setCustomerName(crmCustomerDisplayName(response.profile, linkedCustomerId));
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setCustomerError(
+            requestError instanceof Error ? requestError.message : String(requestError),
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setCustomerLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [cart?.customer_id]);
+
   if (!cartId && !visitorId && !customerId) {
     return (
       <Alert severity="info">
@@ -131,15 +174,36 @@ export default function CartDetail({
     <Stack spacing={2}>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={2}>
-        <Box>
-          <Typography variant="h6">{title}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>
-            {cart.cart_id}
-          </Typography>
-        </Box>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          gap={1}
+        >
+          <Box>
+            <Typography variant="h6">{title}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>
+              {cart.cart_id}
+            </Typography>
+          </Box>
+          <CouponDialog
+            customerId={cart.customer_id}
+            cartId={cart.cart_id}
+            visitorId={cart.visitor_id}
+          />
+        </Stack>
         <Stack direction={{ xs: "column", sm: "row" }} gap={3} flexWrap="wrap">
           <CartValue label="Status" value={formatStatus(cart.status)} />
-          <CartValue label="Identity" value={cartIdentityLabel(cart)} />
+          {cart.customer_id ? (
+            <CustomerIdentityValue
+              customerId={cart.customer_id}
+              customerName={customerName}
+              loading={customerLoading}
+              error={customerError}
+            />
+          ) : (
+            <CartValue label="Identity" value={cartIdentityLabel(cart)} />
+          )}
           <CartValue label="Marketing" value={cartMarketingLabel(cart)} />
           <CartValue label="Items" value={String(cart.item_count)} />
           <CartValue label="Total" value={formatMoney(cart.total, cart.currency)} />
@@ -157,10 +221,14 @@ export default function CartDetail({
           <CartValue label="Recovery" value={cartRecoveryLabel(stateSnapshot)} />
           <CartValue label="Visitor ID" value={cart.visitor_id} />
           <CartValue
-            label="Last activity"
+            label="Last seen"
             value={
               cart.last_activity_at
-                ? `${formatLocation(cart.last_activity_context)} · ${formatDate(cart.last_activity_at)}`
+                ? `${formatPageLocation(
+                    cart.last_activity_page_title,
+                    cart.last_activity_page_path,
+                    cart.last_activity_context,
+                  )} · ${formatDate(cart.last_activity_at)}`
                 : "Not recorded"
             }
           />
@@ -207,9 +275,46 @@ export default function CartDetail({
         <VisitorJourneyPanel
           visitorId={cart.visitor_id || analysisSnapshot?.visitor_id}
           customerId={cart.customer_id ?? analysisSnapshot?.customer_id}
+          customerName={customerName}
+          defaultExpanded
         />
       ) : null}
     </Stack>
+  );
+}
+
+function CustomerIdentityValue({
+  customerId,
+  customerName,
+  loading,
+  error,
+}: {
+  customerId: number;
+  customerName: string | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary">Identity</Typography>
+      {loading ? (
+        <Typography variant="body2">Loading customer name…</Typography>
+      ) : error ? (
+        <Stack spacing={0.25}>
+          <Typography variant="body2" color="warning.main">Customer name unavailable</Typography>
+          <Typography variant="caption" color="text.secondary">{error}</Typography>
+        </Stack>
+      ) : (
+        <Link
+          component={RouterLink}
+          to={`/customers/${customerId}`}
+          fontWeight={600}
+          underline="hover"
+        >
+          {customerName ?? `Woo customer #${customerId}`}
+        </Link>
+      )}
+    </Box>
   );
 }
 
@@ -240,4 +345,13 @@ function formatStatus(value: string): string {
 
 function formatLocation(value?: string | null): string {
   return value ? formatStatus(value) : "Unknown location";
+}
+
+function formatPageLocation(
+  title?: string | null,
+  path?: string | null,
+  context?: string | null,
+): string {
+  if (title && path) return `${title} (${path})`;
+  return title || path || formatLocation(context);
 }

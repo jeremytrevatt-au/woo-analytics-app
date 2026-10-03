@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiDebugEvent } from "../types/analytics";
-import { redactJourneyDebugEvent } from "./httpClient";
+import { redactCouponDebugEvent, redactJourneyDebugEvent } from "./httpClient";
 
 describe("journey Cloud Logging redaction", () => {
   it("redacts journey identities without mutating the local debug event", () => {
@@ -43,5 +43,48 @@ describe("journey Cloud Logging redaction", () => {
     expect(event.responseBody).toMatchObject({
       profile: { visitor_id: visitorId, cart_id: cartId, customer_id: 42 },
     });
+  });
+});
+
+describe("coupon Cloud Logging redaction", () => {
+  it("retains useful fields while removing coupon content and identities", () => {
+    const event: ApiDebugEvent = {
+      id: "debug-2",
+      timestamp: "2026-10-03T01:00:00Z",
+      method: "POST",
+      url: "https://analytics.example/api/v1/coupons",
+      requestBody: JSON.stringify({
+        code: "HELP10",
+        discount_type: "percent",
+        amount: 10,
+        customer_id: 42,
+        cart_id: "cart-1",
+        custom_message: "Private offer text",
+      }),
+      responseBody: {
+        code: "HELP10",
+        amount: 10,
+        delivery_message: "Use HELP10",
+        chat_delivery: { status: "sent" },
+      },
+    };
+
+    const redacted = redactCouponDebugEvent(event);
+
+    expect(redacted.requestBody).toEqual({
+      code: "[redacted]",
+      discount_type: "percent",
+      amount: 10,
+      customer_id: "[redacted]",
+      cart_id: "[redacted]",
+      custom_message: "[redacted]",
+    });
+    expect(redacted.responseBody).toEqual({
+      code: "[redacted]",
+      amount: 10,
+      delivery_message: "[redacted]",
+      chat_delivery: { status: "sent" },
+    });
+    expect(event.requestBody).toContain("HELP10");
   });
 });

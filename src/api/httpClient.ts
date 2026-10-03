@@ -148,6 +148,8 @@ function extractShippitNestedError(detail: unknown): string | null {
 function mirrorDebugEvent(baseUrl: string, path: string, event: ApiDebugEvent): void {
   const mirroredEvent = path.startsWith("/api/v1/journeys")
     ? redactJourneyDebugEvent(event)
+    : path === "/api/v1/coupons"
+      ? redactCouponDebugEvent(event)
     : event;
   fetch(`${baseUrl}/api/v1/diagnostics/frontend-event`, {
     method: "POST",
@@ -157,6 +159,50 @@ function mirrorDebugEvent(baseUrl: string, path: string, event: ApiDebugEvent): 
   }).catch(() => {
     // diagnostics mirror should not block the primary call
   });
+}
+
+export function redactCouponDebugEvent(event: ApiDebugEvent): ApiDebugEvent {
+  return {
+    ...event,
+    requestBody: redactCouponPayload(event.requestBody),
+    responseBody: redactCouponPayload(event.responseBody),
+    error: event.error ? "[redacted coupon error]" : event.error,
+  };
+}
+
+function redactCouponPayload(value: unknown): unknown {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return "[redacted coupon payload]";
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.map(redactCouponPayload);
+  }
+  if (parsed && typeof parsed === "object") {
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, child]) => {
+        const normalized = key.toLowerCase();
+        if (
+          normalized === "code"
+          || normalized === "custom_message"
+          || normalized === "delivery_message"
+          || normalized === "visitor_id"
+          || normalized === "cart_id"
+          || normalized === "customer_id"
+          || normalized === "conversation_id"
+          || normalized.includes("email")
+        ) {
+          return [key, "[redacted]"];
+        }
+        return [key, redactCouponPayload(child)];
+      }),
+    );
+  }
+  return parsed;
 }
 
 export function redactJourneyDebugEvent(event: ApiDebugEvent): ApiDebugEvent {

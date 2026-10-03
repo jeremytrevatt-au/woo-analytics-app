@@ -1,6 +1,8 @@
 export type JourneyContext = {
   type: string;
   object_id: string | number | null;
+  page_path?: string | null;
+  page_title?: string | null;
 };
 
 export type JourneyIntent = {
@@ -18,6 +20,8 @@ export type JourneyProfile = JourneyIntent & {
   event_counts: Record<string, number>;
   last_context: string;
   last_object_id?: string | number | null;
+  last_page_path?: string | null;
+  last_page_title?: string | null;
   first_seen_at: string;
   last_seen_at: string;
   expires_at: string;

@@ -37,7 +37,7 @@ export type ChatAttachment = {
 export type ChatMessage = {
   id: string;
   conversation_id: string;
-  sender_type: "customer" | "operator";
+  sender_type: "customer" | "operator" | "system";
   sender_id: string;
   body: string;
   created_at: string;

@@ -4,6 +4,7 @@ import DashboardLayout from "./components/DashboardLayout";
 import FiltersProvider from "./components/FiltersProvider";
 import { ProductIndexProvider } from "./components/ProductIndexProvider";
 import CustomersPage from "./pages/CustomersPage";
+import CustomerProfilePage from "./pages/CustomerProfilePage";
 import DrillDownPage from "./pages/DrillDownPage";
 import RevenuePage from "./pages/RevenuePage";
 import OverviewPage from "./pages/OverviewPage";
@@ -37,6 +38,7 @@ function App() {
                 <Route path="/" element={<OverviewPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
+                <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
                 <Route path="/drill-down" element={<DrillDownPage />} />
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/revenue" element={<RevenuePage />} />

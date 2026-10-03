@@ -22,6 +22,7 @@ import { ChevronLeft, ChevronRight, KeyboardArrowDown, KeyboardArrowUp } from "@
 import { formatCurrency, formatNumber } from "../lib/format";
 import { DynamicTableRecord, TableColumn } from "../types/analytics";
 import { useState, Fragment } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { useFilters } from "../hooks/useFilters";
 
 type Props = {
@@ -121,6 +122,9 @@ function DataTablePanel({ title, rows, columns: initialColumns, page, pageSize, 
 
     const linkUrl = getLinkUrl ? getLinkUrl(row, col) : null;
     if (linkUrl) {
+      if (linkUrl.startsWith("/")) {
+        return <Link component={RouterLink} to={linkUrl} underline="hover">{formattedValue}</Link>;
+      }
       return <Link href={linkUrl} target="_blank" rel="noopener noreferrer" underline="hover">{formattedValue}</Link>;
     }
     return formattedValue;
