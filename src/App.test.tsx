@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -35,6 +35,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Visitor Journeys" }))
       .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "open drawer" }));
     expect(screen.getByRole("link", { name: "Visitor Journeys" }))
       .toHaveAttribute("href", "/journeys");
   });
