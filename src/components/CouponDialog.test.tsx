@@ -34,13 +34,13 @@ describe("CouponDialog", () => {
       />,
     );
     fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
-    fireEvent.change(view.getByLabelText("Unique coupon code"), {
+    fireEvent.change(view.getByRole("textbox", { name: /Unique coupon code/ }), {
       target: { value: "help10" },
     });
-    fireEvent.change(view.getByLabelText("Percentage"), {
+    fireEvent.change(view.getByRole("spinbutton", { name: /Percentage/ }), {
       target: { value: "10" },
     });
-    fireEvent.change(view.getByLabelText("Expires at"), {
+    fireEvent.change(view.getByLabelText(/Expires at/), {
       target: { value: "2099-10-04T00:00" },
     });
     fireEvent.click(view.getByRole("button", { name: "Create coupon" }));

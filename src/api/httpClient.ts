@@ -176,7 +176,7 @@ function redactCouponPayload(value: unknown): unknown {
     try {
       parsed = JSON.parse(value);
     } catch {
-      return "[redacted coupon payload]";
+      return value;
     }
   }
   if (Array.isArray(parsed)) {
