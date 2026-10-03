@@ -27,7 +27,7 @@ describe("App", () => {
   });
 
   it("routes to Visitor Journeys and exposes its navigation item", async () => {
-    render(
+    const app = render(
       <MemoryRouter initialEntries={["/journeys"]}>
         <App />
       </MemoryRouter>,
@@ -35,7 +35,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Visitor Journeys" }))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "open drawer" }));
+    fireEvent.click(app.getByRole("button", { name: "open drawer" }));
     expect(screen.getByRole("link", { name: "Visitor Journeys" }))
       .toHaveAttribute("href", "/journeys");
   });
