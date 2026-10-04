@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel } from "@mui/material";
+import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel, Tooltip } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { parsePurchaseOrderReceiveStockResult, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
+import { parsePurchaseOrderReceiveStockResult, purchaseOrderSheetExportMessage, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -16,6 +16,18 @@ import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrde
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
 type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "days_of_cover" | "needs_reorder" | "allocated" | "reserved" | "available" | "status" | "reserve";
 type SortDirection = "asc" | "desc";
+
+function sheetUrlFromError(error: unknown): string {
+  if (!(error instanceof ApiRequestError) || !error.responseBody || typeof error.responseBody !== "object") {
+    return "";
+  }
+  const detail = (error.responseBody as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== "object" || !("spreadsheet_url" in detail)) {
+    return "";
+  }
+  const url = (detail as { spreadsheet_url?: unknown }).spreadsheet_url;
+  return typeof url === "string" ? url : "";
+}
 
 function qty(value: number | string | null | undefined): string {
   const numeric = Number(value ?? 0);
@@ -80,7 +92,14 @@ function lineSortValue(line: PurchaseOrderLine, summary: PurchaseOrderPreorderLi
   }
 }
 
-function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: (po: PurchaseOrder) => void, handleDelete: (id: number) => void }) {
+function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet, exportingKey }: {
+  po: PurchaseOrder,
+  handleEdit: (po: PurchaseOrder) => void,
+  handleDelete: (id: number) => void,
+  handleExportPdf: (po: PurchaseOrder) => void,
+  handleExportSheet: (po: PurchaseOrder) => void,
+  exportingKey: string | null,
+}) {
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<PurchaseOrderPreorderSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -430,12 +449,36 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
           <TableCell>{(po.shipping_type || 'sea').charAt(0).toUpperCase() + (po.shipping_type || 'sea').slice(1)}</TableCell>
         <TableCell>${parseFloat(po.total_cost_aud as any || 0).toFixed(2)}</TableCell>
         <TableCell align="right">
-          <IconButton onClick={() => handleEdit(po)} size="small">
-            <EditIcon />
-          </IconButton>
-          <IconButton onClick={() => handleDelete(po.id!)} size="small" color="error">
-            <DeleteIcon />
-          </IconButton>
+          <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+            <Tooltip title="Export PDF">
+              <span>
+                <Button
+                  size="small"
+                  onClick={() => handleExportPdf(po)}
+                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}`}
+                >
+                  PDF
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="Export Google Sheet">
+              <span>
+                <Button
+                  size="small"
+                  onClick={() => handleExportSheet(po)}
+                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}`}
+                >
+                  Sheet
+                </Button>
+              </span>
+            </Tooltip>
+            <IconButton onClick={() => handleEdit(po)} size="small" aria-label={`Edit ${po.po_number}`}>
+              <EditIcon />
+            </IconButton>
+            <IconButton onClick={() => handleDelete(po.id!)} size="small" color="error" aria-label={`Delete ${po.po_number}`}>
+              <DeleteIcon />
+            </IconButton>
+          </Stack>
         </TableCell>
       </TableRow>
       <TableRow>
@@ -833,6 +876,44 @@ function PurchaseOrdersPage() {
   const { data, loading, error, refetch } = usePurchaseOrders();
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
+  const [exportingKey, setExportingKey] = useState<string | null>(null);
+  const [exportMessage, setExportMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleExportPdf = async (po: PurchaseOrder) => {
+    if (!po.id) return;
+    setExportingKey(`pdf-${po.id}`);
+    setExportMessage(null);
+    try {
+      await purchaseOrdersApi.exportPdf(po.id, po.po_number);
+      setExportMessage({ type: "success", text: `Exported ${po.po_number} to PDF.` });
+    } catch (err) {
+      setExportMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to export the purchase order PDF." });
+    } finally {
+      setExportingKey(null);
+    }
+  };
+
+  const handleExportSheet = async (po: PurchaseOrder) => {
+    if (!po.id) return;
+    setExportingKey(`sheet-${po.id}`);
+    setExportMessage(null);
+    try {
+      const result = await purchaseOrdersApi.exportSheet(po.id);
+      window.open(result.spreadsheet_url, "_blank", "noopener,noreferrer");
+      setExportMessage({ type: "success", text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result)}` });
+      if (result.drive_link_saved) {
+        refetch();
+      }
+    } catch (err) {
+      const sheetUrl = sheetUrlFromError(err);
+      if (sheetUrl) {
+        window.open(sheetUrl, "_blank", "noopener,noreferrer");
+      }
+      setExportMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to export the purchase order Google Sheet." });
+    } finally {
+      setExportingKey(null);
+    }
+  };
 
   const handleCreate = () => {
     setSelectedPo(null);
@@ -880,6 +961,11 @@ function PurchaseOrdersPage() {
           Create PO
         </Button>
       </Box>
+      {exportMessage ? (
+        <Alert severity={exportMessage.type} onClose={() => setExportMessage(null)}>
+          {exportMessage.text}
+        </Alert>
+      ) : null}
 
       <TableContainer component={Paper}>
         <Table>
@@ -899,7 +985,15 @@ function PurchaseOrdersPage() {
           </TableHead>
           <TableBody>
             {data.map((po) => (
-              <Row key={po.id} po={po} handleEdit={handleEdit} handleDelete={handleDelete} />
+              <Row
+                key={po.id}
+                po={po}
+                handleEdit={handleEdit}
+                handleDelete={handleDelete}
+                handleExportPdf={handleExportPdf}
+                handleExportSheet={handleExportSheet}
+                exportingKey={exportingKey}
+              />
             ))}
             {data.length === 0 && (
               <TableRow>

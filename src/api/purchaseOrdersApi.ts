@@ -1,4 +1,5 @@
-import { fetchJson } from "./httpClient";
+import { pushApiDebugEvent } from "../debug/apiDebugStore";
+import { ApiRequestError, fetchJson, requireApiBaseUrl } from "./httpClient";
 
 export type PurchaseOrderLine = {
   id?: number | string;
@@ -57,6 +58,27 @@ export type PurchaseOrder = {
   drive_link?: string;
   lines: PurchaseOrderLine[];
 };
+
+export type PurchaseOrderSheetExport = {
+  purchase_order_id: number;
+  spreadsheet_url: string;
+  spreadsheet_id: string;
+  drive_link_saved: boolean;
+  drive_link: string;
+  line_count: number;
+};
+
+export function purchaseOrderSheetExportMessage(result: PurchaseOrderSheetExport): string {
+  if (result.drive_link_saved) {
+    return "Google Sheet created and saved as the purchase order Drive link.";
+  }
+  return "Google Sheet created. The existing Drive link was left unchanged.";
+}
+
+function filenameFromDisposition(header: string | null, fallback: string): string {
+  const match = header ? /filename="([^"]+)"/.exec(header) : null;
+  return match?.[1] || fallback;
+}
 
 export type PurchaseOrderReceiveLinePreview = {
   po_line_id: number;
@@ -181,6 +203,84 @@ export const purchaseOrdersApi = {
   async delete(id: number): Promise<{ deleted: boolean }> {
     return fetchJson<{ deleted: boolean }>(`/api/v1/purchase-orders/${id}`, {
       method: "DELETE"
+    });
+  },
+
+  async exportPdf(id: number, poNumber: string): Promise<void> {
+    const baseUrl = requireApiBaseUrl();
+    const path = `/api/v1/purchase-orders/${id}/pdf`;
+    const url = `${baseUrl}${path}`;
+    const startedAt = performance.now();
+    const timestamp = new Date().toISOString();
+    let response: Response;
+    try {
+      response = await fetch(url, { method: "GET", credentials: "include", cache: "no-store" });
+    } catch (error) {
+      pushApiDebugEvent({
+        id: crypto.randomUUID(),
+        timestamp,
+        method: "GET",
+        url,
+        durationMs: Math.round(performance.now() - startedAt),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+    if (!response.ok) {
+      const textBody = await response.text();
+      let parsedBody: unknown = textBody;
+      try {
+        parsedBody = textBody ? JSON.parse(textBody) : null;
+      } catch {
+        parsedBody = textBody;
+      }
+      pushApiDebugEvent({
+        id: crypto.randomUUID(),
+        timestamp,
+        method: "GET",
+        url,
+        statusCode: response.status,
+        durationMs: Math.round(performance.now() - startedAt),
+        responseBody: parsedBody,
+      });
+      const detail = parsedBody && typeof parsedBody === "object" && "detail" in parsedBody
+        ? String((parsedBody as { detail?: unknown }).detail)
+        : textBody;
+      throw new ApiRequestError(
+        `API request failed (${response.status}) ${url}: ${detail}`,
+        response.status,
+        url,
+        parsedBody,
+      );
+    }
+    const blob = await response.blob();
+    pushApiDebugEvent({
+      id: crypto.randomUUID(),
+      timestamp,
+      method: "GET",
+      url,
+      statusCode: response.status,
+      durationMs: Math.round(performance.now() - startedAt),
+      responseBody: {
+        content_type: response.headers.get("content-type"),
+        byte_length: blob.size,
+      },
+    });
+    const filename = filenameFromDisposition(
+      response.headers.get("Content-Disposition"),
+      `${poNumber || `purchase-order-${id}`}.pdf`,
+    );
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(objectUrl);
+  },
+
+  async exportSheet(id: number): Promise<PurchaseOrderSheetExport> {
+    return fetchJson<PurchaseOrderSheetExport>(`/api/v1/purchase-orders/${id}/sheet`, {
+      method: "POST",
     });
   },
 

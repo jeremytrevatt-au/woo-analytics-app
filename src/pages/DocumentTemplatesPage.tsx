@@ -32,7 +32,9 @@ import {
 import type { DocumentMacroMapping } from "../api/documentTemplatesApi";
 import DocumentMacroMappingsEditor, {
   DEFAULT_DOCUMENT_MACRO_MAPPING,
-  DOCUMENT_MACRO_SOURCES,
+  DEFAULT_PURCHASE_ORDER_MACRO_MAPPINGS,
+  documentMacroSourceLabel,
+  documentMacroSourcesForTrigger,
 } from "../components/DocumentMacroMappingsEditor";
 
 const TRIGGER_OPTIONS = [
@@ -41,7 +43,10 @@ const TRIGGER_OPTIONS = [
   { value: "product_sku", label: "Product SKU" },
   { value: "product_category", label: "Product Category" },
   { value: "order_tag", label: "Order Tag" },
+  { value: "purchase_order", label: "Purchase Order" },
 ];
+
+const PURCHASE_ORDER_MACRO_HELP = "Header tokens can appear anywhere in the Google Doc. Put the line tokens, including {supplier_sku} and {supplier_unit_price}, in one table row. Blank Supplier SKU and Supplier price values stay in that row.";
 
 function DocumentTemplatesPage() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
@@ -158,7 +163,7 @@ function DocumentTemplatesPage() {
         Document Templates
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Configure Google Drive documents that can later be surfaced on the Packing Team page for manual or rule-based printing.
+        Configure Google Drive documents for packing prints and purchase order PDFs. A Purchase Order template uses one repeating product-line row.
       </Typography>
 
       {message ? (
@@ -184,6 +189,9 @@ function DocumentTemplatesPage() {
                   setTriggerType(nextTriggerType);
                   if (nextTriggerType === "new_customer" && macroMappings.length === 0) {
                     setMacroMappings([{ ...DEFAULT_DOCUMENT_MACRO_MAPPING }]);
+                  }
+                  if (nextTriggerType === "purchase_order") {
+                    setMacroMappings(DEFAULT_PURCHASE_ORDER_MACRO_MAPPINGS.map((mapping) => ({ ...mapping })));
                   }
                 }}
               >
@@ -212,6 +220,8 @@ function DocumentTemplatesPage() {
           <DocumentMacroMappingsEditor
             value={macroMappings}
             onChange={setMacroMappings}
+            sources={documentMacroSourcesForTrigger(triggerType)}
+            helperText={triggerType === "purchase_order" ? PURCHASE_ORDER_MACRO_HELP : undefined}
             disabled={saving}
           />
           <Stack direction="row" spacing={2} alignItems="center">
@@ -270,10 +280,7 @@ function DocumentTemplatesPage() {
                   <Stack spacing={0.5} alignItems="flex-start">
                     {(template.macro_mappings || []).map(mapping => (
                       <Typography key={mapping.token} variant="caption">
-                        {mapping.token} → {
-                          DOCUMENT_MACRO_SOURCES.find(source => source.value === mapping.source_key)?.label
-                          || mapping.source_key
-                        }
+                        {mapping.token} → {documentMacroSourceLabel(mapping.source_key)}
                         {mapping.is_required ? " (required)" : ""}
                       </Typography>
                     ))}
@@ -333,6 +340,8 @@ function DocumentTemplatesPage() {
           <DocumentMacroMappingsEditor
             value={editingMappings}
             onChange={setEditingMappings}
+            sources={documentMacroSourcesForTrigger(editingTemplate?.trigger_type || "manual")}
+            helperText={editingTemplate?.trigger_type === "purchase_order" ? PURCHASE_ORDER_MACRO_HELP : undefined}
             disabled={saving}
           />
         </DialogContent>

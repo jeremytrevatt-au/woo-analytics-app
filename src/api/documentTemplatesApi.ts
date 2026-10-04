@@ -6,7 +6,28 @@ export type DocumentMacroSource =
   | "billing_last_name"
   | "shipping_last_name"
   | "billing_company"
-  | "order_number";
+  | "order_number"
+  | "po_number"
+  | "created_date"
+  | "supplier_name"
+  | "supplier_contact_name"
+  | "supplier_email"
+  | "supplier_currency"
+  | "shipping_type"
+  | "lead_time_days"
+  | "eta_date"
+  | "supplier_order_number"
+  | "product_cost"
+  | "shipping_cost"
+  | "cost_adjustments"
+  | "total_cost"
+  | "line_number"
+  | "supplier_sku"
+  | "sku"
+  | "product_name"
+  | "qty"
+  | "supplier_unit_price"
+  | "line_total";
 
 export type DocumentMacroMapping = {
   id?: number;
