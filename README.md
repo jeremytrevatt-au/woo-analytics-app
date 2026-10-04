@@ -750,3 +750,30 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Build and deploy the immutable production image directly without a staging deployment.
    2. Verify operator-message contrast through the production Inbox.
+
+## 2026-10-04 01:25 UTC — Operations, carts, journeys and purchasing release
+
+1. TODOs completed since the previous main push:
+   1. Added targeted packing refresh, decimal quantity editing, partial-shipment visibility and freshness telemetry.
+   2. Added document-template macro management and reshipment modification, cancellation and action-queue controls.
+   3. Added reliable bulk purchase-order product selection, preorder shipment status and sticky bulk actions.
+   4. Added reserve allocation, deposit percentage, balance-invoice, unallocation and final-shipping controls.
+   5. Added separate Shippit quote, booking and label-printing workflows.
+   6. Clarified Site Health Lighthouse and CrUX states.
+   7. Added authoritative cart analysis to the Cart page and Chat Inbox with responsive two-pane navigation and collapsed abandonment analysis.
+   8. Added automated-cart quarantine visibility and precise recovery eligibility reasons.
+   9. Added customer identity, CRM deep links and shared manual coupon controls across Cart, CRM and Chat.
+   10. Added visitor intent details to Cart and Chat plus a ranked, filterable Visitor Journeys directory.
+   11. Classified expected missing journey profiles as empty states rather than errors.
+   12. Added WSVI-aware Stock Qty to purchase-order read-only and edit line lists.
+2. Git build reference:
+   1. Frontend release head: `507673f`.
+   2. Deployed Cloud Run revision: `woo-analytics-app-00203-b5d`.
+3. New understandings/learnings:
+   1. Cart and journey context is most useful when the same authoritative detail can be opened from operational carts, customer CRM and Chat.
+   2. Expected absent journey profiles must remain visible in diagnostics without being raised as faults.
+   3. Purchase-order users need physical Stock Qty alongside Available preorder capacity because the two values answer different operational questions.
+4. Understood next steps (remaining TODOs):
+   1. Observe production purchase-order and visitor-engagement screens during normal authenticated use.
+   2. Define Product Owner-approved eligibility and presentation rules before adding automatic coupon offers.
+   3. Expand automated Chat only after authoritative content and human hand-off boundaries are approved.
