@@ -14,7 +14,7 @@ import PurchaseOrderModal from "../components/PurchaseOrderModal";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
-type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "allocated" | "reserved" | "available" | "status" | "reserve";
+type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "days_of_cover" | "needs_reorder" | "allocated" | "reserved" | "available" | "status" | "reserve";
 type SortDirection = "asc" | "desc";
 
 function qty(value: number | string | null | undefined): string {
@@ -65,6 +65,12 @@ function lineSortValue(line: PurchaseOrderLine, summary: PurchaseOrderPreorderLi
     case "stock_qty": return line.stock_qty === null || line.stock_qty === undefined
       ? Number.NEGATIVE_INFINITY
       : Number(line.stock_qty);
+    case "days_of_cover": return line.days_of_cover === null || line.days_of_cover === undefined
+      ? Number.NEGATIVE_INFINITY
+      : Number(line.days_of_cover);
+    case "needs_reorder": return line.reorder_within_lead_time === null || line.reorder_within_lead_time === undefined
+      ? Number.NEGATIVE_INFINITY
+      : line.reorder_within_lead_time ? 1 : 0;
     case "allocated": return totals.allocated;
     case "reserved": return totals.reserved;
     case "available": return totals.available;
@@ -614,6 +620,8 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     <TableCell><TableSortLabel active={lineSortKey === "product_name"} direction={lineSortKey === "product_name" ? lineSortDirection : "asc"} onClick={() => handleLineSort("product_name")}>Product Name</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "qty"} direction={lineSortKey === "qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("qty")}>Qty</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "stock_qty"} direction={lineSortKey === "stock_qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("stock_qty")}>Stock Qty</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "days_of_cover"} direction={lineSortKey === "days_of_cover" ? lineSortDirection : "asc"} onClick={() => handleLineSort("days_of_cover")}>Days of Cover</TableSortLabel></TableCell>
+                    <TableCell><TableSortLabel active={lineSortKey === "needs_reorder"} direction={lineSortKey === "needs_reorder" ? lineSortDirection : "asc"} onClick={() => handleLineSort("needs_reorder")}>Needs Reorder</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "allocated"} direction={lineSortKey === "allocated" ? lineSortDirection : "asc"} onClick={() => handleLineSort("allocated")}>Preorder Allocated</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "reserved"} direction={lineSortKey === "reserved" ? lineSortDirection : "asc"} onClick={() => handleLineSort("reserved")}>Reserved</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "available"} direction={lineSortKey === "available" ? lineSortDirection : "asc"} onClick={() => handleLineSort("available")}>Available</TableSortLabel></TableCell>
@@ -671,6 +679,37 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                           {line.stock_qty === null || line.stock_qty === undefined
                             ? "—"
                             : qty(line.stock_qty)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          title={[
+                            line.avg_daily_usage === null || line.avg_daily_usage === undefined
+                              ? null
+                              : `Average daily usage ${qty(line.avg_daily_usage)}`,
+                            line.forecast_window_days
+                              ? `${line.forecast_window_days}-day observed window`
+                              : null,
+                            line.forecast_source || null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          {line.days_of_cover === null || line.days_of_cover === undefined
+                            ? "—"
+                            : Number(line.days_of_cover).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </TableCell>
+                        <TableCell
+                          title={line.effective_lead_time_days
+                            ? `Compared with ${line.effective_lead_time_days}-day effective lead time`
+                            : undefined}
+                        >
+                          {line.reorder_within_lead_time === null || line.reorder_within_lead_time === undefined
+                            ? "—"
+                            : (
+                              <Chip
+                                size="small"
+                                label={line.reorder_within_lead_time ? "Yes" : "No"}
+                                color={line.reorder_within_lead_time ? "warning" : "default"}
+                              />
+                            )}
                         </TableCell>
                         <TableCell align="right">{qty(totals.allocated)}</TableCell>
                         <TableCell align="right">{qty(totals.reserved)}</TableCell>
@@ -777,7 +816,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     );
                   }) : (
                     <TableRow>
-                      <TableCell colSpan={11}>No matching line items found.</TableCell>
+                      <TableCell colSpan={13}>No matching line items found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

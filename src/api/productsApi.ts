@@ -11,6 +11,12 @@ export type ProductSearchResult = {
   stock_qty?: number | null;
   stock_target_type?: string | null;
   stock_snapshot_date?: string | null;
+  days_of_cover?: number | null;
+  reorder_within_lead_time?: boolean | null;
+  avg_daily_usage?: number | null;
+  forecast_source?: string | null;
+  forecast_window_days?: number | null;
+  effective_lead_time_days?: number | null;
 };
 
 let productIndexPromise: Promise<ProductSearchResult[]> | null = null;

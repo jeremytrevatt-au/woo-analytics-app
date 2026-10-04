@@ -46,6 +46,12 @@ const purchaseOrder = {
     qty: 5,
     stock_qty: 48,
     stock_target_type: "wsvi_group",
+    days_of_cover: 24.4,
+    reorder_within_lead_time: true,
+    avg_daily_usage: 2,
+    forecast_source: "reviewed_orders_and_live_ledger",
+    forecast_window_days: 180,
+    effective_lead_time_days: 90,
   }],
 } as PurchaseOrder;
 
@@ -62,5 +68,10 @@ describe("PurchaseOrderModal stock quantity", () => {
     expect(await view.findByText("Stock Qty")).toBeInTheDocument();
     expect(view.getByTitle("Current pooled WSVI stock quantity"))
       .toHaveTextContent("48");
+    expect(view.getByText("Days of Cover")).toBeInTheDocument();
+    expect(view.getByTitle(/Average daily usage 2/)).toHaveTextContent("24.4");
+    expect(view.getByText("Needs Reorder")).toBeInTheDocument();
+    expect(view.getByTitle("Compared with 90-day effective lead time"))
+      .toHaveTextContent("Yes");
   });
 });

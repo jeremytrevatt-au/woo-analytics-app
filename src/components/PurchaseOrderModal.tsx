@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider } from "@mui/material";
+import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Chip } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -235,6 +235,12 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       stock_qty: product.stock_qty,
       stock_target_type: product.stock_target_type,
       stock_snapshot_date: product.stock_snapshot_date,
+      days_of_cover: product.days_of_cover,
+      reorder_within_lead_time: product.reorder_within_lead_time,
+      avg_daily_usage: product.avg_daily_usage,
+      forecast_source: product.forecast_source,
+      forecast_window_days: product.forecast_window_days,
+      effective_lead_time_days: product.effective_lead_time_days,
       qty: 1,
       supplier_unit_price: 0,
       unit_price_aud: 0,
@@ -703,6 +709,8 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                         <TableCell width="15%">ORIGIN SKU</TableCell>
                         <TableCell width="5%">Qty</TableCell>
                         <TableCell width="6%" align="right">Stock Qty</TableCell>
+                        <TableCell width="6%" align="right">Days of Cover</TableCell>
+                        <TableCell width="7%">Needs Reorder</TableCell>
                         <TableCell width="7%">Unit Price (Origin)</TableCell>
                         <TableCell width="7%">Unit Price (AUD)</TableCell>
                         <TableCell width="7%">Total (Origin)</TableCell>
@@ -798,6 +806,37 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                             ? "—"
                             : toNumber(line.stock_qty).toLocaleString(undefined, { maximumFractionDigits: 4 })}
                         </TableCell>
+                        <TableCell
+                          align="right"
+                          title={[
+                            line.avg_daily_usage === null || line.avg_daily_usage === undefined
+                              ? null
+                              : `Average daily usage ${toNumber(line.avg_daily_usage).toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+                            line.forecast_window_days
+                              ? `${line.forecast_window_days}-day observed window`
+                              : null,
+                            line.forecast_source || null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          {line.days_of_cover === null || line.days_of_cover === undefined
+                            ? "—"
+                            : toNumber(line.days_of_cover).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </TableCell>
+                        <TableCell
+                          title={line.effective_lead_time_days
+                            ? `Compared with ${line.effective_lead_time_days}-day effective lead time`
+                            : undefined}
+                        >
+                          {line.reorder_within_lead_time === null || line.reorder_within_lead_time === undefined
+                            ? "—"
+                            : (
+                              <Chip
+                                size="small"
+                                label={line.reorder_within_lead_time ? "Yes" : "No"}
+                                color={line.reorder_within_lead_time ? "warning" : "default"}
+                              />
+                            )}
+                        </TableCell>
                         <TableCell>
                           <TextField
                             size="small"
@@ -854,7 +893,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                     })}
                   {visibleLineEntries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={12} align="center">
                         {lineFilter ? "No existing PO lines match this search." : "No lines added."}
                       </TableCell>
                     </TableRow>

@@ -32,6 +32,7 @@ const defaultFilters: AppFilterState = {
   skuStartsWith: "",
   skuContains: "",
   skuEndsWith: "",
+  stockEnabled: "enabled",
   stockAvgDailyUsageMin: "",
   stockAvgDailyUsageMax: "",
   stockDaysOfCoverMin: "",

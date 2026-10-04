@@ -841,6 +841,23 @@ function StockPage() {
                   <Grid item xs={12} md={2}>
                     <TextField
                       fullWidth
+                      select
+                      label="Product Visibility"
+                      value={filters.stockEnabled}
+                      onChange={(e) => updateFilter(
+                        "stockEnabled",
+                        e.target.value as AppFilterState["stockEnabled"]
+                      )}
+                      size="small"
+                    >
+                      <MenuItem value="enabled">Enabled only</MenuItem>
+                      <MenuItem value="all">All products</MenuItem>
+                      <MenuItem value="disabled">Disabled only</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
                       type="number"
                       label="Avg Usage Min"
                       value={stockRangeDraft.stockAvgDailyUsageMin}

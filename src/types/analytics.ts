@@ -65,6 +65,7 @@ export type AppFilterState = {
   skuStartsWith: string;
   skuContains: string;
   skuEndsWith: string;
+  stockEnabled: "enabled" | "all" | "disabled";
   stockAvgDailyUsageMin: string;
   stockAvgDailyUsageMax: string;
   stockDaysOfCoverMin: string;
