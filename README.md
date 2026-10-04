@@ -777,3 +777,22 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Observe production purchase-order and visitor-engagement screens during normal authenticated use.
    2. Define Product Owner-approved eligibility and presentation rules before adding automatic coupon offers.
    3. Expand automated Chat only after authoritative content and human hand-off boundaries are approved.
+
+## 2026-10-04 03:17 UTC — Corrected stock forecasting release
+
+1. TODOs completed since the previous main push:
+   1. Added Enabled only, All products and Disabled only filtering to Stock Items.
+   2. Made Enabled only the default operational view.
+   3. Added sortable Days of Cover and Needs Reorder columns to expanded purchase-order line results.
+   4. Added the same forecast fields to Edit Purchase Order and newly selected products.
+   5. Added forecast-source, observation-window and effective-lead-time context to field tooltips.
+   6. Passed frontend tests, lint, production build guards and CDN invalidation.
+2. Git build reference:
+   1. Frontend build: `4ed97e281a59012ae202d8d9c6f7f9c89d81ed26`.
+   2. Deployed Cloud Run revision: `woo-analytics-app-00204-m7j`.
+3. New understandings/learnings:
+   1. Purchase-order decisions require physical stock, forecast cover and reorder status together.
+   2. Disabled products should remain available for audit without cluttering the default operational stock view.
+4. Understood next steps (remaining TODOs):
+   1. Observe forecast fields in normal Stock and Purchase Order workflows.
+   2. Review forecast accuracy against completed purchase cycles before introducing safety-stock policy.
