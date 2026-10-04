@@ -232,6 +232,9 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       supplier_sku: "",
       sku: product.sku || "", 
       product_name: product.name,
+      stock_qty: product.stock_qty,
+      stock_target_type: product.stock_target_type,
+      stock_snapshot_date: product.stock_snapshot_date,
       qty: 1,
       supplier_unit_price: 0,
       unit_price_aud: 0,
@@ -692,13 +695,14 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
   
                 <Box sx={{ width: '100%', overflowX: 'auto' }}>
                   <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
-                    <Table size="small" sx={{ width: '100%', minWidth: 1800 }}>
+                    <Table size="small" sx={{ width: '100%', minWidth: 1900 }}>
                       <TableHead>
                       <TableRow>
                         <TableCell width="30%">Product Name</TableCell>
                         <TableCell width="15%">SKU</TableCell>
                         <TableCell width="15%">ORIGIN SKU</TableCell>
                         <TableCell width="5%">Qty</TableCell>
+                        <TableCell width="6%" align="right">Stock Qty</TableCell>
                         <TableCell width="7%">Unit Price (Origin)</TableCell>
                         <TableCell width="7%">Unit Price (AUD)</TableCell>
                         <TableCell width="7%">Total (Origin)</TableCell>
@@ -779,6 +783,21 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                             sx={{ width: 80 }}
                           />
                         </TableCell>
+                        <TableCell
+                          align="right"
+                          title={[
+                            line.stock_target_type === "wsvi_group"
+                              ? "Current pooled WSVI stock quantity"
+                              : "Current stock quantity",
+                            line.stock_snapshot_date
+                              ? `snapshot ${line.stock_snapshot_date}`
+                              : null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          {line.stock_qty === null || line.stock_qty === undefined
+                            ? "—"
+                            : toNumber(line.stock_qty).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                        </TableCell>
                         <TableCell>
                           <TextField
                             size="small"
@@ -835,7 +854,7 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                     })}
                   {visibleLineEntries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={10} align="center">
                         {lineFilter ? "No existing PO lines match this search." : "No lines added."}
                       </TableCell>
                     </TableRow>

@@ -8,6 +8,9 @@ export type PurchaseOrderLine = {
   wsvi_group_id?: string;
   sku: string;
   product_name: string;
+  stock_qty?: number | null;
+  stock_target_type?: string | null;
+  stock_snapshot_date?: string | null;
   qty: number;
   supplier_sku?: string;
   supplier_unit_price?: number;

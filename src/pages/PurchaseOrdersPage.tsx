@@ -14,7 +14,7 @@ import PurchaseOrderModal from "../components/PurchaseOrderModal";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
-type LineSortKey = "sku" | "product_name" | "qty" | "allocated" | "reserved" | "available" | "status" | "reserve";
+type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "allocated" | "reserved" | "available" | "status" | "reserve";
 type SortDirection = "asc" | "desc";
 
 function qty(value: number | string | null | undefined): string {
@@ -62,6 +62,9 @@ function lineSortValue(line: PurchaseOrderLine, summary: PurchaseOrderPreorderLi
     case "sku": return String(line.sku || "").toLocaleLowerCase();
     case "product_name": return String(line.product_name || "").toLocaleLowerCase();
     case "qty": return Number(line.qty || 0);
+    case "stock_qty": return line.stock_qty === null || line.stock_qty === undefined
+      ? Number.NEGATIVE_INFINITY
+      : Number(line.stock_qty);
     case "allocated": return totals.allocated;
     case "reserved": return totals.reserved;
     case "available": return totals.available;
@@ -610,6 +613,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     <TableCell><TableSortLabel active={lineSortKey === "sku"} direction={lineSortKey === "sku" ? lineSortDirection : "asc"} onClick={() => handleLineSort("sku")}>SKU</TableSortLabel></TableCell>
                     <TableCell><TableSortLabel active={lineSortKey === "product_name"} direction={lineSortKey === "product_name" ? lineSortDirection : "asc"} onClick={() => handleLineSort("product_name")}>Product Name</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "qty"} direction={lineSortKey === "qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("qty")}>Qty</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "stock_qty"} direction={lineSortKey === "stock_qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("stock_qty")}>Stock Qty</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "allocated"} direction={lineSortKey === "allocated" ? lineSortDirection : "asc"} onClick={() => handleLineSort("allocated")}>Preorder Allocated</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "reserved"} direction={lineSortKey === "reserved" ? lineSortDirection : "asc"} onClick={() => handleLineSort("reserved")}>Reserved</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "available"} direction={lineSortKey === "available" ? lineSortDirection : "asc"} onClick={() => handleLineSort("available")}>Available</TableSortLabel></TableCell>
@@ -653,6 +657,21 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                         </TableCell>
                         <TableCell>{line.product_name}</TableCell>
                         <TableCell align="right">{qty(line.qty)}</TableCell>
+                        <TableCell
+                          align="right"
+                          title={[
+                            line.stock_target_type === "wsvi_group"
+                              ? "Current pooled WSVI stock quantity"
+                              : "Current stock quantity",
+                            line.stock_snapshot_date
+                              ? `snapshot ${line.stock_snapshot_date}`
+                              : null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          {line.stock_qty === null || line.stock_qty === undefined
+                            ? "—"
+                            : qty(line.stock_qty)}
+                        </TableCell>
                         <TableCell align="right">{qty(totals.allocated)}</TableCell>
                         <TableCell align="right">{qty(totals.reserved)}</TableCell>
                         <TableCell align="right">
@@ -758,7 +777,7 @@ function Row({ po, handleEdit, handleDelete }: { po: PurchaseOrder, handleEdit: 
                     );
                   }) : (
                     <TableRow>
-                      <TableCell colSpan={10}>No matching line items found.</TableCell>
+                      <TableCell colSpan={11}>No matching line items found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

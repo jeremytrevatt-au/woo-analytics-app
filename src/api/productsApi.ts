@@ -8,6 +8,9 @@ export type ProductSearchResult = {
   sku: string;
   type: string;
   wsvi_group_id?: string;
+  stock_qty?: number | null;
+  stock_target_type?: string | null;
+  stock_snapshot_date?: string | null;
 };
 
 let productIndexPromise: Promise<ProductSearchResult[]> | null = null;
