@@ -46,7 +46,7 @@ const TRIGGER_OPTIONS = [
   { value: "purchase_order", label: "Purchase Order" },
 ];
 
-const PURCHASE_ORDER_MACRO_HELP = "Header tokens can appear anywhere in the Google Doc. Put the line tokens, including {supplier_sku} and {supplier_unit_price}, in one table row. Blank Supplier SKU and Supplier price values stay in that row.";
+const PURCHASE_ORDER_MACRO_HELP = "Use the po_ tokens from the Google Doc. Put {po_supplier_sku}, {po_product_description}, {po_supplier_unit_price}, {po_qty}, and {po_line_total} in one table row. Blank Supplier SKU and Supplier price values stay in that row.";
 
 function DocumentTemplatesPage() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
