@@ -56,6 +56,7 @@ export type PurchaseOrder = {
   product_cost_adjustments_aud: number;
   total_cost_aud: number;
   drive_link?: string;
+  sheet_link?: string;
   lines: PurchaseOrderLine[];
 };
 
@@ -63,16 +64,17 @@ export type PurchaseOrderSheetExport = {
   purchase_order_id: number;
   spreadsheet_url: string;
   spreadsheet_id: string;
-  drive_link_saved: boolean;
+  sheet_link_saved: boolean;
+  sheet_link: string;
   drive_link: string;
   line_count: number;
 };
 
 export function purchaseOrderSheetExportMessage(result: PurchaseOrderSheetExport): string {
-  if (result.drive_link_saved) {
-    return "Google Sheet created and saved as the purchase order Drive link.";
+  if (result.sheet_link_saved) {
+    return "Google Sheet created in the purchase order Drive folder.";
   }
-  return "Google Sheet created. The existing Drive link was left unchanged.";
+  return "Google Sheet created, but its link was not saved on the purchase order.";
 }
 
 function filenameFromDisposition(header: string | null, fallback: string): string {

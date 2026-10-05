@@ -52,25 +52,27 @@ describe("purchaseOrdersApi.receiveStock", () => {
 });
 
 describe("purchaseOrderSheetExportMessage", () => {
-  it("reports when the new sheet becomes the Drive link", () => {
+  it("reports when the sheet is saved in the purchase order folder", () => {
     expect(purchaseOrderSheetExportMessage({
       purchase_order_id: 4,
       spreadsheet_url: "https://docs.google.com/spreadsheets/d/abc/edit",
       spreadsheet_id: "abc",
-      drive_link_saved: true,
-      drive_link: "https://docs.google.com/spreadsheets/d/abc/edit",
+      sheet_link_saved: true,
+      sheet_link: "https://docs.google.com/spreadsheets/d/abc/edit",
+      drive_link: "https://drive.google.com/drive/folders/folder",
       line_count: 2,
-    })).toBe("Google Sheet created and saved as the purchase order Drive link.");
+    })).toBe("Google Sheet created in the purchase order Drive folder.");
   });
 
-  it("reports when an existing Drive link is preserved", () => {
+  it("reports when the sheet link was not saved", () => {
     expect(purchaseOrderSheetExportMessage({
       purchase_order_id: 4,
       spreadsheet_url: "https://docs.google.com/spreadsheets/d/abc/edit",
       spreadsheet_id: "abc",
-      drive_link_saved: false,
-      drive_link: "https://docs.google.com/spreadsheets/d/existing/edit",
+      sheet_link_saved: false,
+      sheet_link: "",
+      drive_link: "https://drive.google.com/drive/folders/folder",
       line_count: 2,
-    })).toBe("Google Sheet created. The existing Drive link was left unchanged.");
+    })).toBe("Google Sheet created, but its link was not saved on the purchase order.");
   });
 });

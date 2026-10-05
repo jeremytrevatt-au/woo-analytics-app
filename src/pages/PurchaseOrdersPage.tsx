@@ -885,7 +885,8 @@ function PurchaseOrdersPage() {
     setExportMessage(null);
     try {
       await purchaseOrdersApi.exportPdf(po.id, po.po_number);
-      setExportMessage({ type: "success", text: `Exported ${po.po_number} to PDF.` });
+      setExportMessage({ type: "success", text: `Exported ${po.po_number} to PDF and saved a copy in its Drive folder.` });
+      refetch();
     } catch (err) {
       setExportMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to export the purchase order PDF." });
     } finally {
@@ -901,9 +902,7 @@ function PurchaseOrdersPage() {
       const result = await purchaseOrdersApi.exportSheet(po.id);
       window.open(result.spreadsheet_url, "_blank", "noopener,noreferrer");
       setExportMessage({ type: "success", text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result)}` });
-      if (result.drive_link_saved) {
-        refetch();
-      }
+      refetch();
     } catch (err) {
       const sheetUrl = sheetUrlFromError(err);
       if (sheetUrl) {

@@ -43,6 +43,8 @@ const defaultPo: Partial<PurchaseOrder> = {
   product_cost_aud: 0,
   product_cost_adjustments_aud: 0,
   total_cost_aud: 0,
+  drive_link: "",
+  sheet_link: "",
   lines: []
 };
 
@@ -464,21 +466,44 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <TextField
                   fullWidth
-                  label="Google Drive Link"
+                  label="Google Drive Folder"
                   value={formData.drive_link || ""}
-                  onChange={(e) => handleChange("drive_link", e.target.value)}
                   margin="normal"
-                  placeholder="https://docs.google.com/..."
+                  placeholder="Created when the purchase order is saved"
+                  InputProps={{ readOnly: true }}
                 />
                 {formData.drive_link && (
-                  <Button 
-                    variant="outlined" 
-                    color="primary" 
-                    href={formData.drive_link} 
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    href={formData.drive_link}
                     target="_blank"
                     sx={{ mt: 1, whiteSpace: 'nowrap' }}
                   >
-                    Open Document
+                    Open Folder
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Google Sheet"
+                  value={formData.sheet_link || ""}
+                  margin="normal"
+                  placeholder="Created by Sheet export"
+                  InputProps={{ readOnly: true }}
+                />
+                {formData.sheet_link && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    href={formData.sheet_link}
+                    target="_blank"
+                    sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                  >
+                    Open Sheet
                   </Button>
                 )}
               </Box>
