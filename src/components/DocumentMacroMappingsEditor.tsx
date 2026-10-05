@@ -58,12 +58,27 @@ export const PURCHASE_ORDER_MACRO_SOURCES: Array<{
 ];
 
 export const DEFAULT_PURCHASE_ORDER_MACRO_MAPPINGS: DocumentMacroMapping[] = [
+  { token: "{po_number}", source_key: "po_number", is_required: true },
+  { token: "{po_created_date}", source_key: "po_created_date", is_required: true },
+  { token: "{po_supplier_name}", source_key: "po_supplier_name", is_required: true },
   { token: "{po_supplier_firstname}", source_key: "po_supplier_firstname", is_required: false },
+  { token: "{po_supplier_contact_name}", source_key: "po_supplier_contact_name", is_required: false },
+  { token: "{po_supplier_email}", source_key: "po_supplier_email", is_required: false },
+  { token: "{po_supplier_currency}", source_key: "po_supplier_currency", is_required: true },
+  { token: "{po_shipping_type}", source_key: "po_shipping_type", is_required: false },
+  { token: "{po_lead_time_days}", source_key: "po_lead_time_days", is_required: false },
+  { token: "{po_eta_date}", source_key: "po_eta_date", is_required: false },
+  { token: "{po_supplier_order_number}", source_key: "po_supplier_order_number", is_required: false },
+  { token: "{po_product_cost}", source_key: "po_product_cost", is_required: false },
+  { token: "{po_shipping_cost}", source_key: "po_shipping_cost", is_required: false },
+  { token: "{po_cost_adjustments}", source_key: "po_cost_adjustments", is_required: false },
   { token: "{po_total_price}", source_key: "po_total_price", is_required: true },
+  { token: "{po_line_number}", source_key: "po_line_number", is_required: true },
   { token: "{po_supplier_sku}", source_key: "po_supplier_sku", is_required: false },
+  { token: "{po_sku}", source_key: "po_sku", is_required: true },
   { token: "{po_product_description}", source_key: "po_product_description", is_required: true },
-  { token: "{po_supplier_unit_price}", source_key: "po_supplier_unit_price", is_required: false },
   { token: "{po_qty}", source_key: "po_qty", is_required: true },
+  { token: "{po_supplier_unit_price}", source_key: "po_supplier_unit_price", is_required: false },
   { token: "{po_line_total}", source_key: "po_line_total", is_required: true },
 ];
 
