@@ -57,24 +57,51 @@ export type PurchaseOrder = {
   total_cost_aud: number;
   drive_link?: string;
   sheet_link?: string;
+  supplier_sheet_link?: string;
   lines: PurchaseOrderLine[];
 };
 
+export type PurchaseOrderSheetAudience = "internal" | "supplier";
+
 export type PurchaseOrderSheetExport = {
   purchase_order_id: number;
+  audience: PurchaseOrderSheetAudience;
   spreadsheet_url: string;
   spreadsheet_id: string;
   sheet_link_saved: boolean;
   sheet_link: string;
+  supplier_sheet_link_saved: boolean;
+  supplier_sheet_link: string;
   drive_link: string;
   line_count: number;
 };
 
-export function purchaseOrderSheetExportMessage(result: PurchaseOrderSheetExport): string {
-  if (result.sheet_link_saved) {
-    return "Google Sheet created in the purchase order Drive folder.";
+export function purchaseOrderSheetExportMessage(
+  result: PurchaseOrderSheetExport,
+  audience: PurchaseOrderSheetAudience = "internal",
+): string {
+  const saved = audience === "supplier" ? result.supplier_sheet_link_saved : result.sheet_link_saved;
+  const label = audience === "supplier" ? "Supplier Google Sheet" : "Google Sheet";
+  if (saved) {
+    return `${label} created in the purchase order Drive folder.`;
   }
-  return "Google Sheet created, but its link was not saved on the purchase order.";
+  return `${label} created, but its link was not saved on the purchase order.`;
+}
+
+export function purchaseOrderSheetLinkPatch(
+  audience: PurchaseOrderSheetAudience,
+  result: PurchaseOrderSheetExport,
+): Partial<PurchaseOrder> {
+  if (audience === "supplier") {
+    return {
+      supplier_sheet_link: result.supplier_sheet_link,
+      drive_link: result.drive_link,
+    };
+  }
+  return {
+    sheet_link: result.sheet_link,
+    drive_link: result.drive_link,
+  };
 }
 
 function filenameFromDisposition(header: string | null, fallback: string): string {
@@ -280,8 +307,9 @@ export const purchaseOrdersApi = {
     URL.revokeObjectURL(objectUrl);
   },
 
-  async exportSheet(id: number): Promise<PurchaseOrderSheetExport> {
-    return fetchJson<PurchaseOrderSheetExport>(`/api/v1/purchase-orders/${id}/sheet`, {
+  async exportSheet(id: number, audience: PurchaseOrderSheetAudience = "internal"): Promise<PurchaseOrderSheetExport> {
+    const path = audience === "supplier" ? "supplier-sheet" : "sheet";
+    return fetchJson<PurchaseOrderSheetExport>(`/api/v1/purchase-orders/${id}/${path}`, {
       method: "POST",
     });
   },

@@ -23,5 +23,9 @@ export function usePurchaseOrders(status?: string, productId?: number) {
     fetchPOs();
   }, [fetchPOs]);
 
-  return { data, loading, error, refetch: fetchPOs };
+  const updatePurchaseOrder = useCallback((id: number, patch: Partial<PurchaseOrder>) => {
+    setData((current) => current.map((order) => order.id === id ? { ...order, ...patch } : order));
+  }, []);
+
+  return { data, loading, error, refetch: fetchPOs, updatePurchaseOrder };
 }

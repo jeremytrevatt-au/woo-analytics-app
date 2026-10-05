@@ -6,7 +6,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { parsePurchaseOrderReceiveStockResult, purchaseOrderSheetExportMessage, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult } from "../api/purchaseOrdersApi";
+import { parsePurchaseOrderReceiveStockResult, purchaseOrderSheetExportMessage, purchaseOrderSheetLinkPatch, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult, PurchaseOrderSheetAudience } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -97,7 +97,7 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
   handleEdit: (po: PurchaseOrder) => void,
   handleDelete: (id: number) => void,
   handleExportPdf: (po: PurchaseOrder) => void,
-  handleExportSheet: (po: PurchaseOrder) => void,
+  handleExportSheet: (po: PurchaseOrder, audience: PurchaseOrderSheetAudience) => void,
   exportingKey: string | null,
 }) {
   const [open, setOpen] = useState(false);
@@ -455,20 +455,31 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
                 <Button
                   size="small"
                   onClick={() => handleExportPdf(po)}
-                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}`}
+                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}` || exportingKey === `supplier-sheet-${po.id}`}
                 >
                   PDF
                 </Button>
               </span>
             </Tooltip>
-            <Tooltip title="Export Google Sheet">
+            <Tooltip title="Export internal Google Sheet">
               <span>
                 <Button
                   size="small"
-                  onClick={() => handleExportSheet(po)}
-                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}`}
+                  onClick={() => handleExportSheet(po, "internal")}
+                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}` || exportingKey === `supplier-sheet-${po.id}`}
                 >
                   Sheet
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="Export supplier Google Sheet">
+              <span>
+                <Button
+                  size="small"
+                  onClick={() => handleExportSheet(po, "supplier")}
+                  disabled={!po.id || exportingKey === `pdf-${po.id}` || exportingKey === `sheet-${po.id}` || exportingKey === `supplier-sheet-${po.id}`}
+                >
+                  Supplier sheet
                 </Button>
               </span>
             </Tooltip>
@@ -873,7 +884,7 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
 }
 
 function PurchaseOrdersPage() {
-  const { data, loading, error, refetch } = usePurchaseOrders();
+  const { data, loading, error, refetch, updatePurchaseOrder } = usePurchaseOrders();
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
@@ -894,19 +905,26 @@ function PurchaseOrdersPage() {
     }
   };
 
-  const handleExportSheet = async (po: PurchaseOrder) => {
+  const handleExportSheet = async (po: PurchaseOrder, audience: PurchaseOrderSheetAudience) => {
     if (!po.id) return;
-    setExportingKey(`sheet-${po.id}`);
+    const sheetTab = window.open("", "_blank");
+    setExportingKey(audience === "supplier" ? `supplier-sheet-${po.id}` : `sheet-${po.id}`);
     setExportMessage(null);
     try {
-      const result = await purchaseOrdersApi.exportSheet(po.id);
-      window.open(result.spreadsheet_url, "_blank", "noopener,noreferrer");
-      setExportMessage({ type: "success", text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result)}` });
-      refetch();
+      const result = await purchaseOrdersApi.exportSheet(po.id, audience);
+      if (sheetTab) {
+        sheetTab.opener = null;
+        sheetTab.location.href = result.spreadsheet_url;
+      }
+      updatePurchaseOrder(po.id, purchaseOrderSheetLinkPatch(audience, result));
+      setExportMessage({ type: "success", text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result, audience)}` });
     } catch (err) {
       const sheetUrl = sheetUrlFromError(err);
-      if (sheetUrl) {
-        window.open(sheetUrl, "_blank", "noopener,noreferrer");
+      if (sheetUrl && sheetTab) {
+        sheetTab.opener = null;
+        sheetTab.location.href = sheetUrl;
+      } else {
+        sheetTab?.close();
       }
       setExportMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to export the purchase order Google Sheet." });
     } finally {

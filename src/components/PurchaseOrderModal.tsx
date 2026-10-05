@@ -45,6 +45,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   total_cost_aud: 0,
   drive_link: "",
   sheet_link: "",
+  supplier_sheet_link: "",
   lines: []
 };
 
@@ -500,6 +501,29 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                     variant="outlined"
                     color="primary"
                     href={formData.sheet_link}
+                    target="_blank"
+                    sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                  >
+                    Open Sheet
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Supplier Google Sheet"
+                  value={formData.supplier_sheet_link || ""}
+                  margin="normal"
+                  placeholder="Created by Supplier sheet export"
+                  InputProps={{ readOnly: true }}
+                />
+                {formData.supplier_sheet_link && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    href={formData.supplier_sheet_link}
                     target="_blank"
                     sx={{ mt: 1, whiteSpace: 'nowrap' }}
                   >

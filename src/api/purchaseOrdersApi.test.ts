@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchJson } from "./httpClient";
-import { purchaseOrderSheetExportMessage, purchaseOrdersApi } from "./purchaseOrdersApi";
+import { purchaseOrderSheetExportMessage, purchaseOrderSheetLinkPatch, purchaseOrdersApi } from "./purchaseOrdersApi";
 
 vi.mock("./httpClient", () => ({
   fetchJson: vi.fn(),
@@ -55,10 +55,13 @@ describe("purchaseOrderSheetExportMessage", () => {
   it("reports when the sheet is saved in the purchase order folder", () => {
     expect(purchaseOrderSheetExportMessage({
       purchase_order_id: 4,
+      audience: "internal",
       spreadsheet_url: "https://docs.google.com/spreadsheets/d/abc/edit",
       spreadsheet_id: "abc",
       sheet_link_saved: true,
       sheet_link: "https://docs.google.com/spreadsheets/d/abc/edit",
+      supplier_sheet_link_saved: false,
+      supplier_sheet_link: "",
       drive_link: "https://drive.google.com/drive/folders/folder",
       line_count: 2,
     })).toBe("Google Sheet created in the purchase order Drive folder.");
@@ -67,12 +70,68 @@ describe("purchaseOrderSheetExportMessage", () => {
   it("reports when the sheet link was not saved", () => {
     expect(purchaseOrderSheetExportMessage({
       purchase_order_id: 4,
+      audience: "internal",
       spreadsheet_url: "https://docs.google.com/spreadsheets/d/abc/edit",
       spreadsheet_id: "abc",
       sheet_link_saved: false,
       sheet_link: "",
+      supplier_sheet_link_saved: false,
+      supplier_sheet_link: "",
       drive_link: "https://drive.google.com/drive/folders/folder",
       line_count: 2,
     })).toBe("Google Sheet created, but its link was not saved on the purchase order.");
+  });
+
+  it("reports the supplier sheet separately", () => {
+    expect(purchaseOrderSheetExportMessage({
+      purchase_order_id: 4,
+      audience: "supplier",
+      spreadsheet_url: "https://docs.google.com/spreadsheets/d/supplier/edit",
+      spreadsheet_id: "supplier",
+      sheet_link_saved: false,
+      sheet_link: "",
+      supplier_sheet_link_saved: true,
+      supplier_sheet_link: "https://docs.google.com/spreadsheets/d/supplier/edit",
+      drive_link: "https://drive.google.com/drive/folders/folder",
+      line_count: 2,
+    }, "supplier")).toBe("Supplier Google Sheet created in the purchase order Drive folder.");
+  });
+});
+
+describe("purchaseOrderSheetLinkPatch", () => {
+  it("updates the internal sheet link without replacing the purchase order", () => {
+    expect(purchaseOrderSheetLinkPatch("internal", {
+      purchase_order_id: 20,
+      audience: "internal",
+      spreadsheet_url: "https://docs.google.com/spreadsheets/d/internal/edit",
+      spreadsheet_id: "internal",
+      sheet_link_saved: true,
+      sheet_link: "https://docs.google.com/spreadsheets/d/internal/edit",
+      supplier_sheet_link_saved: false,
+      supplier_sheet_link: "",
+      drive_link: "https://drive.google.com/drive/folders/folder",
+      line_count: 1,
+    })).toEqual({
+      sheet_link: "https://docs.google.com/spreadsheets/d/internal/edit",
+      drive_link: "https://drive.google.com/drive/folders/folder",
+    });
+  });
+
+  it("updates the supplier sheet link", () => {
+    expect(purchaseOrderSheetLinkPatch("supplier", {
+      purchase_order_id: 20,
+      audience: "supplier",
+      spreadsheet_url: "https://docs.google.com/spreadsheets/d/supplier/edit",
+      spreadsheet_id: "supplier",
+      sheet_link_saved: false,
+      sheet_link: "",
+      supplier_sheet_link_saved: true,
+      supplier_sheet_link: "https://docs.google.com/spreadsheets/d/supplier/edit",
+      drive_link: "https://drive.google.com/drive/folders/folder",
+      line_count: 1,
+    })).toEqual({
+      supplier_sheet_link: "https://docs.google.com/spreadsheets/d/supplier/edit",
+      drive_link: "https://drive.google.com/drive/folders/folder",
+    });
   });
 });
