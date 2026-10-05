@@ -796,3 +796,21 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Observe forecast fields in normal Stock and Purchase Order workflows.
    2. Review forecast accuracy against completed purchase cycles before introducing safety-stock policy.
+
+## 2026-10-05 06:20 UTC — Purchase order export and Drive folders
+
+1. TODOs completed since the previous main push:
+   1. Added Export PDF and Export Google Sheet actions on Purchase Orders.
+   2. Mapped every purchase-order template field, including the Natural Yield purchase number, with the `po_` prefix.
+   3. Showed Google Drive Folder and Google Sheet as separate read-only fields with Open Folder and Open Sheet.
+   4. Refreshed the purchase order after PDF and Sheet export so the saved folder and sheet links appear.
+   5. Kept API request and response details in the toggleable debug panel.
+2. Git build reference:
+   1. Frontend build: `c05a2ee96e6b4eeb36aa8ed87d619ffce7336215`.
+   2. Deployed Cloud Run revision: `woo-analytics-app-00208-8rw`.
+3. New understandings/learnings:
+   1. The Drive field is the purchase order folder. The Sheet field is the latest exported spreadsheet.
+   2. Export messages need to say whether the generated file was saved in the purchase order folder.
+4. Understood next steps (remaining TODOs):
+   1. Confirm PDF and Sheet export from the purchase order screen.
+   2. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
