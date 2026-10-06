@@ -88,6 +88,14 @@ export function purchaseOrderSheetExportMessage(
   return `${label} created, but its link was not saved on the purchase order.`;
 }
 
+export function existingPurchaseOrderSheetLink(
+  order: Pick<PurchaseOrder, "sheet_link" | "supplier_sheet_link">,
+  audience: PurchaseOrderSheetAudience,
+): string {
+  const link = audience === "supplier" ? order.supplier_sheet_link : order.sheet_link;
+  return (link || "").trim();
+}
+
 export function purchaseOrderSheetLinkPatch(
   audience: PurchaseOrderSheetAudience,
   result: PurchaseOrderSheetExport,

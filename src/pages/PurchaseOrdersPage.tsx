@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel, Tooltip } from "@mui/material";
+import { Alert, Stack, Typography, Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Chip, IconButton, Collapse, Link, TextField, MenuItem, Checkbox, FormControlLabel, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { parsePurchaseOrderReceiveStockResult, purchaseOrderSheetExportMessage, purchaseOrderSheetLinkPatch, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult, PurchaseOrderSheetAudience } from "../api/purchaseOrdersApi";
+import { existingPurchaseOrderSheetLink, parsePurchaseOrderReceiveStockResult, purchaseOrderSheetExportMessage, purchaseOrderSheetLinkPatch, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult, PurchaseOrderSheetAudience } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
+import { openCreatingSheetTab, openSavedSheet } from "../lib/purchaseOrderSheetTab";
 
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
 type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "days_of_cover" | "needs_reorder" | "allocated" | "reserved" | "available" | "status" | "reserve";
@@ -888,7 +889,8 @@ function PurchaseOrdersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
-  const [exportMessage, setExportMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [exportMessage, setExportMessage] = useState<{ type: "success" | "error"; text: string; href?: string } | null>(null);
+  const [sheetPrompt, setSheetPrompt] = useState<{ po: PurchaseOrder; audience: PurchaseOrderSheetAudience } | null>(null);
 
   const handleExportPdf = async (po: PurchaseOrder) => {
     if (!po.id) return;
@@ -905,29 +907,61 @@ function PurchaseOrdersPage() {
     }
   };
 
-  const handleExportSheet = async (po: PurchaseOrder, audience: PurchaseOrderSheetAudience) => {
+  const createSheet = async (po: PurchaseOrder, audience: PurchaseOrderSheetAudience) => {
     if (!po.id) return;
-    const sheetTab = window.open("", "_blank");
+    const sheetTab = openCreatingSheetTab();
+    if (!sheetTab) {
+      setExportMessage({ type: "error", text: "The browser blocked the sheet tab. Allow pop-ups for this site, then try again." });
+      return;
+    }
     setExportingKey(audience === "supplier" ? `supplier-sheet-${po.id}` : `sheet-${po.id}`);
     setExportMessage(null);
     try {
       const result = await purchaseOrdersApi.exportSheet(po.id, audience);
-      if (sheetTab) {
-        sheetTab.location.href = result.spreadsheet_url;
-      }
+      sheetTab.reveal(result.spreadsheet_url);
       updatePurchaseOrder(po.id, purchaseOrderSheetLinkPatch(audience, result));
-      setExportMessage({ type: "success", text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result, audience)}` });
+      setExportMessage({
+        type: "success",
+        text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result, audience)}`,
+        href: result.spreadsheet_url,
+      });
     } catch (err) {
       const sheetUrl = sheetUrlFromError(err);
-      if (sheetUrl && sheetTab) {
-        sheetTab.location.href = sheetUrl;
+      const message = err instanceof Error ? err.message : "Failed to export the purchase order Google Sheet.";
+      if (sheetUrl) {
+        sheetTab.reveal(sheetUrl);
       } else {
-        sheetTab?.close();
+        sheetTab.fail(message);
       }
-      setExportMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to export the purchase order Google Sheet." });
+      setExportMessage({ type: "error", text: message, href: sheetUrl || undefined });
     } finally {
       setExportingKey(null);
     }
+  };
+
+  const handleExportSheet = (po: PurchaseOrder, audience: PurchaseOrderSheetAudience) => {
+    if (!po.id) return;
+    if (existingPurchaseOrderSheetLink(po, audience)) {
+      setSheetPrompt({ po, audience });
+      return;
+    }
+    void createSheet(po, audience);
+  };
+
+  const handleOpenSavedSheet = () => {
+    if (!sheetPrompt) return;
+    const url = existingPurchaseOrderSheetLink(sheetPrompt.po, sheetPrompt.audience);
+    setSheetPrompt(null);
+    if (!url || !openSavedSheet(url)) {
+      setExportMessage({ type: "error", text: "The browser blocked the sheet tab. Allow pop-ups for this site, then try again.", href: url || undefined });
+    }
+  };
+
+  const handleCreateSheetVersion = () => {
+    if (!sheetPrompt) return;
+    const prompt = sheetPrompt;
+    setSheetPrompt(null);
+    void createSheet(prompt.po, prompt.audience);
   };
 
   const handleCreate = () => {
@@ -979,6 +1013,12 @@ function PurchaseOrdersPage() {
       {exportMessage ? (
         <Alert severity={exportMessage.type} onClose={() => setExportMessage(null)}>
           {exportMessage.text}
+          {exportMessage.href ? (
+            <>
+              {" "}
+              <Link href={exportMessage.href} target="_blank" rel="noopener noreferrer">Open sheet</Link>
+            </>
+          ) : null}
         </Alert>
       ) : null}
 
@@ -1018,6 +1058,22 @@ function PurchaseOrdersPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog open={Boolean(sheetPrompt)} onClose={() => setSheetPrompt(null)}>
+        <DialogTitle>
+          {sheetPrompt?.audience === "supplier" ? "Supplier Google Sheet already exists" : "Google Sheet already exists"}
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            {sheetPrompt ? `${sheetPrompt.po.po_number} already has this Google Sheet. Open the existing sheet, or create a new version in its Drive folder.` : ""}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSheetPrompt(null)}>Cancel</Button>
+          <Button onClick={handleOpenSavedSheet}>Open existing</Button>
+          <Button variant="contained" onClick={handleCreateSheetVersion}>Create new version</Button>
+        </DialogActions>
+      </Dialog>
 
       {modalOpen && (
         <PurchaseOrderModal
