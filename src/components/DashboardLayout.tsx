@@ -15,6 +15,7 @@ const navItems = [
   { label: "Overview", to: "/" },
   { label: "Orders", to: "/orders" },
   { label: "Customers", to: "/customers" },
+  { label: "Security", to: "/security/registered-accounts" },
   { label: "Drill Down", to: "/drill-down" },
   { label: "Stock", to: "/stock" },
   { label: "Revenue", to: "/revenue" },

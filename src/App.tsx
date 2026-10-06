@@ -1,5 +1,5 @@
 import { Box } from "@mui/material";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
 import FiltersProvider from "./components/FiltersProvider";
 import { ProductIndexProvider } from "./components/ProductIndexProvider";
@@ -26,6 +26,7 @@ import VisitorJourneysPage from "./pages/VisitorJourneysPage";
 import AppUpdateBanner from "./components/AppUpdateBanner";
 
 import SuppliersPage from "./pages/SuppliersPage";
+import SecurityRegisteredAccountsPage from "./pages/SecurityRegisteredAccountsPage";
 
 function App() {
   return (
@@ -38,6 +39,8 @@ function App() {
                 <Route path="/" element={<OverviewPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
+                <Route path="/security" element={<Navigate to="/security/registered-accounts" replace />} />
+                <Route path="/security/registered-accounts" element={<SecurityRegisteredAccountsPage />} />
                 <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
                 <Route path="/drill-down" element={<DrillDownPage />} />
                 <Route path="/stock" element={<StockPage />} />
