@@ -46,6 +46,7 @@ const defaultPo: Partial<PurchaseOrder> = {
   drive_link: "",
   sheet_link: "",
   supplier_sheet_link: "",
+  pdf_link: "",
   lines: []
 };
 
@@ -528,6 +529,29 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
                     sx={{ mt: 1, whiteSpace: 'nowrap' }}
                   >
                     Open Sheet
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="PDF"
+                  value={formData.pdf_link || ""}
+                  margin="normal"
+                  placeholder="Created by PDF export"
+                  InputProps={{ readOnly: true }}
+                />
+                {formData.pdf_link && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    href={formData.pdf_link}
+                    target="_blank"
+                    sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                  >
+                    Open PDF
                   </Button>
                 )}
               </Box>

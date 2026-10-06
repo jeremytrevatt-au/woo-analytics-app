@@ -26,6 +26,7 @@ describe("creatingSheetTabMarkup", () => {
   it("asks the new tab to open the spreadsheet itself", () => {
     const markup = creatingSheetTabMarkup("token-1");
     expect(markup).toContain("Creating the purchase order Google Sheet");
+    expect(creatingSheetTabMarkup("token-2", "Creating the purchase order PDF…")).toContain("Creating the purchase order PDF");
     expect(markup).toContain("location.replace(url)");
     expect(markup).toContain(JSON.stringify("token-1"));
     expect(markup).not.toContain("about:blank");

@@ -6,7 +6,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders";
-import { existingPurchaseOrderSheetLink, parsePurchaseOrderReceiveStockResult, purchaseOrderSheetExportMessage, purchaseOrderSheetLinkPatch, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult, PurchaseOrderSheetAudience } from "../api/purchaseOrdersApi";
+import { existingPurchaseOrderSheetLink, parsePurchaseOrderReceiveStockResult, purchaseOrderPdfExportMessage, purchaseOrderSheetExportMessage, purchaseOrderSheetLinkPatch, purchaseOrdersApi, PurchaseOrder, PurchaseOrderLine, PurchaseOrderReceiveStockResult, PurchaseOrderSheetAudience } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
@@ -18,15 +18,15 @@ const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "c
 type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "days_of_cover" | "needs_reorder" | "allocated" | "reserved" | "available" | "status" | "reserve";
 type SortDirection = "asc" | "desc";
 
-function sheetUrlFromError(error: unknown): string {
+function exportUrlFromError(error: unknown, field: "spreadsheet_url" | "pdf_url"): string {
   if (!(error instanceof ApiRequestError) || !error.responseBody || typeof error.responseBody !== "object") {
     return "";
   }
   const detail = (error.responseBody as { detail?: unknown }).detail;
-  if (!detail || typeof detail !== "object" || !("spreadsheet_url" in detail)) {
+  if (!detail || typeof detail !== "object" || !(field in detail)) {
     return "";
   }
-  const url = (detail as { spreadsheet_url?: unknown }).spreadsheet_url;
+  const url = (detail as Record<string, unknown>)[field];
   return typeof url === "string" ? url : "";
 }
 
@@ -889,22 +889,50 @@ function PurchaseOrdersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
-  const [exportMessage, setExportMessage] = useState<{ type: "success" | "error"; text: string; href?: string } | null>(null);
+  const [exportMessage, setExportMessage] = useState<{ type: "success" | "error"; text: string; href?: string; linkLabel?: string } | null>(null);
   const [sheetPrompt, setSheetPrompt] = useState<{ po: PurchaseOrder; audience: PurchaseOrderSheetAudience } | null>(null);
+  const [pdfPrompt, setPdfPrompt] = useState<PurchaseOrder | null>(null);
 
-  const handleExportPdf = async (po: PurchaseOrder) => {
+  const createPdf = async (po: PurchaseOrder) => {
     if (!po.id) return;
+    const pdfTab = openCreatingSheetTab("Creating the purchase order PDF…");
+    if (!pdfTab) {
+      setExportMessage({ type: "error", text: "The browser blocked the PDF tab. Allow pop-ups for this site, then try again." });
+      return;
+    }
     setExportingKey(`pdf-${po.id}`);
     setExportMessage(null);
     try {
-      await purchaseOrdersApi.exportPdf(po.id, po.po_number);
-      setExportMessage({ type: "success", text: `Exported ${po.po_number} to PDF and saved a copy in its Drive folder.` });
-      refetch();
+      const result = await purchaseOrdersApi.exportPdf(po.id);
+      pdfTab.reveal(result.pdf_url);
+      updatePurchaseOrder(po.id, { pdf_link: result.pdf_link, drive_link: result.drive_link });
+      setExportMessage({
+        type: "success",
+        text: `${po.po_number}: ${purchaseOrderPdfExportMessage(result)}`,
+        href: result.pdf_url,
+        linkLabel: "Open PDF",
+      });
     } catch (err) {
-      setExportMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to export the purchase order PDF." });
+      const pdfUrl = exportUrlFromError(err, "pdf_url");
+      const message = err instanceof Error ? err.message : "Failed to export the purchase order PDF.";
+      if (pdfUrl) {
+        pdfTab.reveal(pdfUrl);
+      } else {
+        pdfTab.fail(message);
+      }
+      setExportMessage({ type: "error", text: message, href: pdfUrl || undefined, linkLabel: "Open PDF" });
     } finally {
       setExportingKey(null);
     }
+  };
+
+  const handleExportPdf = (po: PurchaseOrder) => {
+    if (!po.id) return;
+    if ((po.pdf_link || "").trim()) {
+      setPdfPrompt(po);
+      return;
+    }
+    void createPdf(po);
   };
 
   const createSheet = async (po: PurchaseOrder, audience: PurchaseOrderSheetAudience) => {
@@ -924,16 +952,17 @@ function PurchaseOrdersPage() {
         type: "success",
         text: `${po.po_number}: ${purchaseOrderSheetExportMessage(result, audience)}`,
         href: result.spreadsheet_url,
+        linkLabel: "Open sheet",
       });
     } catch (err) {
-      const sheetUrl = sheetUrlFromError(err);
+      const sheetUrl = exportUrlFromError(err, "spreadsheet_url");
       const message = err instanceof Error ? err.message : "Failed to export the purchase order Google Sheet.";
       if (sheetUrl) {
         sheetTab.reveal(sheetUrl);
       } else {
         sheetTab.fail(message);
       }
-      setExportMessage({ type: "error", text: message, href: sheetUrl || undefined });
+      setExportMessage({ type: "error", text: message, href: sheetUrl || undefined, linkLabel: "Open sheet" });
     } finally {
       setExportingKey(null);
     }
@@ -1016,7 +1045,7 @@ function PurchaseOrdersPage() {
           {exportMessage.href ? (
             <>
               {" "}
-              <Link href={exportMessage.href} target="_blank" rel="noopener noreferrer">Open sheet</Link>
+              <Link href={exportMessage.href} target="_blank" rel="noopener noreferrer">{exportMessage.linkLabel || "Open"}</Link>
             </>
           ) : null}
         </Alert>
@@ -1058,6 +1087,32 @@ function PurchaseOrdersPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog open={Boolean(pdfPrompt)} onClose={() => setPdfPrompt(null)}>
+        <DialogTitle>PDF already exists</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {pdfPrompt ? `${pdfPrompt.po_number} already has a PDF. Open the existing PDF, or replace it in its Drive folder.` : ""}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPdfPrompt(null)}>Cancel</Button>
+          <Button onClick={() => {
+            if (!pdfPrompt) return;
+            const url = (pdfPrompt.pdf_link || "").trim();
+            setPdfPrompt(null);
+            if (!url || !openSavedSheet(url)) {
+              setExportMessage({ type: "error", text: "The browser blocked the PDF tab. Allow pop-ups for this site, then try again.", href: url || undefined, linkLabel: "Open PDF" });
+            }
+          }}>Open existing</Button>
+          <Button variant="contained" onClick={() => {
+            if (!pdfPrompt) return;
+            const prompt = pdfPrompt;
+            setPdfPrompt(null);
+            void createPdf(prompt);
+          }}>Replace</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(sheetPrompt)} onClose={() => setSheetPrompt(null)}>
         <DialogTitle>

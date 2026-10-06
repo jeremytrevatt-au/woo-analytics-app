@@ -11,9 +11,14 @@ type SheetWindow = Window & {
   [SHEET_URLS]?: Record<string, string>;
 };
 
-export function creatingSheetTabMarkup(token: string): string {
+export function creatingSheetTabMarkup(
+  token: string,
+  statusText = "Creating the purchase order Google Sheet…",
+): string {
   const safeToken = JSON.stringify(token);
-  return `<!doctype html><html><head><title>Creating purchase order sheet</title></head><body><p>Creating the purchase order Google Sheet…</p><script>
+  const safeStatus = JSON.stringify(statusText);
+  return `<!doctype html><html><head><title>Creating purchase order export</title></head><body><p id="status"></p><script>
+document.getElementById("status").textContent = ${safeStatus};
 const token = ${safeToken};
 const timer = setInterval(() => {
   let url = "";
@@ -37,7 +42,10 @@ export function sheetTabErrorMarkup(message: string): string {
   return `<!doctype html><html><head><title>Purchase order sheet</title></head><body><p id="message"></p><script>document.getElementById("message").textContent = ${safeMessage};</script></body></html>`;
 }
 
-export function openCreatingSheetTab(openWindow: typeof window.open = window.open.bind(window)): CreatingSheetTab | null {
+export function openCreatingSheetTab(
+  statusText = "Creating the purchase order Google Sheet…",
+  openWindow: typeof window.open = window.open.bind(window),
+): CreatingSheetTab | null {
   const token = crypto.randomUUID();
   const tab = openWindow("", "_blank");
   if (!tab) {
@@ -47,7 +55,7 @@ export function openCreatingSheetTab(openWindow: typeof window.open = window.ope
   const urls = host[SHEET_URLS] || {};
   host[SHEET_URLS] = urls;
   tab.document.open();
-  tab.document.write(creatingSheetTabMarkup(token));
+  tab.document.write(creatingSheetTabMarkup(token, statusText));
   tab.document.close();
   return {
     token,
