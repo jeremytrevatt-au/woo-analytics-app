@@ -913,7 +913,6 @@ function PurchaseOrdersPage() {
     try {
       const result = await purchaseOrdersApi.exportSheet(po.id, audience);
       if (sheetTab) {
-        sheetTab.opener = null;
         sheetTab.location.href = result.spreadsheet_url;
       }
       updatePurchaseOrder(po.id, purchaseOrderSheetLinkPatch(audience, result));
@@ -921,7 +920,6 @@ function PurchaseOrdersPage() {
     } catch (err) {
       const sheetUrl = sheetUrlFromError(err);
       if (sheetUrl && sheetTab) {
-        sheetTab.opener = null;
         sheetTab.location.href = sheetUrl;
       } else {
         sheetTab?.close();
