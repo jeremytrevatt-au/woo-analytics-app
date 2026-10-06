@@ -387,6 +387,8 @@ function PackingPage() {
   const packingUserGroups = groupPackingOrdersByUser(currentlyPacking, currentUser);
   const readyToPackContext = buildQueueContext(readyToPack);
   const readyToPackGroups = buildQueueGroups(readyToPack, readyToPackContext);
+  const recentlyPackedContext = buildQueueContext(recentlyPacked);
+  const recentlyPackedGroups = buildQueueGroups(recentlyPacked, recentlyPackedContext);
 
   const renderOrderCard = (order: any, queueContext?: QueueContext) => {
     const isExpanded = expandedOrders[order.order_id];
@@ -844,10 +846,10 @@ function PackingPage() {
     );
   };
 
-  const renderReadyToPackOrders = () => {
-    return readyToPackGroups.map(group => {
+  const renderQueueOrders = (groups: QueueGroup[], queueContext: QueueContext, sectionLabel: string) => {
+    return groups.map(group => {
       if (!group.sameCustomer) {
-        return renderOrderCard(group.orders[0], readyToPackContext);
+        return renderOrderCard(group.orders[0], queueContext);
       }
 
       const firstOrder = group.orders[0];
@@ -871,7 +873,7 @@ function PackingPage() {
           }}
         >
           <Alert severity="info" sx={{ mb: 1 }}>
-            Same customer group: {firstOrder.customer_name} has {group.orders.length} orders in Ready to Pack ({orderIds})
+            Same customer group: {firstOrder.customer_name} has {group.orders.length} orders in {sectionLabel} ({orderIds})
           </Alert>
           {completedCombined ? (
             <Alert severity="success" sx={{ mb: 1 }}>
@@ -889,7 +891,7 @@ function PackingPage() {
               Combine orders into one shipment
             </Button>
           )}
-          {group.orders.map(order => renderOrderCard(order, readyToPackContext))}
+          {group.orders.map(order => renderOrderCard(order, queueContext))}
         </Box>
       );
     });
@@ -1000,7 +1002,7 @@ function PackingPage() {
             {readyToPack.length === 0 ? (
               <Typography variant="body2" color="text.secondary">No orders currently ready to pack.</Typography>
             ) : (
-              renderReadyToPackOrders()
+              renderQueueOrders(readyToPackGroups, readyToPackContext, "Ready to Pack")
             )}
           </Box>
 
@@ -1029,7 +1031,7 @@ function PackingPage() {
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 Recently Packed ({recentlyPacked.length})
               </Typography>
-              {recentlyPacked.map(order => renderOrderCard(order))}
+              {renderQueueOrders(recentlyPackedGroups, recentlyPackedContext, "Recently Packed")}
             </Box>
           )}
         </>
