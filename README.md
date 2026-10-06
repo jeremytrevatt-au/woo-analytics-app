@@ -814,3 +814,25 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
 4. Understood next steps (remaining TODOs):
    1. Confirm PDF and Sheet export from the purchase order screen.
    2. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+
+## 2026-10-06 07:31 UTC — Purchase order actions, Apply, and Security
+
+1. TODOs completed since the previous main push:
+   1. Opened purchase order sheets in a new tab and left the purchase order list in place, including the supplier sheet.
+   2. Sent the opened sheet tab to the spreadsheet after export.
+   3. Asked whether to open the saved spreadsheet or create a new version when one is already stored.
+   4. Opened or replaced a purchase order PDF and left the purchase order page in place.
+   5. Kept the purchase order editor open after Apply, including the supplier lookup used by the editor tests.
+   6. Added Security, with Registered accounts as its first page for customer accounts that have no orders.
+2. Git build reference:
+   1. Sheet export flow: `15cb7fd818ce6bca4aa52129be9db5dd869e1a3e`, `58dceeddd1ffbe89c9c6199a5513f0b73407789e`, `cd3813f4d3421f6534abaa6cb4b990a2dc3e571a`.
+   2. PDF open or replace: `31d07c33a1e87c8ce729b9827e0cd00fc065f5c1`.
+   3. Apply: `aa6ed9a8d19c2abede7f8a5efd492e4daedbeb56`, `8291d34215ab6b95b85f5302217a2819f4eb215c`.
+   4. Security: `a2885291cbcc32d287af3c32e62ee87e1d7c3d2a`.
+   5. Deployed Cloud Run revision: `woo-analytics-app-00214-qff`.
+3. New understandings/learnings:
+   1. Reloading the purchase order list replaces the page with its loading state, so export and Apply update the open record in place.
+   2. The export tab is opened during the click and navigates itself when the file URL is ready.
+   3. `/security` opens `/security/registered-accounts`. Later Security sections are additional entries in the section list.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
