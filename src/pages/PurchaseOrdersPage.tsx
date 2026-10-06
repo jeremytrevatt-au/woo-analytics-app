@@ -885,7 +885,7 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
 }
 
 function PurchaseOrdersPage() {
-  const { data, loading, error, refetch, updatePurchaseOrder } = usePurchaseOrders();
+  const { data, loading, error, refetch, updatePurchaseOrder, upsertPurchaseOrder } = usePurchaseOrders();
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrder | null>(null);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
@@ -1028,6 +1028,11 @@ function PurchaseOrdersPage() {
     }
   };
 
+  const handlePurchaseOrderApplied = (order: PurchaseOrder) => {
+    setSelectedPo(order);
+    upsertPurchaseOrder(order);
+  };
+
   if (loading) return <LoadStateBlock isLoading={true} error={null} empty={false} />;
   if (error) return <LoadStateBlock isLoading={false} error={error} empty={false} />;
 
@@ -1134,6 +1139,7 @@ function PurchaseOrdersPage() {
         <PurchaseOrderModal
           open={modalOpen}
           onClose={handleModalClose}
+          onApplied={handlePurchaseOrderApplied}
           po={selectedPo}
         />
       )}

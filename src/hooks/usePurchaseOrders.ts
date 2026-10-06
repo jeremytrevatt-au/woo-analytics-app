@@ -27,5 +27,15 @@ export function usePurchaseOrders(status?: string, productId?: number) {
     setData((current) => current.map((order) => order.id === id ? { ...order, ...patch } : order));
   }, []);
 
-  return { data, loading, error, refetch: fetchPOs, updatePurchaseOrder };
+  const upsertPurchaseOrder = useCallback((order: PurchaseOrder) => {
+    setData((current) => {
+      const index = current.findIndex((item) => item.id === order.id);
+      if (index === -1) {
+        return [order, ...current];
+      }
+      return current.map((item) => item.id === order.id ? order : item);
+    });
+  }, []);
+
+  return { data, loading, error, refetch: fetchPOs, updatePurchaseOrder, upsertPurchaseOrder };
 }

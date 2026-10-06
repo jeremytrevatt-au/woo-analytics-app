@@ -13,6 +13,7 @@ import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrde
 type Props = {
   open: boolean;
   onClose: (saved: boolean) => void;
+  onApplied: (order: PurchaseOrder) => void;
   po: PurchaseOrder | null;
 };
 
@@ -131,9 +132,11 @@ const selectTextFieldSx = {
   },
 };
 
-export default function PurchaseOrderModal({ open, onClose, po }: Props) {
+export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Props) {
   const [formData, setFormData] = useState<Partial<PurchaseOrder>>(defaultPo);
-  const [loading, setLoading] = useState(false);
+  const [savingAction, setSavingAction] = useState<"apply" | "save" | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
   const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
@@ -288,20 +291,39 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
     setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
   };
 
-  const handleSave = async () => {
-    setLoading(true);
+  const handlePersist = async (closeAfterSave: boolean) => {
+    setSavingAction(closeAfterSave ? "save" : "apply");
+    setSaveError(null);
+    setSaveNotice(null);
     try {
-      if (po?.id) {
-        await purchaseOrdersApi.update(po.id, normalisePurchaseOrderPayload(formData));
-      } else {
-        await purchaseOrdersApi.create(normalisePurchaseOrderPayload(formData));
+      const payload = normalisePurchaseOrderPayload(formData);
+      const saved = po?.id
+        ? await purchaseOrdersApi.update(po.id, payload)
+        : await purchaseOrdersApi.create(payload);
+      const savedId = Number(saved.id);
+      if (!Number.isInteger(savedId) || savedId <= 0) {
+        throw new Error("The purchase order was saved without an id.");
       }
-      onClose(true);
+      if (closeAfterSave) {
+        onClose(true);
+        return;
+      }
+      let current = { ...saved, id: savedId };
+      try {
+        current = await purchaseOrdersApi.get(savedId);
+      } catch (reloadError) {
+        onApplied(current);
+        const detail = reloadError instanceof Error ? reloadError.message : "The editor could not reload it.";
+        setSaveError(`Purchase order saved. ${detail}`);
+        return;
+      }
+      onApplied(current);
+      setSaveNotice("Purchase order saved.");
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : "Failed to save purchase order");
+      setSaveError(err instanceof Error ? err.message : "Failed to save purchase order");
     } finally {
-      setLoading(false);
+      setSavingAction(null);
     }
   };
 
@@ -340,6 +362,16 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
       <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '98%', maxWidth: 'none' } }}>
         <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
         <DialogContent dividers>
+          {saveNotice ? (
+            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSaveNotice(null)}>
+              {saveNotice}
+            </Alert>
+          ) : null}
+          {saveError ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setSaveError(null)}>
+              {saveError}
+            </Alert>
+          ) : null}
           <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField
@@ -984,9 +1016,12 @@ export default function PurchaseOrderModal({ open, onClose, po }: Props) {
           </Grid>
         </DialogContent>
       <DialogActions>
-        <Button onClick={() => onClose(false)}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={loading}>
-          {loading ? "Saving..." : "Save"}
+        <Button onClick={() => onClose(false)} disabled={Boolean(savingAction)}>Cancel</Button>
+        <Button onClick={() => handlePersist(false)} variant="outlined" disabled={Boolean(savingAction)}>
+          {savingAction === "apply" ? "Saving..." : "Apply"}
+        </Button>
+        <Button onClick={() => handlePersist(true)} variant="contained" disabled={Boolean(savingAction)}>
+          {savingAction === "save" ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
     </Dialog>
