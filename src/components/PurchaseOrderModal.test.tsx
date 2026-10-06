@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PurchaseOrder, purchaseOrdersApi } from "../api/purchaseOrdersApi";
 import PurchaseOrderModal from "./PurchaseOrderModal";
 
@@ -79,10 +79,6 @@ describe("PurchaseOrderModal stock quantity", () => {
 });
 
 describe("PurchaseOrderModal apply", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("saves an existing purchase order and leaves the editor open", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -140,7 +136,8 @@ describe("PurchaseOrderModal apply", () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     vi.spyOn(purchaseOrdersApi, "update").mockResolvedValue(purchaseOrder);
-    vi.spyOn(purchaseOrdersApi, "get").mockResolvedValue(purchaseOrder);
+    const getPurchaseOrder = vi.spyOn(purchaseOrdersApi, "get").mockResolvedValue(purchaseOrder);
+    getPurchaseOrder.mockClear();
 
     const view = render(
       <PurchaseOrderModal open onClose={onClose} onApplied={vi.fn()} po={purchaseOrder} />,
