@@ -164,11 +164,15 @@ export type ShippitReturnRecord = {
   sender_overridden?: boolean;
 };
 
+export type ReturnWorkflowStage = "not_quoted" | "quoted" | "new_order" | "ready_to_ship" | "booked";
+
 export type ShippitReturnOrderResponse = {
   order_id: number;
   return_id?: number;
   idempotent_replay?: boolean;
-  creation_mode?: "create_order";
+  creation_mode?: "create_order" | "accept_quote";
+  workflow_stage?: ReturnWorkflowStage;
+  shippit_state?: string;
   return: ShippitReturnRecord;
   result?: ShippitReturnsProbeResult;
 };
@@ -301,7 +305,18 @@ export async function createShippitReturnOrder(payload: {
   quotedCost: number;
   currency: string;
 }): Promise<ShippitReturnOrderResponse> {
-  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/create`, {
+  return acceptShippitReturnQuote(payload);
+}
+
+export async function acceptShippitReturnQuote(payload: {
+  orderId: number;
+  returnId: number;
+  operationId: string;
+  courierType: string;
+  quotedCost: number;
+  currency: string;
+}): Promise<ShippitReturnOrderResponse> {
+  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/accept`, {
     method: "POST",
     body: JSON.stringify({
       return_id: payload.returnId,
@@ -310,6 +325,26 @@ export async function createShippitReturnOrder(payload: {
       quoted_cost: payload.quotedCost,
       currency: payload.currency,
     }),
+  });
+}
+
+export async function confirmShippitReturnOrder(payload: {
+  orderId: number;
+  returnId: number;
+}): Promise<ShippitReturnOrderResponse> {
+  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({ return_id: payload.returnId }),
+  });
+}
+
+export async function bookShippitReturnPickup(payload: {
+  orderId: number;
+  returnId: number;
+}): Promise<ShippitReturnOrderResponse> {
+  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/book`, {
+    method: "POST",
+    body: JSON.stringify({ return_id: payload.returnId }),
   });
 }
 
