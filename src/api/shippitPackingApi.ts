@@ -8,6 +8,16 @@ export type PackingQuoteParcel = {
   height_cm: number;
 };
 
+export type PackingCarrierQuoteStatus = {
+  carrier_id?: string;
+  status?: string;
+  quote_count?: number;
+  error_code?: string | null;
+  message?: string | null;
+  plugin_version?: string | null;
+  product_ids?: string[];
+};
+
 export type PackingQuoteResponse = {
   name: string;
   method: string;
@@ -15,6 +25,10 @@ export type PackingQuoteResponse = {
   status_code: number;
   duration_ms: number;
   body: unknown;
+  carriers?: {
+    shippit?: PackingCarrierQuoteStatus;
+    australia_post?: PackingCarrierQuoteStatus;
+  };
 };
 
 export type PackingDestination = {
@@ -27,6 +41,8 @@ export type PackingDestination = {
 };
 
 export type PackingQuoteSelection = {
+  carrier_id?: string | null;
+  product_id?: string | null;
   courier_type?: string | null;
   service_level?: string | null;
   price?: number | null;

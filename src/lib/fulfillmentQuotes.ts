@@ -39,6 +39,12 @@ export function fulfillmentQuoteOptions(
       const serviceLevel = String(
         carrierData.service_level || quote.service_level || "",
       );
+      const carrierId = String(
+        quote.carrier_id || carrierData.carrier_id || "shippit",
+      );
+      const productId = String(
+        quote.product_id || carrierData.product_id || "",
+      );
       const price = Number(quote.price);
       if (
         (!courierType && !serviceLevel)
@@ -48,13 +54,15 @@ export function fulfillmentQuoteOptions(
         return;
       }
       options.push({
-        id: `${carrierIndex}-${rowIndex}-${courierType}-${serviceLevel}`,
+        id: `${carrierIndex}-${rowIndex}-${carrierId}-${courierType}-${serviceLevel}`,
         label: String(
           carrierData.courier_name
           || quote.courier_name
           || courierType
           || serviceLevel,
         ),
+        carrier_id: carrierId,
+        product_id: carrierId === "australia_post" ? productId || serviceLevel || null : null,
         courier_type: courierType || null,
         service_level: serviceLevel || null,
         price,

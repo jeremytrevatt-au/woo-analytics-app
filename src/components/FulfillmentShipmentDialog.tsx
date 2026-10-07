@@ -163,7 +163,7 @@ export default function FulfillmentShipmentDialog({
           {preview && (
             <>
               <Alert severity="info">
-                {preview.orders.map(order => `#${order.order_id}`).join(", ")} will share one Shippit shipment and tracking number.
+                {preview.orders.map(order => `#${order.order_id}`).join(", ")} will share one shipment and tracking number. Choose a Shippit courier or an Australia Post postage product.
               </Alert>
               {preview.existing_shippit.some(shipment => shipment.is_history) && (
                 <Alert severity="success">
@@ -298,6 +298,17 @@ export default function FulfillmentShipmentDialog({
                 >
                   {isLoading ? "Requesting quotes…" : "Get shipping quotes"}
                 </Button>
+                {quote?.carriers?.shippit?.error_code && (
+                  <Alert severity="warning">
+                    Shippit quotes are unavailable ({quote.carriers.shippit.error_code}).
+                  </Alert>
+                )}
+                {quote?.carriers?.australia_post?.error_code && (
+                  <Alert severity="warning">
+                    Australia Post quotes are unavailable ({quote.carriers.australia_post.error_code}
+                    {quote.carriers.australia_post.plugin_version ? `, Labels Pro ${quote.carriers.australia_post.plugin_version}` : ""}).
+                  </Alert>
+                )}
                 {quoteOptions.map(option => (
                   <Card
                     key={option.id}
@@ -308,6 +319,9 @@ export default function FulfillmentShipmentDialog({
                       <CardContent>
                         <Typography fontWeight={700}>
                           {option.label} — ${Number(option.price).toFixed(2)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.carrier_id === "australia_post" ? "Australia Post" : "Shippit"}
                         </Typography>
                         {option.estimated_transit_time && (
                           <Typography variant="body2">{option.estimated_transit_time}</Typography>

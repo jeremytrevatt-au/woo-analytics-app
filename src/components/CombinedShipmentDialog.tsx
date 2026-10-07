@@ -112,7 +112,7 @@ export default function CombinedShipmentDialog({ open, orders, onClose, onComple
       <DialogTitle>Combined shipment dimensions and quote</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
-          <Alert severity="info">{orderIds.map(id => `#${id}`).join(", ")} will share one physical Shippit shipment and tracking number.</Alert>
+          <Alert severity="info">{orderIds.map(id => `#${id}`).join(", ")} will share one shipment and tracking number. Choose a Shippit courier or an Australia Post postage product.</Alert>
           {error && <Alert severity="error">{error}</Alert>}
           <Typography variant="subtitle2">Combined physical parcels — authoritative remaining quantities</Typography>
           {parcels.map((parcel, parcelIndex) => (
@@ -156,11 +156,23 @@ export default function CombinedShipmentDialog({ open, orders, onClose, onComple
           <Button variant="outlined" onClick={requestQuote} disabled={loading || !parcelsValid}>
             {loading ? "Requesting quotes…" : "Get combined shipment quotes"}
           </Button>
+          {quote?.carriers?.shippit?.error_code && (
+            <Alert severity="warning">Shippit quotes are unavailable ({quote.carriers.shippit.error_code}).</Alert>
+          )}
+          {quote?.carriers?.australia_post?.error_code && (
+            <Alert severity="warning">
+              Australia Post quotes are unavailable ({quote.carriers.australia_post.error_code}
+              {quote.carriers.australia_post.plugin_version ? `, Labels Pro ${quote.carriers.australia_post.plugin_version}` : ""}).
+            </Alert>
+          )}
           {options.map(option => (
             <Card key={option.id} variant="outlined" sx={{ borderColor: selectedQuoteId === option.id ? "primary.main" : "divider" }}>
               <CardActionArea onClick={() => setSelectedQuoteId(option.id)}>
                 <CardContent>
                   <Typography fontWeight={700}>{option.label} — ${Number(option.price).toFixed(2)}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {option.carrier_id === "australia_post" ? "Australia Post" : "Shippit"}
+                  </Typography>
                   {option.estimated_transit_time && <Typography variant="body2">{option.estimated_transit_time}</Typography>}
                 </CardContent>
               </CardActionArea>
