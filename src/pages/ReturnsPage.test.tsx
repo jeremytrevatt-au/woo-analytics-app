@@ -172,11 +172,11 @@ describe("ReturnsPage Shippit workflow", () => {
     });
     fireEvent.click(view.getByRole("button", { name: "Select" }));
 
-    fireEvent.click(view.getByRole("button", { name: "Create Shippit Order" }));
-    expect(view.getByText(/It does not book pickup or dispatch/)).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "Book" }));
+    expect(view.getByText(/Book is the only action that creates a live Shippit return/)).toBeInTheDocument();
     expect(view.getByText(/Return sender: Samantha Actual Recipient.*10 Correct Street.*Googong NSW 2620/)).toBeInTheDocument();
     expect(createShippitReturnOrder).not.toHaveBeenCalled();
-    fireEvent.click(within(view.getByRole("dialog")).getByRole("button", { name: "Create Shippit Order" }));
+    fireEvent.click(within(view.getByRole("dialog")).getByRole("button", { name: "Book" }));
     await waitFor(() => expect(createShippitReturnOrder).toHaveBeenCalledWith(expect.objectContaining({
       orderId: 134400,
       returnId: 7,

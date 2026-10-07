@@ -373,8 +373,8 @@ function ReturnsPage() {
       setMessage({
         type: "success",
         text: labelReady
-          ? `Shippit return order ${returnId} created; its label link is ready. Pickup or dispatch has not been booked.`
-          : `Shippit return order ${returnId} created. Fetch its existing label when required; pickup or dispatch has not been booked.`,
+          ? `Shippit return ${returnId} booked. Its label link is ready.`
+          : `Shippit return ${returnId} booked. Fetch its label when required.`,
       });
       setConfirmingCreate(false);
     } catch (error: any) {
@@ -609,7 +609,7 @@ function ReturnsPage() {
               {previewingQuote ? "Loading Quote..." : "Quote Saved Return Case"}
             </Button>
             <Button variant="contained" color="secondary" onClick={() => setConfirmingCreate(true)} disabled={creatingShippitReturn || saving || !activeReturnCase || !selectedQuote}>
-              Create Shippit Order
+              Book
             </Button>
             {returnableOrder ? (
               <Typography variant="body2" color="text.secondary">
@@ -931,11 +931,11 @@ function ReturnsPage() {
       </Paper>
 
       <Dialog open={confirmingCreate} onClose={() => !creatingShippitReturn && setConfirmingCreate(false)}>
-        <DialogTitle>Create Shippit Order?</DialogTitle>
+        <DialogTitle>Book Shippit return?</DialogTitle>
         <DialogContent>
           <Stack spacing={2}>
             <Typography variant="body2">
-              This creates a live Shippit return order with the selected carrier, tracking number and label. It does not book pickup or dispatch. This is not a quote or dry run.
+              Book is the only action that creates a live Shippit return. Quote returns a price only, and approving the case does not create a shipment.
             </Typography>
             <Alert severity="info">
               {returnParcels.length} parcel{returnParcels.length === 1 ? "" : "s"} will be submitted using the quoted configuration.
@@ -954,7 +954,7 @@ function ReturnsPage() {
         <DialogActions>
           <Button onClick={() => setConfirmingCreate(false)} disabled={creatingShippitReturn}>Cancel</Button>
           <Button variant="contained" color="secondary" onClick={handleCreateShippitReturn} disabled={creatingShippitReturn}>
-            {creatingShippitReturn ? "Creating Shippit Order..." : "Create Shippit Order"}
+            {creatingShippitReturn ? "Booking..." : "Book"}
           </Button>
         </DialogActions>
       </Dialog>
