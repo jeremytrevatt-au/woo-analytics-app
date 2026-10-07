@@ -836,3 +836,22 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    3. `/security` opens `/security/registered-accounts`. Later Security sections are additional entries in the section list.
 4. Understood next steps (remaining TODOs):
    1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+
+## 2026-10-07 07:14 UTC — Recently Packed grouping and Australia Post quote choice
+
+1. TODOs completed since the previous main push:
+   1. Showed same-customer grouping and merge on Recently Packed.
+   2. Showed Australia Post quotes beside Shippit quotes in the fulfillment quote list and sent the selected carrier when booking.
+2. Git build reference:
+   1. Recently Packed grouping: `9c8be35cff8ad0794912d326a858c7dfcca97f02`.
+   2. Australia Post quote choice: `1b1244b5386deb72132166ea98dbb91850e9da9b`.
+   3. Deployed Cloud Run revision: `woo-analytics-app-00215-9vb`. Image `1b1244b`.
+3. New understandings/learnings:
+   1. Recently Packed groups orders for the same customer so those orders can be merged.
+   2. The fulfillment quote list shows both carriers, and the booking request carries the carrier the packer selected.
+   3. The production Australia Post licence is already valid for Labels Pro price id `3`. Staging activation of a price-id-`1` Pro key stored `edition_mismatch`. Labels Pro is a higher tier on the same WPRuby product, not a merged licence.
+   4. Australia Post oversize and `B31` weight errors are carrier limits. They are not defects in this app.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
