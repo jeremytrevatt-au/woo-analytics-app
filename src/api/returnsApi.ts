@@ -387,6 +387,12 @@ export async function fetchShippitReturnLabel(orderId: number, returnOrderId: st
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}/label`);
 }
 
+export async function printShippitReturnLabel(returnId: number): Promise<{ id: number; status: string }> {
+  return fetchJson<{ id: number; status: string }>(`/api/v1/shippit/returns/${returnId}/print-label`, {
+    method: "POST",
+  });
+}
+
 export async function previewReturnCancellation(returnCase: ReturnCase): Promise<ReturnCancellationPreview> {
   return fetchJson<ReturnCancellationPreview>(
     `/api/v1/shippit/returns/${returnCase.id}/cancel-preview?order_id=${returnCase.order_id}`,

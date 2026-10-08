@@ -15,6 +15,7 @@ import {
   previewReturnCancellation,
   previewReturnParcels,
   previewShippitReturnQuote,
+  printShippitReturnLabel,
   sendReturnDocumentEmail,
 } from "../api/returnsApi";
 import ReturnsPage from "./ReturnsPage";
@@ -34,6 +35,7 @@ vi.mock("../api/returnsApi", () => ({
   previewReturnParcels: vi.fn(),
   previewShippitReturnQuote: vi.fn(),
   probeShippitReturnsEndpoints: vi.fn(),
+  printShippitReturnLabel: vi.fn(),
   sendReturnDocumentEmail: vi.fn(),
   updateReturn: vi.fn(),
 }));
@@ -642,15 +644,111 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.click(view.getByRole("button", { name: "View" }));
 
     expect(view.getByText(/Status: Requested. Tracking: PP-ALREADY-LIVE/)).toBeInTheDocument();
+    expect(view.getByText(/This order is already in New Orders, so quote and accept stay unavailable/)).toBeInTheDocument();
+    expect(view.getByText(/Shippit state: order_placed/)).toBeInTheDocument();
     expect(view.queryByRole("heading", { name: "Return Case #112" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Create Shippit order — New Orders" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Accept quote — create the Shippit order in New Orders" })).not.toBeInTheDocument();
-    expect(view.queryByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Print label" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Print via NY Print Agent" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Generate customer email" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Send customer email" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Generate insert letter" })).toBeEnabled();
+    expect(view.getByText(/leaves that token blank/)).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
+    expect(view.queryByText(/stays view-only/)).not.toBeInTheDocument();
     expect(createReturn).not.toHaveBeenCalled();
     expect(acceptShippitReturnQuote).not.toHaveBeenCalled();
+    expect(confirmShippitReturnOrder).not.toHaveBeenCalled();
+    expect(fetchShippitReturnLabel).not.toHaveBeenCalled();
+    expect(printShippitReturnLabel).not.toHaveBeenCalled();
     expect(updateReturn).not.toHaveBeenCalled();
+
+    fireEvent.click(view.getByRole("button", { name: "Print via NY Print Agent" }));
+    expect(view.getByText(/does not request the label or allocate the courier/)).toBeInTheDocument();
+    expect(confirmShippitReturnOrder).not.toHaveBeenCalled();
+    expect(fetchShippitReturnLabel).not.toHaveBeenCalled();
+    expect(printShippitReturnLabel).not.toHaveBeenCalled();
+    expect(acceptShippitReturnQuote).not.toHaveBeenCalled();
+  });
+
+  it("prints a stored return label through the NY Print Agent without requesting another label", async () => {
+    vi.mocked(listReturns).mockResolvedValue([{
+      id: 501,
+      order_id: 134501,
+      status: "requested",
+      reason: "Size",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      shippit_tracking_number: "TEST-TRACK",
+      shippit_state: "processing",
+      shippit_label_url: "https://labels.example.test/return.pdf",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, qty: 1 }],
+    }]);
+    vi.mocked(printShippitReturnLabel).mockResolvedValue({ id: 77, status: "queued" });
+    vi.mocked(fetchReturnDocument).mockResolvedValue(new Blob(["%PDF"], { type: "application/pdf" }));
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#501")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+
+    expect(view.getByText(/Shippit state: processing/)).toBeInTheDocument();
+    expect(view.getByText(/quote and accept stay unavailable/)).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Accept quote — create the Shippit order in New Orders" })).not.toBeInTheDocument();
+    expect(view.getByRole("link", { name: "Open label PDF" })).toHaveAttribute("href", "https://labels.example.test/return.pdf");
+    expect(view.getByRole("button", { name: "Generate customer email" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Generate insert letter" })).toBeEnabled();
+
+    fireEvent.click(view.getByRole("button", { name: "Print via NY Print Agent" }));
+    await waitFor(() => expect(printShippitReturnLabel).toHaveBeenCalledWith(501));
+    expect(view.getByText("Queued the return label as print job #77 for the NY Print Agent.")).toBeInTheDocument();
+    expect(fetchShippitReturnLabel).not.toHaveBeenCalled();
+    expect(confirmShippitReturnOrder).not.toHaveBeenCalled();
+    expect(acceptShippitReturnQuote).not.toHaveBeenCalled();
+
+    fireEvent.click(view.getByRole("button", { name: "Generate customer email" }));
+    await waitFor(() => expect(fetchReturnDocument).toHaveBeenCalledWith(501, "email"));
+    expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps document and print actions on a booked return and does not offer accept again", async () => {
+    vi.mocked(listReturns).mockResolvedValue([{
+      id: 18,
+      order_id: 134018,
+      status: "in_transit",
+      reason: "Size",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      shippit_tracking_number: "TEST-TRANSIT",
+      shippit_state: "in_transit",
+      shippit_create_state: "booked",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, qty: 1 }],
+    }]);
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#18")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+
+    expect(view.queryByRole("button", { name: "Accept quote — create the Shippit order in New Orders" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Print label" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Print via NY Print Agent" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Generate customer email" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Generate insert letter" })).toBeEnabled();
+    expect(confirmShippitReturnOrder).not.toHaveBeenCalled();
+    expect(fetchShippitReturnLabel).not.toHaveBeenCalled();
+    expect(acceptShippitReturnQuote).not.toHaveBeenCalled();
   });
 
   it("shows Edit only beside View for a Requested case that has no live tracking", async () => {

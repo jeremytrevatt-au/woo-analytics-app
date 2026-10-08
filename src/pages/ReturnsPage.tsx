@@ -38,6 +38,7 @@ import {
   previewReturnCancellation,
   previewReturnParcels,
   previewShippitReturnQuote,
+  printShippitReturnLabel,
   probeShippitReturnsEndpoints,
   sendReturnDocumentEmail,
   ReturnableOrderResponse,
@@ -157,6 +158,76 @@ function returnCaseCanBeEdited(returnCase: ReturnCase): boolean {
   return returnCase.status === "requested" && !liveTrackingNumber(returnCase);
 }
 
+const LABEL_ALREADY_REQUESTED_STATES = new Set([
+  "despatch_in_progress",
+  "ready_for_pickup",
+  "booked_for_delivery",
+  "in_transit",
+  "with_driver",
+  "transit",
+  "completed",
+  "delivered",
+]);
+
+const LABEL_ALREADY_REQUESTED_CREATE_STATES = new Set([
+  "label_printed",
+  "label_requested",
+  "confirmed",
+  "booked",
+]);
+
+function returnLabelUrl(returnCase: ReturnCase): string {
+  return (returnCase.shippit_label_url || returnCase.return_shipment?.label_url || "").trim();
+}
+
+function returnOrderIdForLabel(returnCase: ReturnCase): string {
+  return (
+    returnCase.shippit_return_order_id
+    || returnCase.return_shipment?.return_order_id
+    || returnCase.shippit_tracking_number
+    || returnCase.return_shipment?.tracking_number
+    || ""
+  ).trim();
+}
+
+function returnLabelNotRequested(returnCase: ReturnCase): boolean {
+  if (returnLabelUrl(returnCase)) {
+    return false;
+  }
+  const state = (returnCase.shippit_state || returnCase.return_shipment?.state || "").trim().toLowerCase();
+  if (LABEL_ALREADY_REQUESTED_STATES.has(state)) {
+    return false;
+  }
+  const createState = (returnCase.shippit_create_state || "").trim().toLowerCase();
+  return !LABEL_ALREADY_REQUESTED_CREATE_STATES.has(createState);
+}
+
+function mergeShipmentResponse(returnCase: ReturnCase, response: ShippitReturnOrderResponse): ReturnCase {
+  const nextLabel = (response.return.label_url || "").trim();
+  const labelUrl = nextLabel || returnLabelUrl(returnCase);
+  const state = (response.shippit_state || response.return.state || returnCase.shippit_state || "").trim();
+  const tracking = (response.return.tracking_number || returnCase.shippit_tracking_number || "").trim();
+  const currentCreateState = (returnCase.shippit_create_state || "").trim().toLowerCase();
+  const createState = response.label_ready
+    ? (LABEL_ALREADY_REQUESTED_CREATE_STATES.has(currentCreateState) ? returnCase.shippit_create_state : "label_requested")
+    : returnCase.shippit_create_state;
+  return {
+    ...returnCase,
+    shippit_state: state || returnCase.shippit_state,
+    shippit_tracking_number: tracking || returnCase.shippit_tracking_number,
+    shippit_label_url: labelUrl,
+    shippit_return_order_id: response.return.return_order_id || returnCase.shippit_return_order_id,
+    shippit_create_state: createState,
+    return_shipment: {
+      ...returnCase.return_shipment,
+      return_order_id: response.return.return_order_id || returnCase.return_shipment?.return_order_id,
+      tracking_number: tracking || returnCase.return_shipment?.tracking_number,
+      state: state || returnCase.return_shipment?.state,
+      label_url: labelUrl,
+    },
+  };
+}
+
 function qtyOnOpenCase(returnCase: ReturnCase | null, orderItemId: number): number {
   const line = returnCase?.lines.find(item => item.order_item_id === orderItemId);
   const qty = Number(line?.qty ?? 0);
@@ -208,6 +279,11 @@ function ReturnsPage() {
   const returnFormRef = useRef<HTMLDivElement | null>(null);
   const editingOpenRequestedCase = requestedCaseIsOpenForEditing(activeReturnCase, shippitReturn);
   const caseFieldsLocked = Boolean(activeReturnCase) && !editingOpenRequestedCase;
+
+  const replaceReturnCase = (updated: ReturnCase) => {
+    setReturns(previous => previous.map(item => item.id === updated.id ? updated : item));
+    setActiveReturnCase(current => current && current.id === updated.id ? updated : current);
+  };
 
   const loadReturns = async () => {
     setLoading(true);
@@ -1297,6 +1373,7 @@ function ReturnsPage() {
                       openForEditing={returnCase.id === activeReturnCase?.id && editingOpenRequestedCase}
                       onCancel={() => handlePreviewCancellation(returnCase)}
                       previewingCancellation={previewingCancellation && returnPendingCancellation?.id === returnCase.id}
+                      onReturnUpdated={replaceReturnCase}
                     />
                   </TableCell>
                 </TableRow>
@@ -1344,7 +1421,7 @@ function ReturnDocumentActions({
   const [busyAction, setBusyAction] = useState<"email" | "insert-letter" | "send" | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const documentsReady = returnId > 0 && Boolean(trackingNumber.trim() && labelUrl.trim());
+  const documentsReady = returnId > 0 && Boolean(trackingNumber.trim());
 
   const openDocument = async (kind: "email" | "insert-letter") => {
     setBusyAction(kind);
@@ -1395,7 +1472,11 @@ function ReturnDocumentActions({
       </Typography>
       {!documentsReady ? (
         <Typography variant="body2" color="text.secondary">
-          These documents are available after the return label and tracking number are stored.
+          These documents are available after the return tracking number is stored.
+        </Typography>
+      ) : !labelUrl.trim() ? (
+        <Typography variant="body2" color="text.secondary">
+          The label URL is not stored yet. Generate still creates the document and leaves that token blank.
         </Typography>
       ) : null}
       {notice ? <Alert severity={notice.type}>{notice.text}</Alert> : null}
@@ -1445,16 +1526,174 @@ function ReturnDocumentActions({
   );
 }
 
+function PrintViaNyPrintAgentButton({
+  returnId,
+  labelUrl,
+}: {
+  returnId: number;
+  labelUrl: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const sendToAgent = async () => {
+    if (!labelUrl.trim()) {
+      setNotice({
+        type: "error",
+        text: "The return label URL is not stored yet. Print via NY Print Agent sends that stored PDF and does not request the label or allocate the courier.",
+      });
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    try {
+      const job = await printShippitReturnLabel(returnId);
+      setNotice({
+        type: "success",
+        text: `Queued the return label as print job #${job.id} for the NY Print Agent.`,
+      });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "The return label could not be sent to the NY Print Agent.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Stack spacing={1} alignItems="flex-start">
+      {notice ? <Alert severity={notice.type}>{notice.text}</Alert> : null}
+      <Button size="small" variant="outlined" onClick={() => void sendToAgent()} disabled={busy}>
+        {busy ? "Sending to NY Print Agent..." : "Print via NY Print Agent"}
+      </Button>
+    </Stack>
+  );
+}
+
+function TrackedReturnActions({
+  returnCase,
+  onReturnUpdated,
+}: {
+  returnCase: ReturnCase;
+  onReturnUpdated: (returnCase: ReturnCase) => void;
+}) {
+  const [busyAction, setBusyAction] = useState<"request-label" | "print-label" | null>(null);
+  const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const labelUrl = returnLabelUrl(returnCase);
+  const showRequestLabel = returnLabelNotRequested(returnCase);
+
+  const requestLabel = async () => {
+    setBusyAction("request-label");
+    setNotice(null);
+    try {
+      const response = await confirmShippitReturnOrder({
+        orderId: returnCase.order_id,
+        returnId: returnCase.id,
+        mode: "returns_api",
+      });
+      onReturnUpdated(mergeShipmentResponse(returnCase, response));
+      const stateText = response.shippit_state || response.return.state || "unknown";
+      setNotice({
+        type: "success",
+        text: `Label requested. This allocates the courier. Shippit state: ${stateText}.`,
+      });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to request the return label.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const printLabel = async () => {
+    const returnOrderId = returnOrderIdForLabel(returnCase);
+    if (!returnOrderId) {
+      setNotice({ type: "error", text: "This return does not have a Shippit order id for its label." });
+      return;
+    }
+    setBusyAction("print-label");
+    setNotice(null);
+    try {
+      const response = await fetchShippitReturnLabel(returnCase.order_id, returnOrderId);
+      const updated = mergeShipmentResponse(returnCase, response);
+      onReturnUpdated(updated);
+      const openedUrl = (response.return.label_url || returnLabelUrl(updated)).trim();
+      if (!openedUrl) {
+        setNotice({ type: "error", text: "The label was requested, but Shippit did not return a label URL." });
+        return;
+      }
+      const opened = window.open(openedUrl, "_blank", "noopener,noreferrer");
+      setNotice({
+        type: opened ? "success" : "error",
+        text: opened
+          ? "Opened the return label PDF."
+          : "The label URL was stored, but the browser blocked the new tab.",
+      });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to retrieve the return label.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  return (
+    <Stack spacing={1} alignItems="flex-start" sx={{ mt: 1 }}>
+      {notice ? <Alert severity={notice.type}>{notice.text}</Alert> : null}
+      {showRequestLabel ? (
+        <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2">
+            There is no Book step. Australia Post then shows as Awaiting drop off. A courier collection shows as Return requested.
+          </Typography>
+          <Button
+            size="small"
+            variant="contained"
+            onClick={() => void requestLabel()}
+            disabled={busyAction !== null}
+          >
+            {busyAction === "request-label" ? "Requesting label..." : "Request label — this confirms the return and allocates the courier"}
+          </Button>
+        </Stack>
+      ) : null}
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+        {labelUrl ? (
+          <Button size="small" variant="contained" href={labelUrl} target="_blank" rel="noopener noreferrer">
+            Open label PDF
+          </Button>
+        ) : (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => void printLabel()}
+            disabled={busyAction !== null}
+          >
+            {busyAction === "print-label" ? "Getting label..." : "Print label"}
+          </Button>
+        )}
+      </Stack>
+      <PrintViaNyPrintAgentButton returnId={returnCase.id} labelUrl={labelUrl} />
+    </Stack>
+  );
+}
+
 function ReturnShipmentDetails({
   returnCase,
   openForEditing,
   onCancel,
   previewingCancellation,
+  onReturnUpdated,
 }: {
   returnCase: ReturnCase;
   openForEditing: boolean;
   onCancel: () => void;
   previewingCancellation: boolean;
+  onReturnUpdated: (returnCase: ReturnCase) => void;
 }) {
   const order = returnCase.originating_order;
   const outbound = returnCase.outbound_shipment;
@@ -1477,7 +1716,7 @@ function ReturnShipmentDetails({
       ) : null}
       {reportTrackingOnly ? (
         <Alert severity="warning">
-          Status: Requested. Tracking: {tracking}. Shippit state: {returnCase.shippit_state || shipment.state || "unknown"}. This shipment is already in progress, so it stays view-only.
+          Status: Requested. Tracking: {tracking}. Shippit state: {returnCase.shippit_state || shipment.state || "unknown"}. This order is already in New Orders, so quote and accept stay unavailable.
         </Alert>
       ) : null}
       <Stack direction={{ xs: "column", md: "row" }} spacing={4}>
@@ -1508,7 +1747,11 @@ function ReturnShipmentDetails({
           <Typography variant="body2">
             Quoted cost: {shipment.quoted_cost == null ? "Not recorded" : `${shipment.currency || order?.currency || ""} ${shipment.quoted_cost.toFixed(2)}`}
           </Typography>
-          {shipment.label_url && !reportTrackingOnly ? <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open return label</Button> : null}
+          {tracking ? (
+            <TrackedReturnActions returnCase={returnCase} onReturnUpdated={onReturnUpdated} />
+          ) : shipment.label_url ? (
+            <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open label PDF</Button>
+          ) : null}
           <ReturnDocumentActions
             returnId={returnCase.id}
             trackingNumber={tracking}
@@ -1748,7 +1991,7 @@ function ReturnShipmentSteps({
           <Typography variant="body2">
             Open the PDF to print for the packaging or to attach to the customer email. The link lasts 7 days. Requesting the label again refreshes it.
           </Typography>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             {labelUrl ? (
               <Button size="small" variant="contained" href={labelUrl} target="_blank" rel="noopener noreferrer">
                 Print label
@@ -1772,6 +2015,9 @@ function ReturnShipmentSteps({
               {fetchingLabel ? "Refreshing label..." : "Request label again"}
             </Button>
           </Stack>
+          {returnId > 0 ? (
+            <PrintViaNyPrintAgentButton returnId={returnId} labelUrl={labelUrl} />
+          ) : null}
         </Stack>
       ),
     },
