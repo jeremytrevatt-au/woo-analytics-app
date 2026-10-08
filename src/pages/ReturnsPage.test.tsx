@@ -5,6 +5,7 @@ import {
   cancelReturn,
   confirmShippitReturnOrder,
   createReturn,
+  fetchReturnDocument,
   fetchShippitReturnLabel,
   getReturnableOrderItems,
   getShipmentMode,
@@ -14,6 +15,7 @@ import {
   previewReturnCancellation,
   previewReturnParcels,
   previewShippitReturnQuote,
+  sendReturnDocumentEmail,
 } from "../api/returnsApi";
 import ReturnsPage from "./ReturnsPage";
 
@@ -22,6 +24,7 @@ vi.mock("../api/returnsApi", () => ({
   cancelReturn: vi.fn(),
   confirmShippitReturnOrder: vi.fn(),
   createReturn: vi.fn(),
+  fetchReturnDocument: vi.fn(),
   fetchShippitReturnLabel: vi.fn(),
   getReturnableOrderItems: vi.fn(),
   getShipmentMode: vi.fn(),
@@ -31,6 +34,7 @@ vi.mock("../api/returnsApi", () => ({
   previewReturnParcels: vi.fn(),
   previewShippitReturnQuote: vi.fn(),
   probeShippitReturnsEndpoints: vi.fn(),
+  sendReturnDocumentEmail: vi.fn(),
   updateReturn: vi.fn(),
 }));
 
@@ -266,6 +270,14 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.click(view.getByRole("button", { name: "Request label again" }));
     await waitFor(() => expect(fetchShippitReturnLabel).toHaveBeenCalledTimes(2));
     expect(confirmShippitReturnOrder).toHaveBeenCalledTimes(1);
+    expect(view.getByRole("button", { name: "Generate customer email" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Generate insert letter" })).toBeEnabled();
+    expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole("button", { name: "Send customer email" }));
+    expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole("button", { name: "Send the email" }));
+    await waitFor(() => expect(sendReturnDocumentEmail).toHaveBeenCalledWith(7));
+    expect(fetchReturnDocument).not.toHaveBeenCalled();
   }, 15000);
 
   it("opens a stored standard return with no tracking on the Returns API steps", async () => {

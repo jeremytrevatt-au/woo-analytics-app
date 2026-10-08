@@ -29,6 +29,7 @@ import {
   cancelReturn,
   confirmShippitReturnOrder,
   createReturn,
+  fetchReturnDocument,
   fetchShippitReturnLabel,
   getShipmentMode,
   getShippitReturnOrder,
@@ -38,6 +39,7 @@ import {
   previewReturnParcels,
   previewShippitReturnQuote,
   probeShippitReturnsEndpoints,
+  sendReturnDocumentEmail,
   ReturnableOrderResponse,
   ReturnCase,
   ReturnCancellationPreview,
@@ -1031,6 +1033,8 @@ function ReturnsPage() {
               onConfirmOrder={handleConfirmOrder}
               onPrintLabel={handleFetchLabel}
               onRefreshStatus={handlePollShippitReturn}
+              returnId={activeReturnCase.id}
+              recipientEmail={activeReturnCase.return_sender?.email || ""}
             />
           ) : null}
           <TextField
@@ -1326,6 +1330,121 @@ function ReturnsPage() {
 
 export default ReturnsPage;
 
+function ReturnDocumentActions({
+  returnId,
+  trackingNumber,
+  labelUrl,
+  recipientEmail,
+}: {
+  returnId: number;
+  trackingNumber: string;
+  labelUrl: string;
+  recipientEmail: string;
+}) {
+  const [busyAction, setBusyAction] = useState<"email" | "insert-letter" | "send" | null>(null);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const documentsReady = returnId > 0 && Boolean(trackingNumber.trim() && labelUrl.trim());
+
+  const openDocument = async (kind: "email" | "insert-letter") => {
+    setBusyAction(kind);
+    setNotice(null);
+    try {
+      const blob = await fetchReturnDocument(returnId, kind);
+      const objectUrl = URL.createObjectURL(blob);
+      const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+      setNotice({
+        type: "success",
+        text: opened
+          ? kind === "email"
+            ? "Opened the customer email document. It was not sent."
+            : "Opened the insert letter for the packaging."
+          : "The document was generated, but the browser blocked the new tab.",
+      });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "The document could not be generated.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const sendEmail = async () => {
+    setBusyAction("send");
+    setNotice(null);
+    try {
+      await sendReturnDocumentEmail(returnId);
+      setConfirmSend(false);
+      setNotice({ type: "success", text: `Customer email sent for return #${returnId}.` });
+    } catch (error: unknown) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "The customer email could not be sent.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  return (
+    <Stack spacing={1} sx={{ mt: 1 }}>
+      <Typography variant="body2">
+        Generate customer email creates the WC Integrated Returns Email document and does not send it. Send customer email sends that document only after you confirm. Generate insert letter creates the WC Integrated Returns Insert Letter, the printed note for the packaging.
+      </Typography>
+      {!documentsReady ? (
+        <Typography variant="body2" color="text.secondary">
+          These documents are available after the return label and tracking number are stored.
+        </Typography>
+      ) : null}
+      {notice ? <Alert severity={notice.type}>{notice.text}</Alert> : null}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => void openDocument("email")}
+          disabled={!documentsReady || busyAction !== null}
+        >
+          {busyAction === "email" ? "Generating customer email..." : "Generate customer email"}
+        </Button>
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => setConfirmSend(true)}
+          disabled={!documentsReady || busyAction !== null}
+        >
+          Send customer email
+        </Button>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => void openDocument("insert-letter")}
+          disabled={!documentsReady || busyAction !== null}
+        >
+          {busyAction === "insert-letter" ? "Generating insert letter..." : "Generate insert letter"}
+        </Button>
+      </Stack>
+      <Dialog open={confirmSend} onClose={() => !busyAction && setConfirmSend(false)}>
+        <DialogTitle>Send the customer email?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            This sends the WC Integrated Returns Email
+            {recipientEmail.trim() ? ` to ${recipientEmail.trim()}` : " to the return sender"}
+            {" "}and attaches the return label. Requesting the label does not send this email.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmSend(false)} disabled={busyAction === "send"}>Cancel</Button>
+          <Button variant="contained" onClick={() => void sendEmail()} disabled={busyAction === "send"}>
+            {busyAction === "send" ? "Sending..." : "Send the email"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
+  );
+}
+
 function ReturnShipmentDetails({
   returnCase,
   openForEditing,
@@ -1390,6 +1509,12 @@ function ReturnShipmentDetails({
             Quoted cost: {shipment.quoted_cost == null ? "Not recorded" : `${shipment.currency || order?.currency || ""} ${shipment.quoted_cost.toFixed(2)}`}
           </Typography>
           {shipment.label_url && !reportTrackingOnly ? <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open return label</Button> : null}
+          <ReturnDocumentActions
+            returnId={returnCase.id}
+            trackingNumber={tracking}
+            labelUrl={shipment.label_url || ""}
+            recipientEmail={returnCase.return_sender?.email || ""}
+          />
           {["requested", "approved"].includes(returnCase.status) ? (
             <Button
               size="small"
@@ -1479,6 +1604,8 @@ function ReturnShipmentSteps({
   onConfirmOrder,
   onPrintLabel,
   onRefreshStatus,
+  returnId,
+  recipientEmail,
 }: {
   workflowStage: ReturnWorkflowStage;
   shippitState: string;
@@ -1498,6 +1625,8 @@ function ReturnShipmentSteps({
   onConfirmOrder: () => void;
   onPrintLabel: () => void;
   onRefreshStatus: () => void;
+  returnId: number;
+  recipientEmail: string;
 }) {
   const orderExists = Boolean(shippitReturn?.return.return_order_id || shippitReturn?.return.tracking_number);
   const quoteRows = quotePreview ? extractQuoteRows(quotePreview) : [];
@@ -1664,6 +1793,12 @@ function ReturnShipmentSteps({
           <Typography variant="body2">
             No Shippit portal step is required after these buttons succeed.
           </Typography>
+          <ReturnDocumentActions
+            returnId={returnId}
+            trackingNumber={shippitReturn?.return.tracking_number || ""}
+            labelUrl={labelUrl}
+            recipientEmail={recipientEmail}
+          />
         </Stack>
       ),
     },

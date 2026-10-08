@@ -112,6 +112,84 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   return parsedBody as T;
 }
 
+export async function fetchBinary(path: string, init?: RequestInit): Promise<Blob> {
+  const baseUrl = requireApiBaseUrl();
+  const url = `${baseUrl}${path}`;
+  const headers = new Headers(init?.headers);
+  const finalInit = {
+    ...init,
+    headers,
+    cache: "no-store" as RequestCache,
+    credentials: init?.credentials ?? "include",
+  };
+  const method = finalInit.method ?? "GET";
+  const startedAt = performance.now();
+  const timestamp = new Date().toISOString();
+  const isReturnRequest = path.startsWith("/api/v1/returns") || path.startsWith("/api/v1/shippit/returns");
+  const debugRequestBody = isReturnRequest
+    ? redactReturnContactPayload(init?.body)
+    : init?.body ? String(init.body) : undefined;
+
+  let response: Response;
+  try {
+    response = await fetch(url, finalInit);
+  } catch (error) {
+    const event: ApiDebugEvent = {
+      id: crypto.randomUUID(),
+      timestamp,
+      method,
+      url,
+      requestBody: debugRequestBody,
+      durationMs: Math.round(performance.now() - startedAt),
+      error: error instanceof Error ? error.message : String(error),
+    };
+    pushApiDebugEvent(event);
+    mirrorDebugEvent(baseUrl, path, event);
+    throw error;
+  }
+
+  const buffer = await response.arrayBuffer();
+  const contentType = response.headers.get("content-type") || "";
+  let errorBody: unknown = null;
+  let errorText = "";
+  if (!response.ok) {
+    errorText = new TextDecoder().decode(buffer);
+    try {
+      errorBody = errorText ? JSON.parse(errorText) : null;
+    } catch {
+      errorBody = errorText;
+    }
+  }
+  const responseBody = response.ok
+    ? { byte_length: buffer.byteLength, content_type: contentType }
+    : isReturnRequest
+      ? redactReturnContactPayload(errorBody)
+      : errorBody;
+  const event: ApiDebugEvent = {
+    id: crypto.randomUUID(),
+    timestamp,
+    method,
+    url,
+    requestBody: debugRequestBody,
+    statusCode: response.status,
+    durationMs: Math.round(performance.now() - startedAt),
+    responseBody,
+    outcome: expectedApiOutcome(path, response.status),
+  };
+  pushApiDebugEvent(event);
+  mirrorDebugEvent(baseUrl, path, event);
+
+  if (!response.ok) {
+    throw new ApiRequestError(
+      buildErrorMessage(response.status, url, errorBody, errorText),
+      response.status,
+      url,
+      responseBody,
+    );
+  }
+  return new Blob([buffer], { type: contentType || "application/octet-stream" });
+}
+
 export function expectedApiOutcome(
   path: string,
   status: number,

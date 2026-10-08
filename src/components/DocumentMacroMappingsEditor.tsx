@@ -88,15 +88,56 @@ const OPTIONAL_PURCHASE_ORDER_SOURCES = new Set<DocumentMacroSource>([
   "po_supplier_firstname",
 ]);
 
+export const PRODUCT_RETURN_EMAIL_TEMPLATE_NAME = "WC Integrated Returns Email";
+export const PRODUCT_RETURN_INSERT_TEMPLATE_NAME = "WC Integrated Returns Insert Letter";
+
+export const PRODUCT_RETURN_MACRO_SOURCES: Array<{
+  value: DocumentMacroSource;
+  label: string;
+}> = [
+  { value: "customer_first_name", label: "Customer first name" },
+  { value: "order_number", label: "Order number" },
+  { value: "return_case_number", label: "Return case number" },
+  { value: "tracking_number", label: "Tracking number" },
+  { value: "tracking_url", label: "Tracking URL" },
+  { value: "carrier_name", label: "Carrier name" },
+  { value: "return_instruction", label: "Return instruction" },
+  { value: "product_name", label: "Product name" },
+  { value: "product_sku", label: "Product SKU" },
+  { value: "quantity", label: "Quantity" },
+  { value: "label_url", label: "Label URL" },
+];
+
+export const DEFAULT_PRODUCT_RETURN_MACRO_MAPPINGS: DocumentMacroMapping[] = [
+  { token: "{customer_first_name}", source_key: "customer_first_name", is_required: true },
+  { token: "{order_number}", source_key: "order_number", is_required: true },
+  { token: "{return_case_number}", source_key: "return_case_number", is_required: true },
+  { token: "{tracking_number}", source_key: "tracking_number", is_required: true },
+  { token: "{tracking_url}", source_key: "tracking_url", is_required: true },
+  { token: "{carrier_name}", source_key: "carrier_name", is_required: true },
+  { token: "{return_instruction}", source_key: "return_instruction", is_required: true },
+  { token: "{product_name}", source_key: "product_name", is_required: true },
+  { token: "{product_sku}", source_key: "product_sku", is_required: true },
+  { token: "{quantity}", source_key: "quantity", is_required: true },
+];
+
+export function defaultProductReturnMappings(templateName: string): DocumentMacroMapping[] {
+  const mappings = DEFAULT_PRODUCT_RETURN_MACRO_MAPPINGS.map((mapping) => ({ ...mapping }));
+  if (templateName.trim() === PRODUCT_RETURN_EMAIL_TEMPLATE_NAME) {
+    mappings.push({ token: "{label_url}", source_key: "label_url", is_required: false });
+  }
+  return mappings;
+}
+
 export function documentMacroSourcesForTrigger(triggerType: string) {
-  return triggerType === "purchase_order"
-    ? PURCHASE_ORDER_MACRO_SOURCES
-    : DOCUMENT_MACRO_SOURCES;
+  if (triggerType === "purchase_order") return PURCHASE_ORDER_MACRO_SOURCES;
+  if (triggerType === "product_return") return PRODUCT_RETURN_MACRO_SOURCES;
+  return DOCUMENT_MACRO_SOURCES;
 }
 
 export function documentMacroSourceLabel(sourceKey: string): string {
   return (
-    [...DOCUMENT_MACRO_SOURCES, ...PURCHASE_ORDER_MACRO_SOURCES]
+    [...DOCUMENT_MACRO_SOURCES, ...PURCHASE_ORDER_MACRO_SOURCES, ...PRODUCT_RETURN_MACRO_SOURCES]
       .find((source) => source.value === sourceKey)?.label
     || sourceKey
   );

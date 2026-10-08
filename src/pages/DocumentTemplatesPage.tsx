@@ -33,6 +33,8 @@ import type { DocumentMacroMapping } from "../api/documentTemplatesApi";
 import DocumentMacroMappingsEditor, {
   DEFAULT_DOCUMENT_MACRO_MAPPING,
   DEFAULT_PURCHASE_ORDER_MACRO_MAPPINGS,
+  PRODUCT_RETURN_EMAIL_TEMPLATE_NAME,
+  defaultProductReturnMappings,
   documentMacroSourceLabel,
   documentMacroSourcesForTrigger,
 } from "../components/DocumentMacroMappingsEditor";
@@ -44,9 +46,11 @@ const TRIGGER_OPTIONS = [
   { value: "product_category", label: "Product Category" },
   { value: "order_tag", label: "Order Tag" },
   { value: "purchase_order", label: "Purchase Order" },
+  { value: "product_return", label: "Product Return" },
 ];
 
 const PURCHASE_ORDER_MACRO_HELP = "Map every purchase-order field, including {po_number}. Put line tokens in one table row. PDF export requires each mapped token to appear in the Google Doc. Blank Supplier SKU and Supplier price values stay in that row.";
+const PRODUCT_RETURN_MACRO_HELP = "Product Return tokens use {token_name}. Put {product_name}, {product_sku}, and {quantity} in one table row. {label_url} belongs on the returns email template. Edit Mappings saves the token each Google Doc uses and the return field it reads.";
 
 function DocumentTemplatesPage() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
@@ -163,7 +167,7 @@ function DocumentTemplatesPage() {
         Document Templates
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Configure Google Drive documents for packing prints and purchase order PDFs. A Purchase Order template uses one repeating product-line row.
+        Configure Google Drive documents for packing prints, purchase order PDFs, and product return emails and insert letters. Purchase Order and Product Return templates each use one repeating product-line row. Edit Mappings chooses the token and the field it reads.
       </Typography>
 
       {message ? (
@@ -178,7 +182,20 @@ function DocumentTemplatesPage() {
         </Typography>
         <Stack spacing={2}>
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} sx={{ minWidth: 260 }} />
+            <TextField
+              label="Name"
+              value={name}
+              onChange={(event) => {
+                const nextName = event.target.value;
+                const wasEmail = name.trim() === PRODUCT_RETURN_EMAIL_TEMPLATE_NAME;
+                const isEmail = nextName.trim() === PRODUCT_RETURN_EMAIL_TEMPLATE_NAME;
+                setName(nextName);
+                if (triggerType === "product_return" && wasEmail !== isEmail) {
+                  setMacroMappings(defaultProductReturnMappings(nextName));
+                }
+              }}
+              sx={{ minWidth: 260 }}
+            />
             <FormControl sx={{ minWidth: 220 }}>
               <InputLabel>Trigger Type</InputLabel>
               <Select
@@ -192,6 +209,9 @@ function DocumentTemplatesPage() {
                   }
                   if (nextTriggerType === "purchase_order") {
                     setMacroMappings(DEFAULT_PURCHASE_ORDER_MACRO_MAPPINGS.map((mapping) => ({ ...mapping })));
+                  }
+                  if (nextTriggerType === "product_return") {
+                    setMacroMappings(defaultProductReturnMappings(name));
                   }
                 }}
               >
@@ -221,7 +241,13 @@ function DocumentTemplatesPage() {
             value={macroMappings}
             onChange={setMacroMappings}
             sources={documentMacroSourcesForTrigger(triggerType)}
-            helperText={triggerType === "purchase_order" ? PURCHASE_ORDER_MACRO_HELP : undefined}
+            helperText={
+              triggerType === "purchase_order"
+                ? PURCHASE_ORDER_MACRO_HELP
+                : triggerType === "product_return"
+                  ? PRODUCT_RETURN_MACRO_HELP
+                  : undefined
+            }
             disabled={saving}
           />
           <Stack direction="row" spacing={2} alignItems="center">
@@ -341,7 +367,13 @@ function DocumentTemplatesPage() {
             value={editingMappings}
             onChange={setEditingMappings}
             sources={documentMacroSourcesForTrigger(editingTemplate?.trigger_type || "manual")}
-            helperText={editingTemplate?.trigger_type === "purchase_order" ? PURCHASE_ORDER_MACRO_HELP : undefined}
+            helperText={
+              editingTemplate?.trigger_type === "purchase_order"
+                ? PURCHASE_ORDER_MACRO_HELP
+                : editingTemplate?.trigger_type === "product_return"
+                  ? PRODUCT_RETURN_MACRO_HELP
+                  : undefined
+            }
             disabled={saving}
           />
         </DialogContent>

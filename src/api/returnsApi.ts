@@ -1,4 +1,4 @@
-import { fetchJson } from "./httpClient";
+import { fetchBinary, fetchJson } from "./httpClient";
 
 export type ReturnStatus = "requested" | "approved" | "in_transit" | "received" | "closed" | "cancelled";
 
@@ -364,6 +364,23 @@ export async function confirmShippitReturnOrder(payload: {
 
 export async function getShippitReturnOrder(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${orderId}/${encodeURIComponent(returnOrderId)}`);
+}
+
+export async function fetchReturnDocument(returnId: number, kind: "email" | "insert-letter"): Promise<Blob> {
+  return fetchBinary(`/api/v1/returns/${returnId}/documents/${kind}`);
+}
+
+export async function sendReturnDocumentEmail(returnId: number): Promise<{
+  return_id: number;
+  order_id: number;
+  template_name: string;
+  action: string;
+  sent: boolean;
+}> {
+  return fetchJson(`/api/v1/returns/${returnId}/documents/email/send`, {
+    method: "POST",
+    body: JSON.stringify({ confirm_send: true }),
+  });
 }
 
 export async function fetchShippitReturnLabel(orderId: number, returnOrderId: string): Promise<ShippitReturnOrderResponse> {
