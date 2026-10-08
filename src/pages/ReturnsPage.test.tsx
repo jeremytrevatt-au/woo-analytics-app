@@ -12,6 +12,7 @@ import {
   getShipmentMode,
   getShippitReturnOrder,
   listReturns,
+  updateReturn,
   previewReturnCancellation,
   previewReturnParcels,
   previewShippitReturnQuote,
@@ -191,7 +192,7 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.change(view.getByLabelText(/Suburb/), { target: { value: "Googong" } });
     fireEvent.change(view.getByLabelText(/Postcode/), { target: { value: "2620" } });
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
-    await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
+    await waitFor(() => expect(view.getByRole("heading", { name: "Return Case #7" })).toBeInTheDocument());
     const parcelWeight = await view.findByDisplayValue("0.53");
     fireEvent.change(parcelWeight, { target: { value: "0.6" } });
     expect(view.getByText(/Source: manual adjustment/)).toBeInTheDocument();
@@ -410,7 +411,7 @@ describe("ReturnsPage Shippit workflow", () => {
     await waitFor(() => expect(view.getByText("Test Product")).toBeInTheDocument());
     fireEvent.change(view.getAllByRole("spinbutton")[1], { target: { value: "1" } });
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
-    await waitFor(() => expect(view.getByRole("button", { name: "Return Case #7 Saved" })).toBeDisabled());
+    await waitFor(() => expect(view.getByRole("heading", { name: "Return Case #7" })).toBeInTheDocument());
     await view.findByDisplayValue("0.53");
     await waitFor(() => expect(view.getByRole("radio", { name: "Standard pickup" })).toBeChecked());
 
@@ -524,6 +525,7 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.getByText("RETURN-TRACKING")).toBeInTheDocument();
     expect(view.getByText("Quoted cost: AUD 12.34")).toBeInTheDocument();
     expect(view.getByText(/0.325 × 0.205 × 0.03 m, 0.5 kg, satchel/)).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
   });
 
   it("confirms carrier cancellation and leaves stock unchanged without a recorded deduction", async () => {
@@ -588,5 +590,140 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(vi.mocked(cancelReturn).mock.calls[0][0].operationId)
       .toBe(vi.mocked(cancelReturn).mock.calls[1][0].operationId);
     await waitFor(() => expect(view.getByText(/No recorded inventory deduction required reversal/)).toBeInTheDocument());
+  });
+
+  it("opens a Requested case for the same edit, quote, and book actions as a new case", async () => {
+    const requestedCase = {
+      id: 112,
+      order_id: 134254,
+      status: "requested" as const,
+      reason: "Size",
+      resolution: "Replace",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "Keep",
+      shippit_tracking_number: "",
+      shippit_state: "",
+      shippit_create_state: "not_created",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, product_id: 21, sku: "SKU-1", product_name: "Test Product", qty: 2 }],
+    };
+    vi.mocked(listReturns).mockResolvedValue([requestedCase]);
+    vi.mocked(getReturnableOrderItems).mockResolvedValue({
+      order: {
+        id: 134254,
+        number: "134254",
+        status: "completed",
+        currency: "AUD",
+        date_created: null,
+        customer: { email: "customer@example.test", first_name: "Test", last_name: "Customer" },
+        shipping_address: {
+          first_name: "Test",
+          last_name: "Customer",
+          company: "",
+          address_1: "1 Example Street",
+          address_2: "",
+          suburb: "Sydney",
+          state: "NSW",
+          postcode: "2000",
+          country: "AU",
+          phone: "0400000000",
+        },
+      },
+      items: [{
+        order_item_id: 11,
+        product_id: 21,
+        variation_id: 0,
+        sku: "SKU-1",
+        product_name: "Test Product",
+        ordered_qty: 2,
+        refunded_qty: 0,
+        existing_return_qty: 2,
+        returnable_qty: 0,
+        unit_price: 10,
+        weight_g: 500,
+        length_cm: 10,
+        width_cm: 10,
+        height_cm: 10,
+      }],
+    });
+    vi.mocked(previewReturnParcels).mockResolvedValue({
+      order_id: 134254,
+      return_id: 112,
+      parcels: [{ qty: 1, weight_kg: 0.5, length_cm: 10, width_cm: 10, height_cm: 10 }],
+      decisions: [],
+      parcel_source: "ny_recommendation",
+    });
+    vi.mocked(getShipmentMode).mockResolvedValue({
+      order_id: 134254,
+      return_id: 112,
+      mode: "",
+      mode_locked: false,
+      workflow_stage: "not_quoted",
+      label_ready: false,
+      price: null,
+    });
+    vi.mocked(updateReturn).mockImplementation(async (_returnId, payload) => ({
+      ...requestedCase,
+      reason: payload.reason || requestedCase.reason,
+      lines: payload.lines || requestedCase.lines,
+    }));
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#112")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+
+    await waitFor(() => expect(view.getByRole("heading", { name: "Return Case #112" })).toBeInTheDocument());
+    expect(view.getByText("Status is Requested. Edit the return lines and case fields, save them, then quote and book this case.")).toBeInTheDocument();
+    expect(view.getByDisplayValue("2")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Get a quote — prices only" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Create Shippit order — New Orders" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Print label — move to Ready to Ship" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).toBeDisabled();
+    expect(view.getByRole("radio", { name: "Returns API" })).toBeEnabled();
+    expect(view.getByRole("radio", { name: "Standard pickup" })).toBeChecked();
+
+    fireEvent.change(view.getByLabelText("Reason"), { target: { value: "Damaged" } });
+    fireEvent.change(view.getByDisplayValue("2"), { target: { value: "1" } });
+    fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
+
+    await waitFor(() => expect(updateReturn).toHaveBeenCalledWith(112, expect.objectContaining({
+      reason: "Damaged",
+      lines: [expect.objectContaining({ order_item_id: 11, qty: 1 })],
+    })));
+    expect(createReturn).not.toHaveBeenCalled();
+    expect(createShippitReturnOrder).not.toHaveBeenCalled();
+  });
+
+  it("does not offer a second shipment when a Requested case already has live tracking", async () => {
+    vi.mocked(listReturns).mockResolvedValue([{
+      id: 112,
+      order_id: 134254,
+      status: "requested",
+      reason: "Size",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      shippit_tracking_number: "PP-ALREADY-LIVE",
+      shippit_state: "order_placed",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, qty: 1 }],
+    }]);
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#112")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+
+    expect(view.getByText(/Status: Requested. Tracking: PP-ALREADY-LIVE/)).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Create Shippit order — New Orders" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Print label — move to Ready to Ship" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
+    expect(createReturn).not.toHaveBeenCalled();
+    expect(createShippitReturnOrder).not.toHaveBeenCalled();
+    expect(updateReturn).not.toHaveBeenCalled();
   });
 });

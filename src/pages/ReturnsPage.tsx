@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -92,6 +92,36 @@ const emptyReturnSender: ReturnSender = {
   instructions: "",
 };
 
+function liveTrackingNumber(returnCase: ReturnCase): string {
+  const tracking = (returnCase.shippit_tracking_number || returnCase.return_shipment?.tracking_number || "").trim();
+  if (!tracking) {
+    return "";
+  }
+  const state = (returnCase.shippit_state || returnCase.return_shipment?.state || "").trim().toLowerCase();
+  if (state === "cancelled" || returnCase.status === "cancelled") {
+    return "";
+  }
+  return tracking;
+}
+
+function shipmentAlreadyStarted(returnCase: ReturnCase | null, shippitReturn: ShippitReturnOrderResponse | null): boolean {
+  const responseTracking = (shippitReturn?.return.tracking_number || shippitReturn?.return.return_order_id || "").trim();
+  if (responseTracking) {
+    return true;
+  }
+  return Boolean(returnCase && liveTrackingNumber(returnCase));
+}
+
+function requestedCaseIsOpenForEditing(returnCase: ReturnCase | null, shippitReturn: ShippitReturnOrderResponse | null): boolean {
+  return Boolean(returnCase && returnCase.status === "requested" && !shipmentAlreadyStarted(returnCase, shippitReturn));
+}
+
+function qtyOnOpenCase(returnCase: ReturnCase | null, orderItemId: number): number {
+  const line = returnCase?.lines.find(item => item.order_item_id === orderItemId);
+  const qty = Number(line?.qty ?? 0);
+  return Number.isFinite(qty) && qty > 0 ? qty : 0;
+}
+
 function ReturnsPage() {
   const [returns, setReturns] = useState<ReturnCase[]>([]);
   const [statusFilter, setStatusFilter] = useState<ReturnStatus | "all">("all");
@@ -136,6 +166,9 @@ function ReturnsPage() {
   const [previewingCancellation, setPreviewingCancellation] = useState(false);
   const [cancellingReturn, setCancellingReturn] = useState(false);
   const [cancelOperationId, setCancelOperationId] = useState<string | null>(null);
+  const returnFormRef = useRef<HTMLDivElement | null>(null);
+  const editingOpenRequestedCase = requestedCaseIsOpenForEditing(activeReturnCase, shippitReturn);
+  const caseFieldsLocked = Boolean(activeReturnCase) && !editingOpenRequestedCase;
 
   const loadReturns = async () => {
     setLoading(true);
@@ -185,10 +218,37 @@ function ReturnsPage() {
     };
   }, [activeReturnCase?.id, activeReturnCase?.order_id]);
 
+  const invalidateOpenQuote = () => {
+    setQuotePreview(null);
+    setSelectedQuote(null);
+    setWorkflowStage(current => current === "quoted" ? "not_quoted" : current);
+  };
+
+  const refreshParcelRecommendation = async (returnId: number, numericOrderId: number) => {
+    setLoadingParcelPreview(true);
+    try {
+      const preview = await previewReturnParcels({ orderId: numericOrderId, returnId });
+      setRecommendedReturnParcels(preview.parcels);
+      setReturnParcels(preview.parcels);
+      setParcelSource("ny_recommendation");
+      return preview.parcels.length;
+    } catch (error) {
+      setRecommendedReturnParcels([]);
+      setReturnParcels([]);
+      throw error;
+    } finally {
+      setLoadingParcelPreview(false);
+    }
+  };
+
   const handleCreate = async () => {
     const numericOrderId = Number(orderId);
     if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
       setMessage({ type: "error", text: "Enter a valid WooCommerce order ID." });
+      return;
+    }
+    if (caseFieldsLocked) {
+      setMessage({ type: "error", text: "This return already has a Shippit shipment, so it cannot be edited or created again." });
       return;
     }
 
@@ -226,36 +286,105 @@ function ReturnsPage() {
         }
       }
 
-      const created = await createReturn({
-        order_id: numericOrderId,
+      const payload = {
         reason,
         resolution,
         refund_expected: refundExpected,
         notes,
         return_sender: useReturnSenderOverride ? returnSender : undefined,
         lines: selectedLines,
-      });
-      setActiveReturnCase(created);
-      setLoadingParcelPreview(true);
+      };
+      const saved = editingOpenRequestedCase && activeReturnCase
+        ? await updateReturn(activeReturnCase.id, payload)
+        : await createReturn({ order_id: numericOrderId, ...payload });
+      setActiveReturnCase(saved);
+      invalidateOpenQuote();
       let completionMessage: { type: "success" | "error"; text: string };
       try {
-        const preview = await previewReturnParcels({ orderId: numericOrderId, returnId: created.id });
-        setRecommendedReturnParcels(preview.parcels);
-        setReturnParcels(preview.parcels);
-        setParcelSource("ny_recommendation");
-        completionMessage = { type: "success", text: `Return case #${created.id} saved with ${preview.parcels.length} NY Shipping recommended parcel${preview.parcels.length === 1 ? "" : "s"}.` };
+        const parcelCount = await refreshParcelRecommendation(saved.id, numericOrderId);
+        completionMessage = {
+          type: "success",
+          text: `Return case #${saved.id} saved with ${parcelCount} NY Shipping recommended parcel${parcelCount === 1 ? "" : "s"}.`,
+        };
       } catch (error: any) {
-        setRecommendedReturnParcels([]);
-        setReturnParcels([]);
-        completionMessage = { type: "error", text: `Return case #${created.id} was saved, but its NY Shipping parcel recommendation failed: ${error.message || "unknown error"}` };
+        completionMessage = { type: "error", text: `Return case #${saved.id} was saved, but its NY Shipping parcel recommendation failed: ${error.message || "unknown error"}` };
       }
       await loadReturns();
       setMessage(completionMessage);
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "Failed to create return case." });
+      setMessage({ type: "error", text: error.message || "Failed to save return case." });
     } finally {
-      setLoadingParcelPreview(false);
       setSaving(false);
+    }
+  };
+
+  const loadRequestedCaseForEditing = async (returnCase: ReturnCase) => {
+    setOrderId(String(returnCase.order_id));
+    setReason(returnCase.reason || "");
+    setResolution(returnCase.resolution || "");
+    setRefundExpected(Boolean(returnCase.refund_expected));
+    setNotes(returnCase.notes || "");
+    setActiveReturnCase(returnCase);
+    setShippitReturn(null);
+    setQuotePreview(null);
+    setSelectedQuote(null);
+    setWorkflowStage("not_quoted");
+    setLabelReady(false);
+    setReturnParcels([]);
+    setRecommendedReturnParcels([]);
+    setParcelSource("ny_recommendation");
+    setLoadingReturnableItems(true);
+    setMessage(null);
+    try {
+      const response = await getReturnableOrderItems(returnCase.order_id);
+      setReturnableOrder(response);
+      const initialQty: Record<number, string> = {};
+      response.items.forEach(item => {
+        const ownQty = qtyOnOpenCase(returnCase, item.order_item_id);
+        initialQty[item.order_item_id] = ownQty > 0 ? String(ownQty) : "";
+      });
+      setReturnLineQty(initialQty);
+      if (returnCase.return_sender) {
+        setUseReturnSenderOverride(true);
+        setReturnSender({ ...emptyReturnSender, ...returnCase.return_sender });
+      } else {
+        const shipping = response.order.shipping_address;
+        setUseReturnSenderOverride(false);
+        setReturnSender({
+          name: `${shipping.first_name || ""} ${shipping.last_name || ""}`.trim(),
+          company_name: shipping.company || "",
+          address_line_1: shipping.address_1 || "",
+          address_line_2: shipping.address_2 || "",
+          suburb: shipping.suburb || "",
+          state: shipping.state || "",
+          postcode: shipping.postcode || "",
+          country_code: shipping.country || "AU",
+          phone: shipping.phone || "",
+          email: response.order.customer.email || "",
+          instructions: "",
+        });
+      }
+      let parcelNote = "";
+      try {
+        const parcelCount = await refreshParcelRecommendation(returnCase.id, returnCase.order_id);
+        parcelNote = ` ${parcelCount} recommended parcel${parcelCount === 1 ? "" : "s"} loaded.`;
+      } catch (error: any) {
+        parcelNote = ` Parcel recommendation failed: ${error.message || "unknown error"}.`;
+      }
+      setMessage({
+        type: parcelNote.includes("failed") ? "error" : "success",
+        text: `Return case #${returnCase.id} is Requested and can be edited, quoted, and booked.${parcelNote}`,
+      });
+      const form = returnFormRef.current;
+      if (form && typeof form.scrollIntoView === "function") {
+        form.scrollIntoView({ block: "start" });
+      }
+    } catch (error: any) {
+      setReturnableOrder(null);
+      setReturnLineQty({});
+      setMessage({ type: "error", text: error.message || "Failed to open the requested return case." });
+    } finally {
+      setLoadingReturnableItems(false);
     }
   };
 
@@ -335,9 +464,11 @@ function ReturnsPage() {
 
     const allQty: Record<number, string> = {};
     returnableOrder.items.forEach(item => {
-      allQty[item.order_item_id] = String(Math.floor(item.returnable_qty));
+      const ownQty = editingOpenRequestedCase ? qtyOnOpenCase(activeReturnCase, item.order_item_id) : 0;
+      allQty[item.order_item_id] = String(Math.floor(item.returnable_qty + ownQty));
     });
     setReturnLineQty(allQty);
+    invalidateOpenQuote();
   };
 
   const handleClearReturnQty = () => {
@@ -350,10 +481,12 @@ function ReturnsPage() {
       emptyQty[item.order_item_id] = "";
     });
     setReturnLineQty(emptyQty);
+    invalidateOpenQuote();
   };
 
   const updateReturnSender = (field: keyof ReturnSender, value: string) => {
     setReturnSender(current => ({ ...current, [field]: value }));
+    invalidateOpenQuote();
   };
 
   const updateReturnParcel = (index: number, field: keyof ReturnParcel, value: string) => {
@@ -747,10 +880,15 @@ function ReturnsPage() {
         </Alert>
       ) : null}
 
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper ref={returnFormRef} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Create Return Case
+          {activeReturnCase ? `Return Case #${activeReturnCase.id}` : "Create Return Case"}
         </Typography>
+        {editingOpenRequestedCase ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Status is Requested. Edit the return lines and case fields, save them, then quote and book this case.
+          </Alert>
+        ) : null}
         <Stack spacing={2}>
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <TextField
@@ -773,18 +911,27 @@ function ReturnsPage() {
               }}
               type="number"
               inputProps={{ min: 1 }}
+              disabled={Boolean(activeReturnCase)}
               sx={{ minWidth: 220 }}
             />
             <TextField
               label="Reason"
               value={reason}
-              onChange={(event) => setReason(event.target.value)}
+              onChange={(event) => {
+                setReason(event.target.value);
+                invalidateOpenQuote();
+              }}
+              disabled={caseFieldsLocked}
               sx={{ minWidth: 260 }}
             />
             <TextField
               label="Resolution"
               value={resolution}
-              onChange={(event) => setResolution(event.target.value)}
+              onChange={(event) => {
+                setResolution(event.target.value);
+                invalidateOpenQuote();
+              }}
+              disabled={caseFieldsLocked}
               sx={{ minWidth: 260 }}
             />
           </Stack>
@@ -792,10 +939,10 @@ function ReturnsPage() {
             <Button variant="outlined" onClick={handleLoadReturnableItems} disabled={loadingReturnableItems || saving}>
               {loadingReturnableItems ? "Loading Items..." : "Load Returnable Items"}
             </Button>
-            <Button variant="outlined" onClick={handleSelectAllReturnableQty} disabled={!returnableOrder || saving || Boolean(activeReturnCase)}>
+            <Button variant="outlined" onClick={handleSelectAllReturnableQty} disabled={!returnableOrder || saving || caseFieldsLocked}>
               Select All Returnable Qty
             </Button>
-            <Button variant="outlined" onClick={handleClearReturnQty} disabled={!returnableOrder || saving || Boolean(activeReturnCase)}>
+            <Button variant="outlined" onClick={handleClearReturnQty} disabled={!returnableOrder || saving || caseFieldsLocked}>
               Clear Qty
             </Button>
             {returnableOrder ? (
@@ -818,21 +965,28 @@ function ReturnsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {returnableOrder.items.map(item => (
+                {returnableOrder.items.map(item => {
+                  const ownQty = editingOpenRequestedCase ? qtyOnOpenCase(activeReturnCase, item.order_item_id) : 0;
+                  const returnableQty = item.returnable_qty + ownQty;
+                  const alreadyQty = Math.max(0, item.existing_return_qty - ownQty);
+                  return (
                   <TableRow key={item.order_item_id}>
                     <TableCell>{item.product_name}</TableCell>
                     <TableCell>{item.sku || "-"}</TableCell>
                     <TableCell align="right">{item.ordered_qty}</TableCell>
-                    <TableCell align="right">{item.existing_return_qty + item.refunded_qty}</TableCell>
-                    <TableCell align="right">{item.returnable_qty}</TableCell>
+                    <TableCell align="right">{alreadyQty + item.refunded_qty}</TableCell>
+                    <TableCell align="right">{returnableQty}</TableCell>
                     <TableCell align="right">
                       <TextField
                         size="small"
                         type="number"
                         value={returnLineQty[item.order_item_id] ?? ""}
-                        onChange={(event) => setReturnLineQty(prev => ({ ...prev, [item.order_item_id]: event.target.value }))}
-                        disabled={Boolean(activeReturnCase)}
-                        inputProps={{ min: 0, max: item.returnable_qty, step: 1 }}
+                        onChange={(event) => {
+                          setReturnLineQty(prev => ({ ...prev, [item.order_item_id]: event.target.value }));
+                          invalidateOpenQuote();
+                        }}
+                        disabled={caseFieldsLocked}
+                        inputProps={{ min: 0, max: returnableQty, step: 1 }}
                         sx={{ width: 110 }}
                       />
                     </TableCell>
@@ -840,7 +994,8 @@ function ReturnsPage() {
                       {item.weight_g}g, {item.length_cm} x {item.width_cm} x {item.height_cm}cm
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           ) : null}
@@ -852,7 +1007,7 @@ function ReturnsPage() {
                   <Checkbox
                     checked={useReturnSenderOverride}
                     onChange={(event) => setUseReturnSenderOverride(event.target.checked)}
-                    disabled={Boolean(activeReturnCase)}
+                    disabled={caseFieldsLocked}
                   />
                 )}
                 label="Use a different return sender address"
@@ -866,22 +1021,22 @@ function ReturnsPage() {
                     Quotes and the final Shippit return will use this sender snapshot instead of the order address.
                   </Alert>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField label="Return Sender Name" value={returnSender.name} onChange={(event) => updateReturnSender("name", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
-                    <TextField label="Company" value={returnSender.company_name || ""} onChange={(event) => updateReturnSender("company_name", event.target.value)} disabled={Boolean(activeReturnCase)} fullWidth />
-                    <TextField label="Phone" value={returnSender.phone || ""} onChange={(event) => updateReturnSender("phone", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
-                    <TextField label="Email" value={returnSender.email || ""} onChange={(event) => updateReturnSender("email", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
+                    <TextField label="Return Sender Name" value={returnSender.name} onChange={(event) => updateReturnSender("name", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="Company" value={returnSender.company_name || ""} onChange={(event) => updateReturnSender("company_name", event.target.value)} disabled={caseFieldsLocked} fullWidth />
+                    <TextField label="Phone" value={returnSender.phone || ""} onChange={(event) => updateReturnSender("phone", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="Email" value={returnSender.email || ""} onChange={(event) => updateReturnSender("email", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField label="Address Line 1" value={returnSender.address_line_1} onChange={(event) => updateReturnSender("address_line_1", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
-                    <TextField label="Address Line 2" value={returnSender.address_line_2 || ""} onChange={(event) => updateReturnSender("address_line_2", event.target.value)} disabled={Boolean(activeReturnCase)} fullWidth />
+                    <TextField label="Address Line 1" value={returnSender.address_line_1} onChange={(event) => updateReturnSender("address_line_1", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="Address Line 2" value={returnSender.address_line_2 || ""} onChange={(event) => updateReturnSender("address_line_2", event.target.value)} disabled={caseFieldsLocked} fullWidth />
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField label="Suburb" value={returnSender.suburb} onChange={(event) => updateReturnSender("suburb", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
-                    <TextField label="State" value={returnSender.state} onChange={(event) => updateReturnSender("state", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
-                    <TextField label="Postcode" value={returnSender.postcode} onChange={(event) => updateReturnSender("postcode", event.target.value)} disabled={Boolean(activeReturnCase)} required fullWidth />
-                    <TextField label="Country Code" value={returnSender.country_code} onChange={(event) => updateReturnSender("country_code", event.target.value.toUpperCase())} disabled={Boolean(activeReturnCase)} required inputProps={{ maxLength: 2 }} fullWidth />
+                    <TextField label="Suburb" value={returnSender.suburb} onChange={(event) => updateReturnSender("suburb", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="State" value={returnSender.state} onChange={(event) => updateReturnSender("state", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="Postcode" value={returnSender.postcode} onChange={(event) => updateReturnSender("postcode", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="Country Code" value={returnSender.country_code} onChange={(event) => updateReturnSender("country_code", event.target.value.toUpperCase())} disabled={caseFieldsLocked} required inputProps={{ maxLength: 2 }} fullWidth />
                   </Stack>
-                  <TextField label="Pickup Instructions" value={returnSender.instructions || ""} onChange={(event) => updateReturnSender("instructions", event.target.value)} disabled={Boolean(activeReturnCase)} multiline minRows={2} />
+                  <TextField label="Pickup Instructions" value={returnSender.instructions || ""} onChange={(event) => updateReturnSender("instructions", event.target.value)} disabled={caseFieldsLocked} multiline minRows={2} />
                 </Stack>
               ) : null}
             </Box>
@@ -977,7 +1132,11 @@ function ReturnsPage() {
           <TextField
             label="Return case notes"
             value={notes}
-            onChange={(event) => setNotes(event.target.value)}
+            onChange={(event) => {
+              setNotes(event.target.value);
+              invalidateOpenQuote();
+            }}
+            disabled={caseFieldsLocked}
             multiline
             minRows={2}
             helperText="Stored on the return case. Use CRM Note below for customer follow-up."
@@ -996,11 +1155,11 @@ function ReturnsPage() {
           ) : null}
           <Stack direction="row" spacing={2} alignItems="center">
             <FormControlLabel
-              control={<Checkbox checked={refundExpected} onChange={(event) => setRefundExpected(event.target.checked)} />}
+              control={<Checkbox checked={refundExpected} onChange={(event) => { setRefundExpected(event.target.checked); invalidateOpenQuote(); }} disabled={caseFieldsLocked} />}
               label="Refund may be required"
             />
-            <Button variant="outlined" onClick={handleCreate} disabled={saving || !returnableOrder || Boolean(activeReturnCase)}>
-              {activeReturnCase ? `Return Case #${activeReturnCase.id} Saved` : "Save Return Case"}
+            <Button variant="outlined" onClick={handleCreate} disabled={saving || !returnableOrder || caseFieldsLocked}>
+              {caseFieldsLocked && activeReturnCase ? `Return Case #${activeReturnCase.id} Saved` : "Save Return Case"}
             </Button>
             {activeReturnCase ? (
               <Button
@@ -1204,7 +1363,13 @@ function ReturnsPage() {
                 <TableCell>{returnCase.lines?.length ?? 0}</TableCell>
                 <TableCell>{returnCase.updated_at}</TableCell>
                 <TableCell>
-                  <Button size="small" onClick={() => setExpandedReturnId(current => current === returnCase.id ? null : returnCase.id)}>
+                  <Button size="small" onClick={() => {
+                    const opening = expandedReturnId !== returnCase.id;
+                    setExpandedReturnId(opening ? returnCase.id : null);
+                    if (opening && returnCase.status === "requested" && !liveTrackingNumber(returnCase)) {
+                      void loadRequestedCaseForEditing(returnCase);
+                    }
+                  }}>
                     {expandedReturnId === returnCase.id ? "Hide" : "View"}
                   </Button>
                 </TableCell>
@@ -1214,6 +1379,7 @@ function ReturnsPage() {
                   <TableCell colSpan={9} sx={{ bgcolor: "action.hover", py: 2 }}>
                     <ReturnShipmentDetails
                       returnCase={returnCase}
+                      openForEditing={returnCase.id === activeReturnCase?.id && editingOpenRequestedCase}
                       onCancel={() => handlePreviewCancellation(returnCase)}
                       previewingCancellation={previewingCancellation && returnPendingCancellation?.id === returnCase.id}
                     />
@@ -1251,10 +1417,12 @@ export default ReturnsPage;
 
 function ReturnShipmentDetails({
   returnCase,
+  openForEditing,
   onCancel,
   previewingCancellation,
 }: {
   returnCase: ReturnCase;
+  openForEditing: boolean;
   onCancel: () => void;
   previewingCancellation: boolean;
 }) {
@@ -1267,9 +1435,21 @@ function ReturnShipmentDetails({
     label_url: returnCase.shippit_label_url,
   };
   const orderUrl = order ? wordpressAdminUrl(`admin.php?page=wc-orders&action=edit&id=${order.id}`) : null;
+  const tracking = liveTrackingNumber(returnCase);
+  const reportTrackingOnly = returnCase.status === "requested" && Boolean(tracking);
 
   return (
     <Stack spacing={2}>
+      {openForEditing ? (
+        <Alert severity="info">
+          Status is Requested. Edit the lines and other case fields in the form above, save them, then use quote and book.
+        </Alert>
+      ) : null}
+      {reportTrackingOnly ? (
+        <Alert severity="warning">
+          Status: Requested. Tracking: {tracking}. This shipment is already in progress, so quote, create, label, and book are not offered again.
+        </Alert>
+      ) : null}
       <Stack direction={{ xs: "column", md: "row" }} spacing={4}>
         <Box>
           <Typography variant="subtitle2">Originating order</Typography>
@@ -1298,7 +1478,7 @@ function ReturnShipmentDetails({
           <Typography variant="body2">
             Quoted cost: {shipment.quoted_cost == null ? "Not recorded" : `${shipment.currency || order?.currency || ""} ${shipment.quoted_cost.toFixed(2)}`}
           </Typography>
-          {shipment.label_url ? <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open return label</Button> : null}
+          {shipment.label_url && !reportTrackingOnly ? <Button size="small" href={shipment.label_url} target="_blank" rel="noopener noreferrer">Open return label</Button> : null}
           {["requested", "approved"].includes(returnCase.status) ? (
             <Button
               size="small"
@@ -1480,7 +1660,7 @@ function ReturnShipmentSteps({
     <Button
       variant={currentStep === 1 ? "contained" : "outlined"}
       onClick={onGetQuote}
-      disabled={!parcelsReady || previewingQuote || orderExists || workflowStage === "quoted"}
+      disabled={!parcelsReady || previewingQuote || orderExists || (workflowStage === "quoted" && Boolean(quotePreview))}
     >
       {previewingQuote ? "Getting prices..." : "Get a quote — prices only"}
     </Button>
