@@ -92,6 +92,48 @@ const emptyReturnSender: ReturnSender = {
   instructions: "",
 };
 
+function senderFromShipping(response: ReturnableOrderResponse): ReturnSender {
+  const shipping = response.order.shipping_address;
+  return {
+    name: `${shipping.first_name || ""} ${shipping.last_name || ""}`.trim(),
+    company_name: shipping.company || "",
+    address_line_1: shipping.address_1 || "",
+    address_line_2: shipping.address_2 || "",
+    suburb: shipping.suburb || "",
+    state: shipping.state || "",
+    postcode: shipping.postcode || "",
+    country_code: shipping.country || "AU",
+    phone: shipping.phone || "",
+    email: response.order.customer.email || "",
+    instructions: "",
+  };
+}
+
+function hasReturnSenderAddress(sender: ReturnSender | null | undefined): sender is ReturnSender {
+  if (!sender || Array.isArray(sender)) {
+    return false;
+  }
+  return Boolean(
+    (sender.address_line_1 || "").trim()
+    || (sender.suburb || "").trim()
+    || (sender.state || "").trim()
+    || (sender.postcode || "").trim()
+  );
+}
+
+function senderAddressKey(sender: ReturnSender): string {
+  return [sender.name, sender.address_line_1, sender.address_line_2, sender.suburb, sender.state, sender.postcode, sender.country_code]
+    .map(value => (value || "").trim().toLowerCase())
+    .join("|");
+}
+
+function savedSenderIsDifferent(saved: ReturnSender | null | undefined, original: ReturnSender): boolean {
+  if (!hasReturnSenderAddress(saved)) {
+    return false;
+  }
+  return senderAddressKey({ ...emptyReturnSender, ...saved }) !== senderAddressKey(original);
+}
+
 function liveTrackingNumber(returnCase: ReturnCase): string {
   const tracking = (returnCase.shippit_tracking_number || returnCase.return_shipment?.tracking_number || "").trim();
   if (!tracking) {
@@ -163,6 +205,7 @@ function ReturnsPage() {
   const [parcelSource, setParcelSource] = useState<"ny_recommendation" | "manual">("ny_recommendation");
   const [loadingParcelPreview, setLoadingParcelPreview] = useState(false);
   const [useReturnSenderOverride, setUseReturnSenderOverride] = useState(false);
+  const [originalReturnSender, setOriginalReturnSender] = useState<ReturnSender>(emptyReturnSender);
   const [returnSender, setReturnSender] = useState<ReturnSender>(emptyReturnSender);
   const [expandedReturnId, setExpandedReturnId] = useState<number | null>(null);
   const [cancelPreview, setCancelPreview] = useState<ReturnCancellationPreview | null>(null);
@@ -273,21 +316,20 @@ function ReturnsPage() {
         setMessage({ type: "error", text: "Enter at least one return quantity before saving the return case." });
         return;
       }
-      if (useReturnSenderOverride) {
-        const missing = [
-          ["name", returnSender.name],
-          ["address", returnSender.address_line_1],
-          ["suburb", returnSender.suburb],
-          ["state", returnSender.state],
-          ["postcode", returnSender.postcode],
-          ["country", returnSender.country_code],
-          ["phone", returnSender.phone || ""],
-          ["email", returnSender.email || ""],
-        ].filter(([, value]) => !value.trim()).map(([label]) => label);
-        if (missing.length > 0) {
-          setMessage({ type: "error", text: `Complete the return sender fields: ${missing.join(", ")}.` });
-          return;
-        }
+      const senderForShipment = useReturnSenderOverride ? returnSender : originalReturnSender;
+      const missing = [
+        ["name", senderForShipment.name],
+        ["address", senderForShipment.address_line_1],
+        ["suburb", senderForShipment.suburb],
+        ["state", senderForShipment.state],
+        ["postcode", senderForShipment.postcode],
+        ["country", senderForShipment.country_code],
+        ["phone", senderForShipment.phone || ""],
+        ["email", senderForShipment.email || ""],
+      ].filter(([, value]) => !value.trim()).map(([label]) => label);
+      if (missing.length > 0) {
+        setMessage({ type: "error", text: `Complete the return sender fields: ${missing.join(", ")}.` });
+        return;
       }
 
       const payload = {
@@ -295,7 +337,7 @@ function ReturnsPage() {
         resolution,
         refund_expected: refundExpected,
         notes,
-        return_sender: useReturnSenderOverride ? returnSender : undefined,
+        return_sender: senderForShipment,
         lines: selectedLines,
       };
       const saved = editingOpenRequestedCase && activeReturnCase
@@ -348,25 +390,14 @@ function ReturnsPage() {
         initialQty[item.order_item_id] = ownQty > 0 ? String(ownQty) : "";
       });
       setReturnLineQty(initialQty);
-      if (returnCase.return_sender) {
+      const shippingSender = senderFromShipping(response);
+      setOriginalReturnSender(shippingSender);
+      if (savedSenderIsDifferent(returnCase.return_sender, shippingSender)) {
         setUseReturnSenderOverride(true);
         setReturnSender({ ...emptyReturnSender, ...returnCase.return_sender });
       } else {
-        const shipping = response.order.shipping_address;
         setUseReturnSenderOverride(false);
-        setReturnSender({
-          name: `${shipping.first_name || ""} ${shipping.last_name || ""}`.trim(),
-          company_name: shipping.company || "",
-          address_line_1: shipping.address_1 || "",
-          address_line_2: shipping.address_2 || "",
-          suburb: shipping.suburb || "",
-          state: shipping.state || "",
-          postcode: shipping.postcode || "",
-          country_code: shipping.country || "AU",
-          phone: shipping.phone || "",
-          email: response.order.customer.email || "",
-          instructions: "",
-        });
+        setReturnSender(shippingSender);
       }
       let parcelNote = "";
       try {
@@ -408,20 +439,9 @@ function ReturnsPage() {
         initialQty[item.order_item_id] = "";
       });
       setReturnLineQty(initialQty);
-      const shipping = response.order.shipping_address;
-      setReturnSender({
-        name: `${shipping.first_name || ""} ${shipping.last_name || ""}`.trim(),
-        company_name: shipping.company || "",
-        address_line_1: shipping.address_1 || "",
-        address_line_2: shipping.address_2 || "",
-        suburb: shipping.suburb || "",
-        state: shipping.state || "",
-        postcode: shipping.postcode || "",
-        country_code: shipping.country || "AU",
-        phone: shipping.phone || "",
-        email: response.order.customer.email || "",
-        instructions: "",
-      });
+      const shippingSender = senderFromShipping(response);
+      setOriginalReturnSender(shippingSender);
+      setReturnSender(shippingSender);
       setUseReturnSenderOverride(false);
       setMessage({ type: "success", text: `Loaded ${response.items.length} returnable item rows for order #${response.order.number}.` });
     } catch (error: any) {
@@ -911,6 +931,7 @@ function ReturnsPage() {
                 setRecommendedReturnParcels([]);
                 setParcelSource("ny_recommendation");
                 setUseReturnSenderOverride(false);
+                setOriginalReturnSender(emptyReturnSender);
                 setReturnSender(emptyReturnSender);
               }}
               type="number"
@@ -1010,39 +1031,48 @@ function ReturnsPage() {
                 control={(
                   <Checkbox
                     checked={useReturnSenderOverride}
-                    onChange={(event) => setUseReturnSenderOverride(event.target.checked)}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setUseReturnSenderOverride(checked);
+                      if (!checked) {
+                        setReturnSender(originalReturnSender);
+                      }
+                      invalidateOpenQuote();
+                    }}
                     disabled={caseFieldsLocked}
                   />
                 )}
                 label="Use a different return sender address"
               />
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Use this when the person physically returning the parcel is not at the originating order address. The WooCommerce order is not modified.
+                {useReturnSenderOverride
+                  ? "Use this when the person physically returning the parcel is not at the originating order address. The WooCommerce order is not modified."
+                  : "This is the original order recipient address. Saving and creating the return sends these values. The WooCommerce order is not modified."}
               </Typography>
-              {useReturnSenderOverride ? (
-                <Stack spacing={2}>
+              <Stack spacing={2}>
+                {useReturnSenderOverride ? (
                   <Alert severity="warning">
                     Quotes and the final Shippit return will use this sender snapshot instead of the order address.
                   </Alert>
+                ) : null}
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField label="Return Sender Name" value={returnSender.name} onChange={(event) => updateReturnSender("name", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
-                    <TextField label="Company" value={returnSender.company_name || ""} onChange={(event) => updateReturnSender("company_name", event.target.value)} disabled={caseFieldsLocked} fullWidth />
-                    <TextField label="Phone" value={returnSender.phone || ""} onChange={(event) => updateReturnSender("phone", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
-                    <TextField label="Email" value={returnSender.email || ""} onChange={(event) => updateReturnSender("email", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
+                    <TextField label="Return Sender Name" value={returnSender.name} onChange={(event) => updateReturnSender("name", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
+                    <TextField label="Company" value={returnSender.company_name || ""} onChange={(event) => updateReturnSender("company_name", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} fullWidth />
+                    <TextField label="Phone" value={returnSender.phone || ""} onChange={(event) => updateReturnSender("phone", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
+                    <TextField label="Email" value={returnSender.email || ""} onChange={(event) => updateReturnSender("email", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField label="Address Line 1" value={returnSender.address_line_1} onChange={(event) => updateReturnSender("address_line_1", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
-                    <TextField label="Address Line 2" value={returnSender.address_line_2 || ""} onChange={(event) => updateReturnSender("address_line_2", event.target.value)} disabled={caseFieldsLocked} fullWidth />
+                    <TextField label="Address Line 1" value={returnSender.address_line_1} onChange={(event) => updateReturnSender("address_line_1", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
+                    <TextField label="Address Line 2" value={returnSender.address_line_2 || ""} onChange={(event) => updateReturnSender("address_line_2", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} fullWidth />
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField label="Suburb" value={returnSender.suburb} onChange={(event) => updateReturnSender("suburb", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
-                    <TextField label="State" value={returnSender.state} onChange={(event) => updateReturnSender("state", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
-                    <TextField label="Postcode" value={returnSender.postcode} onChange={(event) => updateReturnSender("postcode", event.target.value)} disabled={caseFieldsLocked} required fullWidth />
-                    <TextField label="Country Code" value={returnSender.country_code} onChange={(event) => updateReturnSender("country_code", event.target.value.toUpperCase())} disabled={caseFieldsLocked} required inputProps={{ maxLength: 2 }} fullWidth />
+                    <TextField label="Suburb" value={returnSender.suburb} onChange={(event) => updateReturnSender("suburb", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
+                    <TextField label="State" value={returnSender.state} onChange={(event) => updateReturnSender("state", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
+                    <TextField label="Postcode" value={returnSender.postcode} onChange={(event) => updateReturnSender("postcode", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} required fullWidth />
+                    <TextField label="Country Code" value={returnSender.country_code} onChange={(event) => updateReturnSender("country_code", event.target.value.toUpperCase())} disabled={caseFieldsLocked || !useReturnSenderOverride} required inputProps={{ maxLength: 2 }} fullWidth />
                   </Stack>
-                  <TextField label="Pickup Instructions" value={returnSender.instructions || ""} onChange={(event) => updateReturnSender("instructions", event.target.value)} disabled={caseFieldsLocked} multiline minRows={2} />
+                  <TextField label="Pickup Instructions" value={returnSender.instructions || ""} onChange={(event) => updateReturnSender("instructions", event.target.value)} disabled={caseFieldsLocked || !useReturnSenderOverride} multiline minRows={2} />
                 </Stack>
-              ) : null}
             </Box>
           ) : null}
           {activeReturnCase ? (
@@ -1180,6 +1210,7 @@ function ReturnsPage() {
                   setRecommendedReturnParcels([]);
                   setParcelSource("ny_recommendation");
                   setUseReturnSenderOverride(false);
+                  setOriginalReturnSender(emptyReturnSender);
                   setReturnSender(emptyReturnSender);
                   setMessage({ type: "success", text: "Ready to start another return." });
                 }}
@@ -1508,7 +1539,7 @@ function ReturnShipmentDetails({
       <Box>
         <Typography variant="subtitle2">Return sender</Typography>
         <Typography variant="body2">
-          {returnCase.return_sender
+          {hasReturnSenderAddress(returnCase.return_sender)
             ? formatReturnSender(returnCase.return_sender)
             : "Originating WooCommerce order address"}
         </Typography>

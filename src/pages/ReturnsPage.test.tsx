@@ -791,4 +791,194 @@ describe("ReturnsPage Shippit workflow", () => {
       expect(within(row(label)).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     });
   });
+
+  it("prefills the original recipient and leaves the different-sender box unchecked", async () => {
+    vi.mocked(listReturns).mockResolvedValue([]);
+    vi.mocked(getReturnableOrderItems).mockResolvedValue({
+      order: {
+        id: 134400,
+        number: "134400",
+        status: "delivered",
+        currency: "AUD",
+        date_created: null,
+        customer: { email: "customer@example.test", first_name: "Test", last_name: "Customer" },
+        shipping_address: {
+          first_name: "Test",
+          last_name: "Customer",
+          company: "",
+          address_1: "1 Original Street",
+          address_2: "",
+          suburb: "Sydney",
+          state: "NSW",
+          postcode: "2000",
+          country: "AU",
+          phone: "0400000000",
+        },
+      },
+      items: [{
+        order_item_id: 11,
+        product_id: 21,
+        variation_id: 0,
+        sku: "SKU-1",
+        product_name: "Test Product",
+        ordered_qty: 1,
+        refunded_qty: 0,
+        existing_return_qty: 0,
+        returnable_qty: 1,
+        unit_price: 10,
+        weight_g: 500,
+        length_cm: 10,
+        width_cm: 10,
+        height_cm: 10,
+      }],
+    });
+    vi.mocked(createReturn).mockResolvedValue({
+      id: 8,
+      order_id: 134400,
+      status: "requested",
+      reason: "",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ order_item_id: 11, qty: 1 }],
+    });
+    vi.mocked(previewReturnParcels).mockResolvedValue({
+      order_id: 134400,
+      return_id: 8,
+      parcels: [{ qty: 1, weight_kg: 0.5, length_cm: 10, width_cm: 10, height_cm: 10 }],
+      decisions: [],
+      parcel_source: "ny_recommendation",
+    });
+    vi.mocked(getShipmentMode).mockResolvedValue({
+      order_id: 134400,
+      return_id: 8,
+      mode: "",
+      mode_locked: false,
+      workflow_stage: "not_quoted",
+      label_ready: false,
+      price: null,
+    });
+
+    const view = render(<ReturnsPage />);
+    fireEvent.change(view.getByLabelText("WooCommerce Order ID"), { target: { value: "134400" } });
+    fireEvent.click(view.getByRole("button", { name: "Load Returnable Items" }));
+    const senderBox = await view.findByLabelText("Use a different return sender address");
+    expect(senderBox).not.toBeChecked();
+    const address = view.getByLabelText(/Address Line 1/);
+    expect(address).toHaveValue("1 Original Street");
+    expect(address).toBeDisabled();
+    expect(view.getByLabelText(/Suburb/)).toHaveValue("Sydney");
+
+    fireEvent.click(senderBox);
+    fireEvent.change(view.getByLabelText(/Address Line 1/), { target: { value: "9 Other Street" } });
+    fireEvent.click(view.getByLabelText("Use a different return sender address"));
+    expect(view.getByLabelText("Use a different return sender address")).not.toBeChecked();
+    expect(view.getByLabelText(/Address Line 1/)).toHaveValue("1 Original Street");
+    expect(view.getByLabelText(/Address Line 1/)).toBeDisabled();
+
+    fireEvent.change(view.getAllByRole("spinbutton")[1], { target: { value: "1" } });
+    fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
+    await waitFor(() => expect(createReturn).toHaveBeenCalledWith(expect.objectContaining({
+      return_sender: expect.objectContaining({
+        name: "Test Customer",
+        address_line_1: "1 Original Street",
+        suburb: "Sydney",
+        state: "NSW",
+        postcode: "2000",
+      }),
+    })));
+  });
+
+  it("does not tick the sender box when a Requested case has an empty saved sender", async () => {
+    const requestedCase = {
+      id: 12,
+      order_id: 134254,
+      status: "requested" as const,
+      reason: "Size",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      return_sender: {
+        name: "",
+        address_line_1: "",
+        suburb: "",
+        state: "",
+        postcode: "",
+        country_code: "",
+      },
+      shippit_tracking_number: "",
+      shippit_state: "",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, product_id: 21, sku: "SKU-1", product_name: "Test Product", qty: 1 }],
+    };
+    vi.mocked(listReturns).mockResolvedValue([requestedCase]);
+    vi.mocked(getReturnableOrderItems).mockResolvedValue({
+      order: {
+        id: 134254,
+        number: "134254",
+        status: "completed",
+        currency: "AUD",
+        date_created: null,
+        customer: { email: "customer@example.test", first_name: "Test", last_name: "Customer" },
+        shipping_address: {
+          first_name: "Test",
+          last_name: "Customer",
+          company: "",
+          address_1: "1 Example Street",
+          address_2: "",
+          suburb: "Sydney",
+          state: "NSW",
+          postcode: "2000",
+          country: "AU",
+          phone: "0400000000",
+        },
+      },
+      items: [{
+        order_item_id: 11,
+        product_id: 21,
+        variation_id: 0,
+        sku: "SKU-1",
+        product_name: "Test Product",
+        ordered_qty: 1,
+        refunded_qty: 0,
+        existing_return_qty: 1,
+        returnable_qty: 0,
+        unit_price: 10,
+        weight_g: 500,
+        length_cm: 10,
+        width_cm: 10,
+        height_cm: 10,
+      }],
+    });
+    vi.mocked(previewReturnParcels).mockResolvedValue({
+      order_id: 134254,
+      return_id: 12,
+      parcels: [{ qty: 1, weight_kg: 0.5, length_cm: 10, width_cm: 10, height_cm: 10 }],
+      decisions: [],
+      parcel_source: "ny_recommendation",
+    });
+    vi.mocked(getShipmentMode).mockResolvedValue({
+      order_id: 134254,
+      return_id: 12,
+      mode: "",
+      mode_locked: false,
+      workflow_stage: "not_quoted",
+      label_ready: false,
+      price: null,
+    });
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#12")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "Edit" }));
+    const senderBox = await view.findByLabelText("Use a different return sender address");
+    expect(senderBox).not.toBeChecked();
+    expect(view.getByLabelText(/Address Line 1/)).toHaveValue("1 Example Street");
+    expect(view.getByLabelText(/Address Line 1/)).toBeDisabled();
+    expect(view.getByLabelText(/Suburb/)).toHaveValue("Sydney");
+  });
 });
