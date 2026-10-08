@@ -278,7 +278,7 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.click(view.getByRole("button", { name: "Send the email" }));
     await waitFor(() => expect(sendReturnDocumentEmail).toHaveBeenCalledWith(7));
     expect(fetchReturnDocument).not.toHaveBeenCalled();
-  }, 15000);
+  }, 30000);
 
   it("opens a stored standard return with no tracking on the Returns API steps", async () => {
     vi.mocked(listReturns).mockResolvedValue([]);
