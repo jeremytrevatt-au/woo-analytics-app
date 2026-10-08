@@ -517,6 +517,7 @@ describe("ReturnsPage Shippit workflow", () => {
 
     const view = render(<ReturnsPage />);
     await waitFor(() => expect(view.getByText("#4")).toBeInTheDocument());
+    expect(view.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     fireEvent.click(view.getByRole("button", { name: "View" }));
 
     expect(view.getByText("Order status: Delivered")).toBeInTheDocument();
@@ -573,6 +574,7 @@ describe("ReturnsPage Shippit workflow", () => {
 
     const view = render(<ReturnsPage />);
     await waitFor(() => expect(view.getByText("#7")).toBeInTheDocument());
+    expect(view.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     fireEvent.click(view.getByRole("button", { name: "View" }));
     fireEvent.click(view.getByRole("button", { name: "Cancel Return" }));
 
@@ -672,7 +674,18 @@ describe("ReturnsPage Shippit workflow", () => {
 
     const view = render(<ReturnsPage />);
     await waitFor(() => expect(view.getByText("#112")).toBeInTheDocument());
-    fireEvent.click(view.getByRole("button", { name: "View" }));
+    const requestedRow = view.getByText("#112").closest("tr");
+    expect(requestedRow).not.toBeNull();
+    expect(within(requestedRow as HTMLElement).getByRole("button", { name: "View" })).toBeInTheDocument();
+    expect(within(requestedRow as HTMLElement).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+
+    fireEvent.click(within(requestedRow as HTMLElement).getByRole("button", { name: "View" }));
+    expect(view.getByText("Return status: requested")).toBeInTheDocument();
+    expect(view.queryByRole("heading", { name: "Return Case #112" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
+    expect(getReturnableOrderItems).not.toHaveBeenCalled();
+
+    fireEvent.click(view.getByRole("button", { name: "Edit" }));
 
     await waitFor(() => expect(view.getByRole("heading", { name: "Return Case #112" })).toBeInTheDocument());
     expect(view.getByText("Status is Requested. Edit the return lines and case fields, save them, then quote and book this case.")).toBeInTheDocument();
@@ -685,11 +698,20 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.getByRole("radio", { name: "Standard pickup" })).toBeChecked();
 
     fireEvent.change(view.getByLabelText("Reason"), { target: { value: "Damaged" } });
+    fireEvent.change(view.getByLabelText("Resolution"), { target: { value: "Refund" } });
+    fireEvent.change(view.getByLabelText("Return case notes"), { target: { value: "Updated note" } });
+    fireEvent.click(view.getByLabelText("Refund may be required"));
     fireEvent.change(view.getByDisplayValue("2"), { target: { value: "1" } });
+    fireEvent.click(view.getByLabelText("Use a different return sender address"));
+    fireEvent.change(view.getByLabelText(/Return Sender Name/), { target: { value: "Return Sender" } });
     fireEvent.click(view.getByRole("button", { name: "Save Return Case" }));
 
     await waitFor(() => expect(updateReturn).toHaveBeenCalledWith(112, expect.objectContaining({
       reason: "Damaged",
+      resolution: "Refund",
+      notes: "Updated note",
+      refund_expected: true,
+      return_sender: expect.objectContaining({ name: "Return Sender" }),
       lines: [expect.objectContaining({ order_item_id: 11, qty: 1 })],
     })));
     expect(createReturn).not.toHaveBeenCalled();
@@ -715,9 +737,12 @@ describe("ReturnsPage Shippit workflow", () => {
 
     const view = render(<ReturnsPage />);
     await waitFor(() => expect(view.getByText("#112")).toBeInTheDocument());
+    expect(view.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "View" })).toBeInTheDocument();
     fireEvent.click(view.getByRole("button", { name: "View" }));
 
     expect(view.getByText(/Status: Requested. Tracking: PP-ALREADY-LIVE/)).toBeInTheDocument();
+    expect(view.queryByRole("heading", { name: "Return Case #112" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Create Shippit order — New Orders" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Print label — move to Ready to Ship" })).not.toBeInTheDocument();
@@ -725,5 +750,45 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(createReturn).not.toHaveBeenCalled();
     expect(createShippitReturnOrder).not.toHaveBeenCalled();
     expect(updateReturn).not.toHaveBeenCalled();
+  });
+
+  it("shows Edit only beside View for a Requested case that has no live tracking", async () => {
+    const base = {
+      order_id: 134254,
+      reason: "Size",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, qty: 1 }],
+    };
+    vi.mocked(listReturns).mockResolvedValue([
+      { ...base, id: 12, status: "requested", shippit_tracking_number: "", shippit_state: "" },
+      { ...base, id: 13, status: "requested", shippit_tracking_number: "CANCELLED-TRACK", shippit_state: "cancelled" },
+      { ...base, id: 14, status: "requested", return_shipment: { tracking_number: "LIVE-RETURN", state: "order_placed" } },
+      { ...base, id: 15, status: "approved", shippit_tracking_number: "PP-APPROVED", shippit_state: "order_placed" },
+      { ...base, id: 16, status: "in_transit" },
+      { ...base, id: 17, status: "received" },
+      { ...base, id: 18, status: "closed" },
+    ]);
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#12")).toBeInTheDocument());
+
+    const row = (label: string) => {
+      const element = view.getByText(label).closest("tr");
+      expect(element).not.toBeNull();
+      return element as HTMLElement;
+    };
+
+    expect(within(row("#12")).getByRole("button", { name: "View" })).toBeInTheDocument();
+    expect(within(row("#12")).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(within(row("#13")).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    ["#14", "#15", "#16", "#17", "#18"].forEach(label => {
+      expect(within(row(label)).getByRole("button", { name: "View" })).toBeInTheDocument();
+      expect(within(row(label)).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    });
   });
 });

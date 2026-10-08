@@ -116,6 +116,10 @@ function requestedCaseIsOpenForEditing(returnCase: ReturnCase | null, shippitRet
   return Boolean(returnCase && returnCase.status === "requested" && !shipmentAlreadyStarted(returnCase, shippitReturn));
 }
 
+function returnCaseCanBeEdited(returnCase: ReturnCase): boolean {
+  return returnCase.status === "requested" && !liveTrackingNumber(returnCase);
+}
+
 function qtyOnOpenCase(returnCase: ReturnCase | null, orderItemId: number): number {
   const line = returnCase?.lines.find(item => item.order_item_id === orderItemId);
   const qty = Number(line?.qty ?? 0);
@@ -1363,15 +1367,20 @@ function ReturnsPage() {
                 <TableCell>{returnCase.lines?.length ?? 0}</TableCell>
                 <TableCell>{returnCase.updated_at}</TableCell>
                 <TableCell>
-                  <Button size="small" onClick={() => {
-                    const opening = expandedReturnId !== returnCase.id;
-                    setExpandedReturnId(opening ? returnCase.id : null);
-                    if (opening && returnCase.status === "requested" && !liveTrackingNumber(returnCase)) {
-                      void loadRequestedCaseForEditing(returnCase);
-                    }
-                  }}>
-                    {expandedReturnId === returnCase.id ? "Hide" : "View"}
-                  </Button>
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" onClick={() => {
+                      setExpandedReturnId(expandedReturnId === returnCase.id ? null : returnCase.id);
+                    }}>
+                      {expandedReturnId === returnCase.id ? "Hide" : "View"}
+                    </Button>
+                    {returnCaseCanBeEdited(returnCase) ? (
+                      <Button size="small" variant="outlined" onClick={() => {
+                        void loadRequestedCaseForEditing(returnCase);
+                      }}>
+                        Edit
+                      </Button>
+                    ) : null}
+                  </Stack>
                 </TableCell>
               </TableRow>
               {expandedReturnId === returnCase.id ? (
