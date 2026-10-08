@@ -62,6 +62,129 @@ describe("PackingDimensionsDialog", () => {
       [{ qty: 1, weight_kg: 1, length_cm: 30, width_cm: 20, height_cm: 10 }],
       destination,
     ));
+    expect(view.getByRole("button", { name: "Submit Selected Quote" })).toBeDisabled();
+    expect(apiMocks.updatePackingShippitOrder).not.toHaveBeenCalled();
+    expect(apiMocks.bookPackingShippitOrder).not.toHaveBeenCalled();
+  });
+
+  it("creates a Shippit order from a selected quote when none exists and does not book it", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 109,
+      has_shippit_order: false,
+      can_edit: false,
+      can_finalise_reserve_shipping: false,
+      source_carrier: "australia_post",
+      is_shippit_shipping: false,
+      parcels: [],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 1.2, length_cm: 30, width_cm: 20, height_cm: 10 },
+      ],
+      destination,
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 25,
+      body: {
+        response: [{
+          courier_name: "Couriers Please",
+          courier_type: "couriers_please",
+          quotes: [{ service_level: "standard", price: 9.95 }],
+        }],
+      },
+    });
+    apiMocks.updatePackingShippitOrder.mockResolvedValue({
+      order_id: 109,
+      action: "create_shippit_order",
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: true,
+      tracking_number: "PPNEW109",
+      shippit_state: "order_placed",
+      shippit_status: "order_placed",
+      booking_status: "not_booked",
+      parcels: [{ qty: 1, weight_g: 1200, length_cm: 30, width_cm: 20, height_cm: 10 }],
+      destination,
+    });
+
+    const view = render(
+      <PackingDimensionsDialog open order={{ order_id: 109 }} onClose={vi.fn()} />,
+    );
+
+    const submit = view.getByRole("button", { name: "Submit Selected Quote" });
+    await waitFor(() => expect(submit).toBeDisabled());
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(apiMocks.updatePackingShippitOrder).toHaveBeenCalledWith(
+      109,
+      [{ qty: 1, weight_kg: 1.2, length_cm: 30, width_cm: 20, height_cm: 10 }],
+      expect.objectContaining({ courier_type: "couriers_please", service_level: "standard", price: 9.95 }),
+    ));
+    expect(apiMocks.bookPackingShippitOrder).not.toHaveBeenCalled();
+    expect(await view.findByText(/created in New Orders with tracking PPNEW109/)).toBeInTheDocument();
+    expect(view.getByText(/The courier was not booked/)).toBeInTheDocument();
+  });
+
+  it("keeps submit disabled when a parcel dimension is missing or the quote request failed", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 110,
+      has_shippit_order: false,
+      can_edit: false,
+      can_finalise_reserve_shipping: false,
+      parcels: [],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 0.5, length_cm: 20, width_cm: 15, height_cm: 8 },
+      ],
+      destination,
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 500,
+      duration_ms: 25,
+      body: {
+        response: [{
+          courier_name: "Couriers Please",
+          courier_type: "couriers_please",
+          quotes: [{ service_level: "standard", price: 9.95 }],
+        }],
+      },
+    });
+
+    const view = render(
+      <PackingDimensionsDialog open order={{ order_id: 110 }} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() => expect(view.getByDisplayValue("500")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Select Couriers Please quote for $9.95" })).toBeInTheDocument());
+    expect(view.getByRole("button", { name: "Submit Selected Quote" })).toBeDisabled();
+
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 25,
+      body: {
+        response: [{
+          courier_name: "Couriers Please",
+          courier_type: "couriers_please",
+          quotes: [{ service_level: "standard", price: 9.95 }],
+        }],
+      },
+    });
+    fireEvent.change(view.getByLabelText("Weight g"), { target: { value: "" } });
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    await waitFor(() => expect(view.getByText(/positive weight/)).toBeInTheDocument());
+    expect(view.getByRole("button", { name: "Submit Selected Quote" })).toBeDisabled();
+    expect(apiMocks.updatePackingShippitOrder).not.toHaveBeenCalled();
+    expect(apiMocks.bookPackingShippitOrder).not.toHaveBeenCalled();
   });
 
   it("uses authoritative NY Shipping recommendations instead of one parcel per order line", async () => {
@@ -202,6 +325,9 @@ describe("PackingDimensionsDialog", () => {
     await waitFor(() => expect(view.getByRole("button", { name: "Select Couriers Please quote for $12.50" })).toBeInTheDocument());
     expect(view.queryByRole("radio")).not.toBeInTheDocument();
     expect(view.getByText("$12.50")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Submit Selected Quote" })).toBeDisabled();
+    expect(apiMocks.updatePackingShippitOrder).not.toHaveBeenCalled();
+    expect(apiMocks.bookPackingShippitOrder).not.toHaveBeenCalled();
   });
 
   it("shows remaining fulfillment scope and carrier quote failures", async () => {
@@ -245,6 +371,8 @@ describe("PackingDimensionsDialog", () => {
     fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
 
     await waitFor(() => expect(view.getByText(/Australia Post \(Parcel Post\): The destination suburb/)).toBeInTheDocument());
+    expect(view.getByRole("button", { name: "Submit Selected Quote" })).toBeDisabled();
+    expect(apiMocks.updatePackingShippitOrder).not.toHaveBeenCalled();
   });
 
   it("uses remaining recommendations instead of a completed historical shipment parcel", async () => {

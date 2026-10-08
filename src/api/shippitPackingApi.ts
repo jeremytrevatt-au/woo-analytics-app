@@ -100,6 +100,7 @@ export type PackingShippitOrderResponse = {
   destination_sanitised?: boolean;
   parcel_attributes?: unknown[];
   product_attributes?: unknown[];
+  action?: string;
   message?: string;
   ny_parcel_update_status?: string;
   ny_packing_update_status?: string;

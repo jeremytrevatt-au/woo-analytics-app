@@ -303,7 +303,13 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
 
   const canEditShippitOrder = Boolean(shippitOrder?.has_shippit_order && shippitOrder.can_edit);
   const canFinaliseReserveShipping = Boolean(shippitOrder?.can_finalise_reserve_shipping);
-  const canSubmitQuote = canEditShippitOrder || canFinaliseReserveShipping;
+  const canCreateShippitOrder = Boolean(shippitOrder && !shippitOrder.has_shippit_order);
+  const parsedParcelDrafts = useMemo(() => parseParcels(parcels), [parcels]);
+  const parcelsReady = !hasInvalidParcel(parsedParcelDrafts);
+  const quoteFailed = Boolean(quote && (!quote.status_code || quote.status_code < 200 || quote.status_code >= 300));
+  const canSubmitQuote = parcelsReady
+    && !quoteFailed
+    && (canEditShippitOrder || canFinaliseReserveShipping || canCreateShippitOrder);
   const hasShippitOrder = Boolean(shippitOrder?.has_shippit_order);
   const isMutating = actionInProgress !== null;
   const trackingNumber = shippitOrder?.tracking_number || shippitOrder?.shippit_tracking_number;
@@ -449,13 +455,16 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     setMessage(null);
     try {
       const response = await updatePackingShippitOrder(Number(order.order_id), parsedParcels, selectedQuote);
+      const createdShippitOrder = !hasShippitOrder && Boolean(response.has_shippit_order);
       mergePackingResponse(response);
       setSubmittedQuoteId(selectedQuote.id);
       setMessage({
         type: "success",
         text: canFinaliseReserveShipping
           ? `Final shipping ${formatPrice(selectedQuote.price)} was added to the Reserve balance and the customer invoice was sent.`
-          : `Selected quote submitted to Shippit: ${selectedQuote.label}.`,
+          : createdShippitOrder
+            ? `Shippit order created in New Orders${response.tracking_number ? ` with tracking ${response.tracking_number}` : ""}. The courier was not booked.`
+            : `Selected quote submitted to Shippit: ${selectedQuote.label}.`,
       });
     } catch (error: unknown) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to submit selected quote to Shippit." });
@@ -532,6 +541,11 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
             {canFinaliseReserveShipping ? (
               <Alert severity="warning">
                 This Reserve order is awaiting its final packed shipping quote. Submitting a quote will add it to the balance and send the customer invoice.
+              </Alert>
+            ) : null}
+            {canCreateShippitOrder && !canFinaliseReserveShipping ? (
+              <Alert severity="info">
+                No Shippit order exists yet. Submit Selected Quote creates the order in New Orders and does not book the courier.
               </Alert>
             ) : null}
 
