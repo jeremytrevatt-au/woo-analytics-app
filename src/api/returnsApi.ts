@@ -329,28 +329,6 @@ export async function previewShippitReturnQuote(payload: {
   });
 }
 
-export async function createShippitReturnOrder(payload: {
-  orderId: number;
-  returnId: number;
-  operationId: string;
-  courierType: "standard" | "express";
-  mode: "standard";
-  parcels: ReturnParcel[];
-  parcelSource: "ny_recommendation" | "manual";
-}): Promise<ShippitReturnOrderResponse> {
-  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/create`, {
-    method: "POST",
-    body: JSON.stringify({
-      return_id: payload.returnId,
-      operation_id: payload.operationId,
-      courier_type: payload.courierType,
-      mode: payload.mode,
-      parcels: payload.parcels,
-      parcel_source: payload.parcelSource,
-    }),
-  });
-}
-
 export async function acceptShippitReturnQuote(payload: {
   orderId: number;
   returnId: number;
@@ -381,17 +359,6 @@ export async function confirmShippitReturnOrder(payload: {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/confirm`, {
     method: "POST",
     body: JSON.stringify({ return_id: payload.returnId, mode: payload.mode }),
-  });
-}
-
-export async function bookShippitReturnPickup(payload: {
-  orderId: number;
-  returnId: number;
-  mode?: ShippitReturnMode;
-}): Promise<ShippitReturnOrderResponse> {
-  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/book`, {
-    method: "POST",
-    body: JSON.stringify({ return_id: payload.returnId, mode: payload.mode ?? "standard" }),
   });
 }
 

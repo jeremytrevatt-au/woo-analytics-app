@@ -6,17 +6,14 @@ import {
   Checkbox,
   Divider,
   Dialog,
+  FormControl,
+  InputLabel,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   FormControlLabel,
-  FormLabel,
-  InputLabel,
   MenuItem,
   Paper,
-  Radio,
-  RadioGroup,
   Select,
   Stack,
   Table,
@@ -29,11 +26,9 @@ import {
 } from "@mui/material";
 import {
   acceptShippitReturnQuote,
-  bookShippitReturnPickup,
   cancelReturn,
   confirmShippitReturnOrder,
   createReturn,
-  createShippitReturnOrder,
   fetchShippitReturnLabel,
   getShipmentMode,
   getShippitReturnOrder,
@@ -50,8 +45,6 @@ import {
   ReturnSender,
   ReturnStatus,
   ReturnWorkflowStage,
-  setShipmentMode,
-  ShippitReturnMode,
   ShippitReturnOrderResponse,
   ShippitReturnsProbeResult,
   ShippitReturnsProbeResponse,
@@ -190,13 +183,10 @@ function ReturnsPage() {
   const [previewingQuote, setPreviewingQuote] = useState(false);
   const [shippitReturn, setShippitReturn] = useState<ShippitReturnOrderResponse | null>(null);
   const [workflowStage, setWorkflowStage] = useState<ReturnWorkflowStage>("not_quoted");
-  const [shipmentMode, setShipmentModeChoice] = useState<ShippitReturnMode>("standard");
-  const [modeLocked, setModeLocked] = useState(false);
-  const [standardCourier, setStandardCourier] = useState<"standard" | "express">("standard");
+  const [shippitState, setShippitState] = useState("");
   const [labelReady, setLabelReady] = useState(false);
   const [acceptingQuote, setAcceptingQuote] = useState(false);
   const [confirmingOrder, setConfirmingOrder] = useState(false);
-  const [bookingPickup, setBookingPickup] = useState(false);
   const [pollingShippitReturn, setPollingShippitReturn] = useState(false);
   const [fetchingLabel, setFetchingLabel] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteRow | null>(null);
@@ -244,22 +234,13 @@ function ReturnsPage() {
         if (cancelled) {
           return;
         }
-        if (response.mode === "standard" || response.mode === "returns_api") {
-          setShipmentModeChoice(response.mode);
-        } else {
-          setShipmentModeChoice("standard");
-        }
-        setModeLocked(response.mode_locked);
         setLabelReady(response.label_ready);
+        setShippitState((response.shippit_state || "").trim());
         if (response.workflow_stage) {
           setWorkflowStage(response.workflow_stage);
         }
       })
-      .catch(() => {
-        if (!cancelled) {
-          setShipmentModeChoice("standard");
-        }
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -556,80 +537,9 @@ function ReturnsPage() {
     if (typeof response.label_ready === "boolean") {
       setLabelReady(response.label_ready);
     }
-    if (response.mode === "standard" || response.mode === "returns_api") {
-      setShipmentModeChoice(response.mode);
-      setModeLocked(true);
-    }
-  };
-
-  const storeShipmentMode = async (mode: ShippitReturnMode) => {
-    if (!activeReturnCase) {
-      return;
-    }
-    const response = await setShipmentMode({
-      returnId: activeReturnCase.id,
-      orderId: activeReturnCase.order_id,
-      mode,
-    });
-    setShipmentModeChoice(response.mode === "returns_api" ? "returns_api" : "standard");
-    setModeLocked(response.mode_locked);
-  };
-
-  const handleShipmentModeChange = async (mode: ShippitReturnMode) => {
-    if (modeLocked || mode === shipmentMode) {
-      return;
-    }
-    setShipmentModeChoice(mode);
-    setQuotePreview(null);
-    setSelectedQuote(null);
-    try {
-      await storeShipmentMode(mode);
-    } catch (error: any) {
-      setMessage({ type: "error", text: shippitErrorMessage(error, "The shipment mode could not be stored.") });
-    }
-  };
-
-  const handleCreateStandardOrder = async () => {
-    const numericOrderId = Number(orderId);
-    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0 || !activeReturnCase) {
-      setMessage({ type: "error", text: "Save the return case before creating the Shippit order." });
-      return;
-    }
-    if (returnParcels.length === 0 || returnParcels.some(parcel => (
-      parcel.qty <= 0 || parcel.weight_kg <= 0 || parcel.length_cm <= 0 || parcel.width_cm <= 0 || parcel.height_cm <= 0
-    ))) {
-      setMessage({ type: "error", text: "Every parcel requires positive quantity, weight, length, width, and height before creating the order." });
-      return;
-    }
-    if (!selectedQuote || workflowStage !== "quoted") {
-      setMessage({ type: "error", text: "Get a quote and select a price before creating the Shippit order." });
-      return;
-    }
-    setAcceptingQuote(true);
-    setMessage(null);
-    try {
-      await storeShipmentMode("standard");
-      const response = await createShippitReturnOrder({
-        orderId: numericOrderId,
-        returnId: activeReturnCase.id,
-        operationId: crypto.randomUUID(),
-        courierType: standardCourier,
-        mode: "standard",
-        parcels: returnParcels,
-        parcelSource,
-      });
-      applyShipmentResponse(response);
-      const price = displayedOrderPrice(response.return);
-      setMessage({
-        type: "success",
-        text: price
-          ? `Shippit order ${response.return.tracking_number || response.return.return_order_id} is in New Orders. Price: $${price.toFixed(2)}.`
-          : `Shippit order ${response.return.tracking_number || response.return.return_order_id} is in New Orders. The price appears on the order.`,
-      });
-    } catch (error: any) {
-      setMessage({ type: "error", text: shippitErrorMessage(error, "Shippit rejected the standard pickup order.") });
-    } finally {
-      setAcceptingQuote(false);
+    const nextState = (response.shippit_state || response.return.state || "").trim();
+    if (nextState) {
+      setShippitState(nextState);
     }
   };
 
@@ -651,7 +561,6 @@ function ReturnsPage() {
     setAcceptingQuote(true);
     setMessage(null);
     try {
-      await storeShipmentMode("returns_api");
       const response = await acceptShippitReturnQuote({
         orderId: numericOrderId,
         returnId: activeReturnCase.id,
@@ -685,49 +594,18 @@ function ReturnsPage() {
       const response = await confirmShippitReturnOrder({
         orderId: numericOrderId,
         returnId: activeReturnCase.id,
-        mode: shipmentMode,
+        mode: "returns_api",
       });
       applyShipmentResponse(response);
-      const price = displayedOrderPrice(response.return);
       const stateText = response.shippit_state || response.return.state || "unknown";
       setMessage({
         type: "success",
-        text: shipmentMode === "returns_api"
-          ? `Label requested. This allocates the courier. Shippit state: ${stateText}.`
-          : price
-            ? `Label printed. Shippit state: ${stateText}. Price: $${price.toFixed(2)}.`
-            : `Label printed. Shippit state: ${stateText}.`,
+        text: `Label requested. This allocates the courier. Shippit state: ${stateText}.`,
       });
     } catch (error: any) {
       setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to confirm the Shippit order.") });
     } finally {
       setConfirmingOrder(false);
-    }
-  };
-
-  const handleBookPickup = async () => {
-    const numericOrderId = Number(orderId);
-    if (!activeReturnCase || shipmentMode !== "standard" || !labelReady || !Number.isInteger(numericOrderId) || numericOrderId <= 0) {
-      setMessage({ type: "error", text: "Print the label before booking the courier." });
-      return;
-    }
-    setBookingPickup(true);
-    setMessage(null);
-    try {
-      const response = await bookShippitReturnPickup({
-        orderId: numericOrderId,
-        returnId: activeReturnCase.id,
-        mode: "standard",
-      });
-      applyShipmentResponse(response);
-      if (response.workflow_stage) {
-        setWorkflowStage(response.workflow_stage);
-      }
-      setMessage({ type: "success", text: "Courier booked. The sender can hand the parcel over." });
-    } catch (error: any) {
-      setMessage({ type: "error", text: shippitErrorMessage(error, "Failed to book the courier.") });
-    } finally {
-      setBookingPickup(false);
     }
   };
 
@@ -759,7 +637,7 @@ function ReturnsPage() {
     const numericOrderId = Number(orderId);
     const returnOrderId = shippitReturn?.return.return_order_id;
     if (!labelReady && workflowStage !== "booked" && workflowStage !== "label_requested" && workflowStage !== "ready_to_ship") {
-      setMessage({ type: "error", text: shipmentMode === "returns_api" ? "Request the label before printing it." : "Print the label before opening it again." });
+      setMessage({ type: "error", text: "Request the label before printing it." });
       return;
     }
     if (!Number.isInteger(numericOrderId) || numericOrderId <= 0 || !returnOrderId) {
@@ -804,17 +682,15 @@ function ReturnsPage() {
     setPreviewingQuote(true);
     setMessage(null);
     try {
-      await storeShipmentMode(shipmentMode);
       const response = await previewShippitReturnQuote({
         orderId: numericOrderId,
         returnId: activeReturnCase.id,
         parcels: returnParcels,
         parcelSource,
-        mode: shipmentMode,
+        mode: "returns_api",
       });
       setQuotePreview(response);
       setSelectedQuote(null);
-      setModeLocked(true);
       setWorkflowStage(current => current === "not_quoted" ? "quoted" : current);
       setMessage({ type: "success", text: "Prices loaded. No Shippit order was created." });
     } catch (error: any) {
@@ -910,7 +786,7 @@ function ReturnsPage() {
         </Typography>
         {editingOpenRequestedCase ? (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Status is Requested. Edit the return lines and case fields, save them, then quote and book this case.
+            Status is Requested. Edit the return lines and case fields, save them, then get a quote, accept it, and request the label.
           </Alert>
         ) : null}
         <Stack spacing={2}>
@@ -927,6 +803,7 @@ function ReturnsPage() {
                 setQuotePreview(null);
                 setSelectedQuote(null);
                 setWorkflowStage("not_quoted");
+                setShippitState("");
                 setReturnParcels([]);
                 setRecommendedReturnParcels([]);
                 setParcelSource("ny_recommendation");
@@ -1134,10 +1011,8 @@ function ReturnsPage() {
           ) : null}
           {activeReturnCase ? (
             <ReturnShipmentSteps
-              shipmentMode={shipmentMode}
-              modeLocked={modeLocked}
-              standardCourier={standardCourier}
               workflowStage={workflowStage}
+              shippitState={shippitState}
               labelReady={labelReady}
               quotePreview={quotePreview}
               selectedQuote={selectedQuote}
@@ -1145,20 +1020,15 @@ function ReturnsPage() {
               previewingQuote={previewingQuote}
               acceptingQuote={acceptingQuote}
               confirmingOrder={confirmingOrder}
-              bookingPickup={bookingPickup}
               fetchingLabel={fetchingLabel}
               pollingShippitReturn={pollingShippitReturn}
               parcelsReady={returnParcels.length > 0 && returnParcels.every(parcel => (
                 parcel.qty > 0 && parcel.weight_kg > 0 && parcel.length_cm > 0 && parcel.width_cm > 0 && parcel.height_cm > 0
               ))}
-              onModeChange={handleShipmentModeChange}
-              onCourierChange={setStandardCourier}
               onGetQuote={handlePreviewQuote}
               onSelectQuote={setSelectedQuote}
               onAcceptQuote={handleAcceptQuote}
-              onCreateOrder={handleCreateStandardOrder}
               onConfirmOrder={handleConfirmOrder}
-              onBookPickup={handleBookPickup}
               onPrintLabel={handleFetchLabel}
               onRefreshStatus={handlePollShippitReturn}
             />
@@ -1206,6 +1076,7 @@ function ReturnsPage() {
                   setQuotePreview(null);
                   setSelectedQuote(null);
                   setWorkflowStage("not_quoted");
+                setShippitState("");
                   setReturnParcels([]);
                   setRecommendedReturnParcels([]);
                   setParcelSource("ny_recommendation");
@@ -1482,12 +1353,12 @@ function ReturnShipmentDetails({
     <Stack spacing={2}>
       {openForEditing ? (
         <Alert severity="info">
-          Status is Requested. Edit the lines and other case fields in the form above, save them, then use quote and book.
+          Status is Requested. Edit the lines and other case fields in the form above, save them, then get a quote, accept it, and request the label.
         </Alert>
       ) : null}
       {reportTrackingOnly ? (
         <Alert severity="warning">
-          Status: Requested. Tracking: {tracking}. This shipment is already in progress, so quote, create, label, and book are not offered again.
+          Status: Requested. Tracking: {tracking}. Shippit state: {returnCase.shippit_state || shipment.state || "unknown"}. This shipment is already in progress, so it stays view-only.
         </Alert>
       ) : null}
       <Stack direction={{ xs: "column", md: "row" }} spacing={4}>
@@ -1581,20 +1452,17 @@ const WORKFLOW_STATUS_TEXT: Record<ReturnWorkflowStage, string> = {
   booked: "booked",
 };
 
-function displayedOrderPrice(record?: { quoted_cost?: number | null; price?: string | number | null }): number | null {
-  const raw = record?.quoted_cost ?? record?.price;
-  const price = Number(raw);
-  if (!Number.isFinite(price) || price <= 0) {
-    return null;
+function displayedReturnStatus(workflowStage: ReturnWorkflowStage, shippitState: string): string {
+  const state = shippitState.trim();
+  if (state) {
+    return state;
   }
-  return price;
+  return WORKFLOW_STATUS_TEXT[workflowStage];
 }
 
 function ReturnShipmentSteps({
-  shipmentMode,
-  modeLocked,
-  standardCourier,
   workflowStage,
+  shippitState,
   labelReady,
   quotePreview,
   selectedQuote,
@@ -1602,25 +1470,18 @@ function ReturnShipmentSteps({
   previewingQuote,
   acceptingQuote,
   confirmingOrder,
-  bookingPickup,
   fetchingLabel,
   pollingShippitReturn,
   parcelsReady,
-  onModeChange,
-  onCourierChange,
   onGetQuote,
   onSelectQuote,
   onAcceptQuote,
-  onCreateOrder,
   onConfirmOrder,
-  onBookPickup,
   onPrintLabel,
   onRefreshStatus,
 }: {
-  shipmentMode: ShippitReturnMode;
-  modeLocked: boolean;
-  standardCourier: "standard" | "express";
   workflowStage: ReturnWorkflowStage;
+  shippitState: string;
   labelReady: boolean;
   quotePreview: ShippitReturnsProbeResult | null;
   selectedQuote: QuoteRow | null;
@@ -1628,27 +1489,23 @@ function ReturnShipmentSteps({
   previewingQuote: boolean;
   acceptingQuote: boolean;
   confirmingOrder: boolean;
-  bookingPickup: boolean;
   fetchingLabel: boolean;
   pollingShippitReturn: boolean;
   parcelsReady: boolean;
-  onModeChange: (mode: ShippitReturnMode) => void;
-  onCourierChange: (courier: "standard" | "express") => void;
   onGetQuote: () => void;
   onSelectQuote: (quote: QuoteRow) => void;
   onAcceptQuote: () => void;
-  onCreateOrder: () => void;
   onConfirmOrder: () => void;
-  onBookPickup: () => void;
   onPrintLabel: () => void;
   onRefreshStatus: () => void;
 }) {
   const orderExists = Boolean(shippitReturn?.return.return_order_id || shippitReturn?.return.tracking_number);
-  const price = displayedOrderPrice(shippitReturn?.return);
   const quoteRows = quotePreview ? extractQuoteRows(quotePreview) : [];
-  const standardCurrent = !orderExists ? (workflowStage === "quoted" ? 2 : 1) : !labelReady ? 3 : workflowStage === "booked" ? 0 : 4;
-  const returnsCurrent = workflowStage === "quoted" ? 2 : orderExists && !labelReady ? 3 : labelReady || workflowStage === "label_requested" || workflowStage === "booked" ? 0 : 1;
-  const currentStep = shipmentMode === "standard" ? standardCurrent : returnsCurrent;
+  const currentStep = workflowStage === "quoted" ? 2 : orderExists && !labelReady ? 3 : labelReady || workflowStage === "label_requested" || workflowStage === "booked" ? 0 : 1;
+  const statusText = displayedReturnStatus(
+    workflowStage,
+    shippitState || shippitReturn?.shippit_state || shippitReturn?.return.state || "",
+  );
   const printLabel = (
     <Stack direction="row" spacing={1}>
       {shippitReturn?.return.label_url ? (
@@ -1706,158 +1563,66 @@ function ReturnShipmentSteps({
     </Button>
   );
 
-  const steps = shipmentMode === "standard"
-    ? [
-        {
-          step: 1,
-          title: "Get a quote — prices only",
-          body: (
-            <Stack spacing={1} alignItems="flex-start">
-              {quoteButton}
-              {quoteRows.length > 0 ? (
-                <Typography variant="body2">
-                  These prices are return-courier quotes. The order created afterwards is a standard pickup, so the booked carrier can differ.
-                </Typography>
-              ) : null}
-              {quoteList}
-            </Stack>
-          ),
-        },
-        {
-          step: 2,
-          title: "Create Shippit order — New Orders",
-          body: (
-            <Stack spacing={1} alignItems="flex-start">
-              <Typography variant="body2">
-                {selectedQuote
-                  ? `Selected price: $${selectedQuote.price.toFixed(2)} ${selectedQuote.courierType}`
-                  : "Select a quoted price before this step can be used."}
-              </Typography>
-              {price ? <Typography variant="body2">Price: ${price.toFixed(2)}</Typography> : null}
-              <FormControl size="small" disabled={orderExists}>
-                <InputLabel id="standard-courier-label">Courier type</InputLabel>
-                <Select
-                  labelId="standard-courier-label"
-                  label="Courier type"
-                  value={standardCourier}
-                  onChange={event => onCourierChange(event.target.value as "standard" | "express")}
-                >
-                  <MenuItem value="standard">standard</MenuItem>
-                  <MenuItem value="express">express</MenuItem>
-                </Select>
-              </FormControl>
-              <Button
-                variant={currentStep === 2 ? "contained" : "outlined"}
-                onClick={onCreateOrder}
-                disabled={!selectedQuote || workflowStage !== "quoted" || !parcelsReady || acceptingQuote || orderExists}
-              >
-                {acceptingQuote ? "Creating Shippit order..." : "Create Shippit order — New Orders"}
-              </Button>
-            </Stack>
-          ),
-        },
-        {
-          step: 3,
-          title: "Print label — move to Ready to Ship",
-          body: (
-            <Stack spacing={1} alignItems="flex-start">
-              <Button
-                variant={currentStep === 3 ? "contained" : "outlined"}
-                onClick={onConfirmOrder}
-                disabled={!orderExists || labelReady || confirmingOrder}
-              >
-                {confirmingOrder ? "Printing label..." : "Print label — move to Ready to Ship"}
-              </Button>
-              {labelReady ? printLabel : null}
-            </Stack>
-          ),
-        },
-        {
-          step: 4,
-          title: "Book pickup — book the courier once the sender is ready",
-          body: (
-            <Button
-              variant={currentStep === 4 ? "contained" : "outlined"}
-              color="secondary"
-              onClick={onBookPickup}
-              disabled={!labelReady || workflowStage === "booked" || bookingPickup}
-            >
-              {bookingPickup ? "Booking courier..." : "Book pickup — book the courier once the sender is ready"}
-            </Button>
-          ),
-        },
-      ]
-    : [
-        {
-          step: 1,
-          title: "Get a quote — prices only",
-          body: (
-            <Stack spacing={1} alignItems="flex-start">
-              {quoteButton}
-              {quoteList}
-            </Stack>
-          ),
-        },
-        {
-          step: 2,
-          title: "Accept quote — create Shippit order in New Orders",
-          body: (
-            <Stack spacing={1} alignItems="flex-start">
-              <Typography variant="body2">
-                {selectedQuote
-                  ? `Selected price: $${selectedQuote.price.toFixed(2)} ${selectedQuote.courierType}`
-                  : "Select a quoted price before this step can be used."}
-              </Typography>
-              <Button
-                variant={currentStep === 2 ? "contained" : "outlined"}
-                onClick={onAcceptQuote}
-                disabled={!selectedQuote || workflowStage !== "quoted" || acceptingQuote}
-              >
-                {acceptingQuote ? "Creating Shippit order..." : "Accept quote — create Shippit order in New Orders"}
-              </Button>
-            </Stack>
-          ),
-        },
-        {
-          step: 3,
-          title: "Request label — this allocates the courier",
-          body: (
-            <Stack spacing={1} alignItems="flex-start">
-              <Button
-                variant={currentStep === 3 ? "contained" : "outlined"}
-                onClick={onConfirmOrder}
-                disabled={!orderExists || labelReady || confirmingOrder}
-              >
-                {confirmingOrder ? "Requesting label..." : "Request label — this allocates the courier"}
-              </Button>
-              {labelReady ? printLabel : null}
-            </Stack>
-          ),
-        },
-      ];
+  const steps = [
+    {
+      step: 1,
+      title: "Get a quote — prices only",
+      body: (
+        <Stack spacing={1} alignItems="flex-start">
+          {quoteButton}
+          {quoteList}
+        </Stack>
+      ),
+    },
+    {
+      step: 2,
+      title: "Accept quote — create Shippit order in New Orders",
+      body: (
+        <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2">
+            {selectedQuote
+              ? `Selected price: $${selectedQuote.price.toFixed(2)} ${selectedQuote.courierType}`
+              : "Select a quoted price before this step can be used."}
+          </Typography>
+          <Button
+            variant={currentStep === 2 ? "contained" : "outlined"}
+            onClick={onAcceptQuote}
+            disabled={!selectedQuote || workflowStage !== "quoted" || acceptingQuote || orderExists}
+          >
+            {acceptingQuote ? "Creating Shippit order..." : "Accept quote — create Shippit order in New Orders"}
+          </Button>
+        </Stack>
+      ),
+    },
+    {
+      step: 3,
+      title: "Request label — this allocates the courier",
+      body: (
+        <Stack spacing={1} alignItems="flex-start">
+          <Button
+            variant={currentStep === 3 ? "contained" : "outlined"}
+            onClick={onConfirmOrder}
+            disabled={!orderExists || labelReady || confirmingOrder}
+          >
+            {confirmingOrder ? "Requesting label..." : "Request label — this allocates the courier"}
+          </Button>
+          {labelReady ? printLabel : null}
+        </Stack>
+      ),
+    },
+  ];
 
   return (
     <Box>
       <Typography variant="subtitle2">Return shipment</Typography>
       <Typography variant="body2" sx={{ mt: 1 }}>
-        Standard pickup prints the label first and books the courier later. Returns API allocates the courier when the label is requested.
+        Get a quote, accept it to create the return in New Orders, then request the label. Requesting the label allocates the courier.
       </Typography>
-      <FormControl sx={{ mt: 1 }} disabled={modeLocked || orderExists || workflowStage !== "not_quoted"}>
-        <FormLabel>Shipment mode</FormLabel>
-        <RadioGroup
-          row
-          value={shipmentMode}
-          onChange={event => onModeChange(event.target.value as ShippitReturnMode)}
-        >
-          <FormControlLabel value="standard" control={<Radio />} label="Standard pickup" />
-          <FormControlLabel value="returns_api" control={<Radio />} label="Returns API" />
-        </RadioGroup>
-      </FormControl>
       <Stack spacing={1.5} sx={{ mt: 1 }}>
         {steps.map(step => {
-          const complete = shipmentMode === "standard"
-            ? (step.step === 1 && workflowStage !== "not_quoted") || (step.step === 2 && orderExists) || (step.step === 3 && labelReady) || (step.step === 4 && workflowStage === "booked")
-            : (step.step === 1 && workflowStage !== "not_quoted") || (step.step === 2 && orderExists) || (step.step === 3 && (labelReady || workflowStage === "label_requested" || workflowStage === "booked"));
+          const complete = (step.step === 1 && workflowStage !== "not_quoted")
+            || (step.step === 2 && orderExists)
+            || (step.step === 3 && (labelReady || workflowStage === "label_requested" || workflowStage === "booked"));
           const current = step.step === currentStep;
           return (
             <Box
@@ -1880,7 +1645,7 @@ function ReturnShipmentSteps({
         })}
       </Stack>
       <Typography variant="body2" sx={{ mt: 1.5 }}>
-        Status: {WORKFLOW_STATUS_TEXT[workflowStage]}
+        Status: {statusText}
       </Typography>
       {shippitReturn ? (
         <Button size="small" variant="text" onClick={onRefreshStatus} disabled={pollingShippitReturn} sx={{ mt: 0.5 }}>
