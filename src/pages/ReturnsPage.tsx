@@ -444,6 +444,10 @@ function ReturnsPage() {
       setMessage({ type: "error", text: "Every parcel requires positive quantity, weight, length, width, and height before creating the order." });
       return;
     }
+    if (!selectedQuote || workflowStage !== "quoted") {
+      setMessage({ type: "error", text: "Get a quote and select a price before creating the Shippit order." });
+      return;
+    }
     setAcceptingQuote(true);
     setMessage(null);
     try {
@@ -643,13 +647,13 @@ function ReturnsPage() {
     setPreviewingQuote(true);
     setMessage(null);
     try {
-      await storeShipmentMode("returns_api");
+      await storeShipmentMode(shipmentMode);
       const response = await previewShippitReturnQuote({
         orderId: numericOrderId,
         returnId: activeReturnCase.id,
         parcels: returnParcels,
         parcelSource,
-        mode: "returns_api",
+        mode: shipmentMode,
       });
       setQuotePreview(response);
       setSelectedQuote(null);
@@ -1422,7 +1426,7 @@ function ReturnShipmentSteps({
   const orderExists = Boolean(shippitReturn?.return.return_order_id || shippitReturn?.return.tracking_number);
   const price = displayedOrderPrice(shippitReturn?.return);
   const quoteRows = quotePreview ? extractQuoteRows(quotePreview) : [];
-  const standardCurrent = !orderExists ? 1 : !labelReady ? 2 : workflowStage === "booked" ? 0 : 3;
+  const standardCurrent = !orderExists ? (workflowStage === "quoted" ? 2 : 1) : !labelReady ? 3 : workflowStage === "booked" ? 0 : 4;
   const returnsCurrent = workflowStage === "quoted" ? 2 : orderExists && !labelReady ? 3 : labelReady || workflowStage === "label_requested" || workflowStage === "booked" ? 0 : 1;
   const currentStep = shipmentMode === "standard" ? standardCurrent : returnsCurrent;
   const printLabel = (
@@ -1439,14 +1443,76 @@ function ReturnShipmentSteps({
     </Stack>
   );
 
+  const quoteList = quoteRows.length > 0 ? (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Courier</TableCell>
+          <TableCell>Service</TableCell>
+          <TableCell align="right">Price</TableCell>
+          <TableCell>Transit</TableCell>
+          <TableCell>Action</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {quoteRows.map((quote, index) => (
+          <TableRow key={`${quote.courierType}-${quote.serviceLevel}-${index}`}>
+            <TableCell>{quote.courierType}</TableCell>
+            <TableCell>{quote.serviceLevel}</TableCell>
+            <TableCell align="right">${quote.price.toFixed(2)}</TableCell>
+            <TableCell>{quote.estimatedTransitTime || "-"}</TableCell>
+            <TableCell>
+              <Button
+                size="small"
+                variant={selectedQuote && quoteKey(selectedQuote) === quoteKey(quote) ? "contained" : "outlined"}
+                onClick={() => onSelectQuote(quote)}
+                disabled={workflowStage !== "quoted" && workflowStage !== "not_quoted"}
+              >
+                {selectedQuote && quoteKey(selectedQuote) === quoteKey(quote) ? "Selected" : "Select"}
+              </Button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  ) : null;
+  const quoteButton = (
+    <Button
+      variant={currentStep === 1 ? "contained" : "outlined"}
+      onClick={onGetQuote}
+      disabled={!parcelsReady || previewingQuote || orderExists || workflowStage === "quoted"}
+    >
+      {previewingQuote ? "Getting prices..." : "Get a quote — prices only"}
+    </Button>
+  );
+
   const steps = shipmentMode === "standard"
     ? [
         {
           step: 1,
+          title: "Get a quote — prices only",
+          body: (
+            <Stack spacing={1} alignItems="flex-start">
+              {quoteButton}
+              {quoteRows.length > 0 ? (
+                <Typography variant="body2">
+                  These prices are return-courier quotes. The order created afterwards is a standard pickup, so the booked carrier can differ.
+                </Typography>
+              ) : null}
+              {quoteList}
+            </Stack>
+          ),
+        },
+        {
+          step: 2,
           title: "Create Shippit order — New Orders",
           body: (
             <Stack spacing={1} alignItems="flex-start">
-              <Typography variant="body2">Shippit cannot quote a customer pickup. The price appears on the order.</Typography>
+              <Typography variant="body2">
+                {selectedQuote
+                  ? `Selected price: $${selectedQuote.price.toFixed(2)} ${selectedQuote.courierType}`
+                  : "Select a quoted price before this step can be used."}
+              </Typography>
               {price ? <Typography variant="body2">Price: ${price.toFixed(2)}</Typography> : null}
               <FormControl size="small" disabled={orderExists}>
                 <InputLabel id="standard-courier-label">Courier type</InputLabel>
@@ -1461,9 +1527,9 @@ function ReturnShipmentSteps({
                 </Select>
               </FormControl>
               <Button
-                variant={currentStep === 1 ? "contained" : "outlined"}
+                variant={currentStep === 2 ? "contained" : "outlined"}
                 onClick={onCreateOrder}
-                disabled={!parcelsReady || acceptingQuote || orderExists}
+                disabled={!selectedQuote || workflowStage !== "quoted" || !parcelsReady || acceptingQuote || orderExists}
               >
                 {acceptingQuote ? "Creating Shippit order..." : "Create Shippit order — New Orders"}
               </Button>
@@ -1471,12 +1537,12 @@ function ReturnShipmentSteps({
           ),
         },
         {
-          step: 2,
+          step: 3,
           title: "Print label — move to Ready to Ship",
           body: (
             <Stack spacing={1} alignItems="flex-start">
               <Button
-                variant={currentStep === 2 ? "contained" : "outlined"}
+                variant={currentStep === 3 ? "contained" : "outlined"}
                 onClick={onConfirmOrder}
                 disabled={!orderExists || labelReady || confirmingOrder}
               >
@@ -1487,11 +1553,11 @@ function ReturnShipmentSteps({
           ),
         },
         {
-          step: 3,
+          step: 4,
           title: "Book pickup — book the courier once the sender is ready",
           body: (
             <Button
-              variant={currentStep === 3 ? "contained" : "outlined"}
+              variant={currentStep === 4 ? "contained" : "outlined"}
               color="secondary"
               onClick={onBookPickup}
               disabled={!labelReady || workflowStage === "booked" || bookingPickup}
@@ -1507,46 +1573,8 @@ function ReturnShipmentSteps({
           title: "Get a quote — prices only",
           body: (
             <Stack spacing={1} alignItems="flex-start">
-              <Button
-                variant={currentStep === 1 ? "contained" : "outlined"}
-                onClick={onGetQuote}
-                disabled={!parcelsReady || previewingQuote || orderExists || workflowStage === "quoted"}
-              >
-                {previewingQuote ? "Getting prices..." : "Get a quote — prices only"}
-              </Button>
-              {quoteRows.length > 0 ? (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Courier</TableCell>
-                      <TableCell>Service</TableCell>
-                      <TableCell align="right">Price</TableCell>
-                      <TableCell>Transit</TableCell>
-                      <TableCell>Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {quoteRows.map((quote, index) => (
-                      <TableRow key={`${quote.courierType}-${quote.serviceLevel}-${index}`}>
-                        <TableCell>{quote.courierType}</TableCell>
-                        <TableCell>{quote.serviceLevel}</TableCell>
-                        <TableCell align="right">${quote.price.toFixed(2)}</TableCell>
-                        <TableCell>{quote.estimatedTransitTime || "-"}</TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            variant={selectedQuote && quoteKey(selectedQuote) === quoteKey(quote) ? "contained" : "outlined"}
-                            onClick={() => onSelectQuote(quote)}
-                            disabled={workflowStage !== "quoted" && workflowStage !== "not_quoted"}
-                          >
-                            {selectedQuote && quoteKey(selectedQuote) === quoteKey(quote) ? "Selected" : "Select"}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : null}
+              {quoteButton}
+              {quoteList}
             </Stack>
           ),
         },
@@ -1608,7 +1636,7 @@ function ReturnShipmentSteps({
       <Stack spacing={1.5} sx={{ mt: 1 }}>
         {steps.map(step => {
           const complete = shipmentMode === "standard"
-            ? (step.step === 1 && orderExists) || (step.step === 2 && labelReady) || (step.step === 3 && workflowStage === "booked")
+            ? (step.step === 1 && workflowStage !== "not_quoted") || (step.step === 2 && orderExists) || (step.step === 3 && labelReady) || (step.step === 4 && workflowStage === "booked")
             : (step.step === 1 && workflowStage !== "not_quoted") || (step.step === 2 && orderExists) || (step.step === 3 && (labelReady || workflowStage === "label_requested" || workflowStage === "booked"));
           const current = step.step === currentStep;
           return (

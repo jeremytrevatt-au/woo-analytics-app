@@ -204,8 +204,9 @@ describe("ReturnsPage Shippit workflow", () => {
       }),
     }));
     await waitFor(() => expect(view.getByRole("radio", { name: "Standard pickup" })).toBeChecked());
-    expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Get a quote — prices only" })).toBeInTheDocument();
     fireEvent.click(view.getByRole("radio", { name: "Returns API" }));
+    await waitFor(() => expect(view.getByRole("radio", { name: "Returns API" })).toBeChecked());
     const quoteButton = await view.findByRole("button", { name: "Get a quote — prices only" });
     const acceptButton = view.getByRole("button", { name: "Accept quote — create Shippit order in New Orders" });
     const labelButton = view.getByRole("button", { name: "Request label — this allocates the courier" });
@@ -343,6 +344,21 @@ describe("ReturnsPage Shippit workflow", () => {
       decisions: [],
       parcel_source: "ny_recommendation",
     });
+    vi.mocked(previewShippitReturnQuote).mockResolvedValue({
+      name: "returns_quote_preview_v3",
+      method: "POST",
+      url: "https://app.staging.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 100,
+      body: {
+        response: [{
+          success: true,
+          courier_type: "standard",
+          service_level: "Standard",
+          quotes: [{ price: 18.4, estimated_transit_time: "2 days" }],
+        }],
+      },
+    });
     vi.mocked(createShippitReturnOrder).mockResolvedValue({
       order_id: 134400,
       return_id: 7,
@@ -398,15 +414,34 @@ describe("ReturnsPage Shippit workflow", () => {
     await view.findByDisplayValue("0.53");
     await waitFor(() => expect(view.getByRole("radio", { name: "Standard pickup" })).toBeChecked());
 
-    expect(view.getByText("Shippit cannot quote a customer pickup. The price appears on the order.")).toBeInTheDocument();
-    expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
+    expect(view.queryByText("Shippit cannot quote a customer pickup. The price appears on the order.")).not.toBeInTheDocument();
+    const quoteButton = view.getByRole("button", { name: "Get a quote — prices only" });
     const createButton = view.getByRole("button", { name: "Create Shippit order — New Orders" });
     const printStep = view.getByRole("button", { name: "Print label — move to Ready to Ship" });
     const bookButton = view.getByRole("button", { name: "Book pickup — book the courier once the sender is ready" });
+    expect(createButton).toBeDisabled();
+    expect(printStep).toBeDisabled();
+    expect(bookButton).toBeDisabled();
+    expect(view.queryByRole("button", { name: "Accept quote — create Shippit order in New Orders" })).not.toBeInTheDocument();
+
+    fireEvent.click(quoteButton);
+    await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
+    expect(previewShippitReturnQuote).toHaveBeenCalledWith({
+      orderId: 134400,
+      returnId: 7,
+      parcels: [{ qty: 1, weight_kg: 0.53, length_cm: 12, width_cm: 11, height_cm: 10 }],
+      parcelSource: "ny_recommendation",
+      mode: "standard",
+    });
+    expect(view.getByText("These prices are return-courier quotes. The order created afterwards is a standard pickup, so the booked carrier can differ.")).toBeInTheDocument();
+    expect(createButton).toBeDisabled();
+    fireEvent.click(view.getByRole("button", { name: "Select" }));
+    expect(view.getByText("Selected price: $18.40 standard")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Create Shippit order — New Orders" })).toBeEnabled();
     expect(printStep).toBeDisabled();
     expect(bookButton).toBeDisabled();
 
-    fireEvent.click(createButton);
+    fireEvent.click(view.getByRole("button", { name: "Create Shippit order — New Orders" }));
     await waitFor(() => expect(createShippitReturnOrder).toHaveBeenCalledWith(expect.objectContaining({
       orderId: 134400,
       returnId: 7,
@@ -415,7 +450,7 @@ describe("ReturnsPage Shippit workflow", () => {
       parcelSource: "ny_recommendation",
       parcels: [{ qty: 1, weight_kg: 0.53, length_cm: 12, width_cm: 11, height_cm: 10 }],
     })));
-    expect(previewShippitReturnQuote).not.toHaveBeenCalled();
+    expect(previewShippitReturnQuote).toHaveBeenCalledOnce();
     expect(acceptShippitReturnQuote).not.toHaveBeenCalled();
     expect(view.getByText("Status: new order")).toBeInTheDocument();
     expect(bookButton).toBeDisabled();
