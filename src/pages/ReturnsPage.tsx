@@ -786,7 +786,7 @@ function ReturnsPage() {
         </Typography>
         {editingOpenRequestedCase ? (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Status is Requested. Edit the return lines and case fields, save them, then get a quote, accept it, and request the label.
+            Status is Requested. Edit the return lines and case fields, save them, then follow the return shipment steps below.
           </Alert>
         ) : null}
         <Stack spacing={2}>
@@ -1353,7 +1353,7 @@ function ReturnShipmentDetails({
     <Stack spacing={2}>
       {openForEditing ? (
         <Alert severity="info">
-          Status is Requested. Edit the lines and other case fields in the form above, save them, then get a quote, accept it, and request the label.
+          Status is Requested. Edit the lines and other case fields in the form above, save them, then follow the return shipment steps.
         </Alert>
       ) : null}
       {reportTrackingOnly ? (
@@ -1501,23 +1501,14 @@ function ReturnShipmentSteps({
 }) {
   const orderExists = Boolean(shippitReturn?.return.return_order_id || shippitReturn?.return.tracking_number);
   const quoteRows = quotePreview ? extractQuoteRows(quotePreview) : [];
-  const currentStep = workflowStage === "quoted" ? 2 : orderExists && !labelReady ? 3 : labelReady || workflowStage === "label_requested" || workflowStage === "booked" ? 0 : 1;
+  const quoteSucceeded = workflowStage !== "not_quoted";
+  const labelSucceeded = labelReady || workflowStage === "label_requested" || workflowStage === "booked";
+  const labelUrl = shippitReturn?.return.label_url || "";
+  const printSucceeded = Boolean(labelUrl);
+  const currentStep = printSucceeded ? 5 : labelSucceeded ? 4 : orderExists ? 3 : quoteSucceeded ? 2 : 1;
   const statusText = displayedReturnStatus(
     workflowStage,
     shippitState || shippitReturn?.shippit_state || shippitReturn?.return.state || "",
-  );
-  const printLabel = (
-    <Stack direction="row" spacing={1}>
-      {shippitReturn?.return.label_url ? (
-        <Button size="small" variant="contained" href={shippitReturn.return.label_url} target="_blank" rel="noopener noreferrer">
-          Print label
-        </Button>
-      ) : (
-        <Button size="small" variant="contained" onClick={onPrintLabel} disabled={fetchingLabel}>
-          {fetchingLabel ? "Getting label..." : "Print label"}
-        </Button>
-      )}
-    </Stack>
   );
 
   const quoteList = quoteRows.length > 0 ? (
@@ -1567,8 +1558,10 @@ function ReturnShipmentSteps({
     {
       step: 1,
       title: "Get a quote — prices only",
+      complete: quoteSucceeded,
       body: (
         <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2">No Shippit order yet.</Typography>
           {quoteButton}
           {quoteList}
         </Stack>
@@ -1576,9 +1569,13 @@ function ReturnShipmentSteps({
     },
     {
       step: 2,
-      title: "Accept quote — create Shippit order in New Orders",
+      title: "Accept quote — create the Shippit order in New Orders",
+      complete: orderExists,
       body: (
         <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2">
+            The courier is not allocated. Leave the return here until you are ready to send the label to the customer.
+          </Typography>
           <Typography variant="body2">
             {selectedQuote
               ? `Selected price: $${selectedQuote.price.toFixed(2)} ${selectedQuote.courierType}`
@@ -1589,24 +1586,84 @@ function ReturnShipmentSteps({
             onClick={onAcceptQuote}
             disabled={!selectedQuote || workflowStage !== "quoted" || acceptingQuote || orderExists}
           >
-            {acceptingQuote ? "Creating Shippit order..." : "Accept quote — create Shippit order in New Orders"}
+            {acceptingQuote ? "Creating Shippit order..." : "Accept quote — create the Shippit order in New Orders"}
           </Button>
         </Stack>
       ),
     },
     {
       step: 3,
-      title: "Request label — this allocates the courier",
+      title: "Request label — this confirms the return and allocates the courier",
+      complete: labelSucceeded,
       body: (
         <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2">
+            There is no Book step. Australia Post then shows as Awaiting drop off. A courier collection shows as Return requested.
+          </Typography>
           <Button
             variant={currentStep === 3 ? "contained" : "outlined"}
             onClick={onConfirmOrder}
-            disabled={!orderExists || labelReady || confirmingOrder}
+            disabled={!orderExists || labelSucceeded || confirmingOrder}
           >
-            {confirmingOrder ? "Requesting label..." : "Request label — this allocates the courier"}
+            {confirmingOrder ? "Requesting label..." : "Request label — this confirms the return and allocates the courier"}
           </Button>
-          {labelReady ? printLabel : null}
+        </Stack>
+      ),
+    },
+    {
+      step: 4,
+      title: "Print label",
+      complete: printSucceeded,
+      body: (
+        <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2">
+            Open the PDF to print for the packaging or to attach to the customer email. The link lasts 7 days. Requesting the label again refreshes it.
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            {labelUrl ? (
+              <Button size="small" variant="contained" href={labelUrl} target="_blank" rel="noopener noreferrer">
+                Print label
+              </Button>
+            ) : (
+              <Button
+                size="small"
+                variant={currentStep === 4 ? "contained" : "outlined"}
+                onClick={onPrintLabel}
+                disabled={!labelSucceeded || fetchingLabel}
+              >
+                {fetchingLabel ? "Getting label..." : "Print label"}
+              </Button>
+            )}
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={onPrintLabel}
+              disabled={!printSucceeded || fetchingLabel}
+            >
+              {fetchingLabel ? "Refreshing label..." : "Request label again"}
+            </Button>
+          </Stack>
+        </Stack>
+      ),
+    },
+    {
+      step: 5,
+      title: "Customer instructions",
+      complete: false,
+      body: (
+        <Stack spacing={1} aria-label="Customer instructions">
+          <Typography variant="body2">
+            Shippit&apos;s automatic email goes to the shop address, not the customer. Send the customer the Natural Yield email, and put the printed note in the packaging.
+          </Typography>
+          <Typography variant="body2">
+            Australia Post: the customer attaches the label and drops the parcel off when they are ready.
+          </Typography>
+          <Typography variant="body2">
+            Aramex, Couriers Please, or Allied Express: the customer attaches the label, opens the tracking link, and requests the pickup when they are ready. No date or time can be chosen.
+          </Typography>
+          <Typography variant="body2">
+            No Shippit portal step is required after these buttons succeed.
+          </Typography>
         </Stack>
       ),
     },
@@ -1616,13 +1673,10 @@ function ReturnShipmentSteps({
     <Box>
       <Typography variant="subtitle2">Return shipment</Typography>
       <Typography variant="body2" sx={{ mt: 1 }}>
-        Get a quote, accept it to create the return in New Orders, then request the label. Requesting the label allocates the courier.
+        Follow the steps in order. The current step is highlighted, and each later action stays unavailable until the step before it succeeds.
       </Typography>
       <Stack spacing={1.5} sx={{ mt: 1 }}>
         {steps.map(step => {
-          const complete = (step.step === 1 && workflowStage !== "not_quoted")
-            || (step.step === 2 && orderExists)
-            || (step.step === 3 && (labelReady || workflowStage === "label_requested" || workflowStage === "booked"));
           const current = step.step === currentStep;
           return (
             <Box
@@ -1636,7 +1690,7 @@ function ReturnShipmentSteps({
               }}
             >
               <Typography variant="subtitle2">
-                {complete && !current ? "Done. " : current ? "Current. " : ""}
+                {step.complete && !current ? "Done. " : current ? "Current. " : ""}
                 {step.step}. {step.title}
               </Typography>
               <Box sx={{ mt: 1 }}>{step.body}</Box>

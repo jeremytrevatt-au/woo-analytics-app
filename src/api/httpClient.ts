@@ -44,9 +44,14 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const timestamp = new Date().toISOString();
   const isChatRequest = path.startsWith("/api/v1/chat");
   const isEmailHistoryRequest = path.startsWith("/api/v1/crm/customer-email-history");
+  const isReturnRequest = path.startsWith("/api/v1/returns") || path.startsWith("/api/v1/shippit/returns");
   const isSensitiveRequest = isChatRequest || isEmailHistoryRequest;
   const debugUrl = isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url;
-  const debugRequestBody = isSensitiveRequest ? redactSensitivePayload(init?.body) : init?.body ? String(init.body) : undefined;
+  const debugRequestBody = isSensitiveRequest
+    ? redactSensitivePayload(init?.body)
+    : isReturnRequest
+      ? redactReturnContactPayload(init?.body)
+      : init?.body ? String(init.body) : undefined;
 
   let response: Response;
   try {
@@ -82,7 +87,11 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     requestBody: debugRequestBody,
     statusCode: response.status,
     durationMs: Math.round(performance.now() - startedAt),
-    responseBody: isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody,
+    responseBody: isSensitiveRequest
+      ? redactSensitivePayload(parsedBody)
+      : isReturnRequest
+        ? redactReturnContactPayload(parsedBody)
+        : parsedBody,
     outcome: expectedApiOutcome(path, response.status),
   };
   pushApiDebugEvent(event);
@@ -93,7 +102,11 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       buildErrorMessage(response.status, debugUrl, parsedBody, textBody),
       response.status,
       debugUrl,
-      isSensitiveRequest ? redactSensitivePayload(parsedBody) : parsedBody,
+      isSensitiveRequest
+        ? redactSensitivePayload(parsedBody)
+        : isReturnRequest
+          ? redactReturnContactPayload(parsedBody)
+          : parsedBody,
     );
   }
   return parsedBody as T;
@@ -300,4 +313,64 @@ function redactEmailHistoryUrl(url: string): string {
     /([?&]customer_email=)[^&]*/i,
     "$1[redacted]",
   );
+}
+
+export function redactReturnDebugEvent(event: ApiDebugEvent): ApiDebugEvent {
+  return {
+    ...event,
+    requestBody: redactReturnContactPayload(event.requestBody),
+    responseBody: redactReturnContactPayload(event.responseBody),
+    error: typeof event.error === "string" ? redactReturnContactText(event.error) : event.error,
+  };
+}
+
+function redactReturnContactPayload(value: unknown): unknown {
+  let parsed = value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+      return redactReturnContactText(value);
+    }
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return redactReturnContactText(value);
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.map(redactReturnContactPayload);
+  }
+  if (parsed && typeof parsed === "object") {
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).map(([key, child]) => (
+        isReturnContactKey(key) ? [key, "[redacted]"] : [key, redactReturnContactPayload(child)]
+      )),
+    );
+  }
+  return parsed;
+}
+
+function isReturnContactKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  if (normalized === "shipping_address" || normalized === "billing_address" || normalized === "return_sender") {
+    return false;
+  }
+  return normalized === "email"
+    || normalized === "phone"
+    || normalized === "address"
+    || normalized === "address_1"
+    || normalized === "address_2"
+    || normalized === "address_line_1"
+    || normalized === "address_line_2"
+    || normalized === "street"
+    || normalized === "street_address"
+    || normalized.endsWith("_email")
+    || normalized.endsWith("_phone")
+    || normalized.endsWith("_street");
+}
+
+function redactReturnContactText(value: string): string {
+  return value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]")
+    .replace(/(?:\+?61|0)4\d{8}/g, "[redacted]");
 }

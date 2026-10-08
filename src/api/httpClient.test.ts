@@ -4,6 +4,7 @@ import {
   expectedApiOutcome,
   redactCouponDebugEvent,
   redactJourneyDebugEvent,
+  redactReturnDebugEvent,
 } from "./httpClient";
 
 describe("expected API outcomes", () => {
@@ -102,5 +103,67 @@ describe("coupon Cloud Logging redaction", () => {
       chat_delivery: { status: "sent" },
     });
     expect(event.requestBody).toContain("HELP10");
+  });
+});
+
+describe("return contact redaction", () => {
+  it("removes email, phone, and street from return debug events", () => {
+    const event: ApiDebugEvent = {
+      id: "debug-3",
+      timestamp: "2026-10-08T10:00:00Z",
+      method: "POST",
+      url: "https://analytics.example/api/v1/returns",
+      requestBody: JSON.stringify({
+        order_id: 134400,
+        return_sender: {
+          name: "Customer",
+          email: "customer@example.test",
+          phone: "0400000000",
+          address_line_1: "10 Correct Street",
+          suburb: "Googong",
+          postcode: "2620",
+        },
+      }),
+      responseBody: {
+        order: {
+          id: 134400,
+          customer: { email: "customer@example.test" },
+          shipping_address: {
+            address_1: "1 Original Street",
+            phone: "0400000000",
+            suburb: "Sydney",
+          },
+        },
+      },
+      error: "Failed for customer@example.test at 0400000000",
+    };
+
+    const redacted = redactReturnDebugEvent(event);
+
+    expect(redacted.requestBody).toEqual({
+      order_id: 134400,
+      return_sender: {
+        name: "Customer",
+        email: "[redacted]",
+        phone: "[redacted]",
+        address_line_1: "[redacted]",
+        suburb: "Googong",
+        postcode: "2620",
+      },
+    });
+    expect(redacted.responseBody).toEqual({
+      order: {
+        id: 134400,
+        customer: { email: "[redacted]" },
+        shipping_address: {
+          address_1: "[redacted]",
+          phone: "[redacted]",
+          suburb: "Sydney",
+        },
+      },
+    });
+    expect(redacted.error).not.toContain("customer@example.test");
+    expect(redacted.error).not.toContain("0400000000");
+    expect(event.requestBody).toContain("10 Correct Street");
   });
 });

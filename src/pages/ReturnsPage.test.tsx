@@ -193,13 +193,23 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.queryByRole("radio", { name: "Returns API" })).not.toBeInTheDocument();
     expect(view.queryByText("Shipment mode")).not.toBeInTheDocument();
     const quoteButton = await view.findByRole("button", { name: "Get a quote — prices only" });
-    const acceptButton = view.getByRole("button", { name: "Accept quote — create Shippit order in New Orders" });
-    const labelButton = view.getByRole("button", { name: "Request label — this allocates the courier" });
+    const acceptButton = view.getByRole("button", { name: "Accept quote — create the Shippit order in New Orders" });
+    const labelButton = view.getByRole("button", { name: "Request label — this confirms the return and allocates the courier" });
     expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
     expect(view.getByText("Status: not quoted")).toBeInTheDocument();
     expect(acceptButton).toBeDisabled();
     expect(labelButton).toBeDisabled();
-    expect(view.queryByRole("button", { name: "Print label" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Print label" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Request label again" })).toBeDisabled();
+    expect(view.getByText("Current. 1. Get a quote — prices only")).toBeInTheDocument();
+    expect(view.getByText("No Shippit order yet.")).toBeInTheDocument();
+    expect(view.getByText("The courier is not allocated. Leave the return here until you are ready to send the label to the customer.")).toBeInTheDocument();
+    expect(view.getByText("There is no Book step. Australia Post then shows as Awaiting drop off. A courier collection shows as Return requested.")).toBeInTheDocument();
+    expect(view.getByText(/The link lasts 7 days/)).toBeInTheDocument();
+    expect(view.getByText(/Shippit's automatic email goes to the shop address, not the customer/)).toBeInTheDocument();
+    expect(view.getByText(/Australia Post: the customer attaches the label/)).toBeInTheDocument();
+    expect(view.getByText(/Aramex, Couriers Please, or Allied Express/)).toBeInTheDocument();
+    expect(view.getByText("No Shippit portal step is required after these buttons succeed.")).toBeInTheDocument();
 
     fireEvent.click(quoteButton);
     await waitFor(() => expect(view.getByRole("button", { name: "Select" })).toBeInTheDocument());
@@ -214,10 +224,10 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(acceptButton).toBeDisabled();
     fireEvent.click(view.getByRole("button", { name: "Select" }));
     expect(view.getByText("Selected price: $12.34 standard")).toBeInTheDocument();
-    expect(view.getByRole("button", { name: "Accept quote — create Shippit order in New Orders" })).toBeEnabled();
-    expect(view.getByRole("button", { name: "Request label — this allocates the courier" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Accept quote — create the Shippit order in New Orders" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).toBeDisabled();
 
-    fireEvent.click(view.getByRole("button", { name: "Accept quote — create Shippit order in New Orders" }));
+    fireEvent.click(view.getByRole("button", { name: "Accept quote — create the Shippit order in New Orders" }));
     await waitFor(() => expect(acceptShippitReturnQuote).toHaveBeenCalledWith(expect.objectContaining({
       orderId: 134400,
       returnId: 7,
@@ -229,14 +239,15 @@ describe("ReturnsPage Shippit workflow", () => {
     })));
     expect(view.getByText("Status: order_placed")).toBeInTheDocument();
     expect(confirmShippitReturnOrder).not.toHaveBeenCalled();
-    expect(view.queryByRole("button", { name: "Print label" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Print label" })).toBeDisabled();
+    expect(view.getByText("Current. 3. Request label — this confirms the return and allocates the courier")).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
 
     fireEvent.click(view.getByRole("button", { name: "Refresh status" }));
     await waitFor(() => expect(getShippitReturnOrder).toHaveBeenCalledOnce());
     expect(fetchShippitReturnLabel).not.toHaveBeenCalled();
 
-    fireEvent.click(view.getByRole("button", { name: "Request label — this allocates the courier" }));
+    fireEvent.click(view.getByRole("button", { name: "Request label — this confirms the return and allocates the courier" }));
     await waitFor(() => expect(confirmShippitReturnOrder).toHaveBeenCalledWith({
       orderId: 134400,
       returnId: 7,
@@ -246,8 +257,15 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
     expect(view.queryByText(/courier is not booked/i)).not.toBeInTheDocument();
     expect(view.queryByText(/unbooked/i)).not.toBeInTheDocument();
+    expect(view.getByText("Current. 4. Print label")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Request label again" })).toBeDisabled();
     fireEvent.click(view.getByRole("button", { name: "Print label" }));
     await waitFor(() => expect(fetchShippitReturnLabel).toHaveBeenCalledWith(134400, "RETURN-TRACKING"));
+    await waitFor(() => expect(view.getByRole("link", { name: "Print label" })).toHaveAttribute("href", "https://labels.example.test/return.pdf"));
+    expect(view.getByText("Current. 5. Customer instructions")).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "Request label again" }));
+    await waitFor(() => expect(fetchShippitReturnLabel).toHaveBeenCalledTimes(2));
+    expect(confirmShippitReturnOrder).toHaveBeenCalledTimes(1);
   }, 15000);
 
   it("opens a stored standard return with no tracking on the Returns API steps", async () => {
@@ -336,8 +354,8 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.queryByRole("radio", { name: "Returns API" })).not.toBeInTheDocument();
     expect(view.queryByText("Shipment mode")).not.toBeInTheDocument();
     const quoteButton = view.getByRole("button", { name: "Get a quote — prices only" });
-    const acceptButton = view.getByRole("button", { name: "Accept quote — create Shippit order in New Orders" });
-    const labelButton = view.getByRole("button", { name: "Request label — this allocates the courier" });
+    const acceptButton = view.getByRole("button", { name: "Accept quote — create the Shippit order in New Orders" });
+    const labelButton = view.getByRole("button", { name: "Request label — this confirms the return and allocates the courier" });
     expect(quoteButton).toBeEnabled();
     expect(acceptButton).toBeDisabled();
     expect(labelButton).toBeDisabled();
@@ -559,11 +577,11 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.click(view.getByRole("button", { name: "Edit" }));
 
     await waitFor(() => expect(view.getByRole("heading", { name: "Return Case #112" })).toBeInTheDocument());
-    expect(view.getByText("Status is Requested. Edit the return lines and case fields, save them, then get a quote, accept it, and request the label.")).toBeInTheDocument();
+    expect(view.getByText("Status is Requested. Edit the return lines and case fields, save them, then follow the return shipment steps below.")).toBeInTheDocument();
     expect(view.getByDisplayValue("2")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "Get a quote — prices only" })).toBeEnabled();
-    expect(view.getByRole("button", { name: "Accept quote — create Shippit order in New Orders" })).toBeDisabled();
-    expect(view.getByRole("button", { name: "Request label — this allocates the courier" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Accept quote — create the Shippit order in New Orders" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).toBeDisabled();
     expect(view.queryByRole("radio", { name: "Standard pickup" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
 
@@ -615,8 +633,8 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(view.queryByRole("heading", { name: "Return Case #112" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Get a quote — prices only" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Create Shippit order — New Orders" })).not.toBeInTheDocument();
-    expect(view.queryByRole("button", { name: "Accept quote — create Shippit order in New Orders" })).not.toBeInTheDocument();
-    expect(view.queryByRole("button", { name: "Request label — this allocates the courier" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Accept quote — create the Shippit order in New Orders" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "Request label — this confirms the return and allocates the courier" })).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: "Book pickup — book the courier once the sender is ready" })).not.toBeInTheDocument();
     expect(createReturn).not.toHaveBeenCalled();
     expect(acceptShippitReturnQuote).not.toHaveBeenCalled();
