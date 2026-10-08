@@ -164,15 +164,30 @@ export type ShippitReturnRecord = {
   sender_overridden?: boolean;
 };
 
-export type ReturnWorkflowStage = "not_quoted" | "quoted" | "new_order" | "ready_to_ship" | "booked";
+export type ReturnWorkflowStage = "not_quoted" | "quoted" | "new_order" | "ready_to_ship" | "label_requested" | "booked";
+
+export type ShippitReturnMode = "standard" | "returns_api";
+
+export type ShipmentModeResponse = {
+  order_id: number;
+  return_id: number;
+  mode: ShippitReturnMode | "";
+  mode_locked: boolean;
+  workflow_stage: ReturnWorkflowStage;
+  shippit_state?: string;
+  label_ready: boolean;
+  price?: number | null;
+};
 
 export type ShippitReturnOrderResponse = {
   order_id: number;
   return_id?: number;
   idempotent_replay?: boolean;
+  mode?: ShippitReturnMode;
   creation_mode?: "create_order" | "accept_quote";
   workflow_stage?: ReturnWorkflowStage;
   shippit_state?: string;
+  label_ready?: boolean;
   return: ShippitReturnRecord;
   result?: ShippitReturnsProbeResult;
 };
@@ -280,11 +295,27 @@ export async function previewReturnParcels(payload: { orderId: number; returnId:
   });
 }
 
+export async function getShipmentMode(returnId: number, orderId: number): Promise<ShipmentModeResponse> {
+  return fetchJson<ShipmentModeResponse>(`/api/v1/shippit/returns/${returnId}/mode?order_id=${orderId}`);
+}
+
+export async function setShipmentMode(payload: {
+  returnId: number;
+  orderId: number;
+  mode: ShippitReturnMode;
+}): Promise<ShipmentModeResponse> {
+  return fetchJson<ShipmentModeResponse>(`/api/v1/shippit/returns/${payload.returnId}/mode`, {
+    method: "POST",
+    body: JSON.stringify({ order_id: payload.orderId, mode: payload.mode }),
+  });
+}
+
 export async function previewShippitReturnQuote(payload: {
   orderId: number;
   returnId: number;
   parcels: ReturnParcel[];
   parcelSource: "ny_recommendation" | "manual";
+  mode?: ShippitReturnMode;
 }): Promise<ShippitReturnsProbeResult> {
   return fetchJson<ShippitReturnsProbeResult>("/api/v1/shippit/returns/quote", {
     method: "POST",
@@ -293,6 +324,7 @@ export async function previewShippitReturnQuote(payload: {
       return_id: payload.returnId,
       parcels: payload.parcels,
       parcel_source: payload.parcelSource,
+      mode: payload.mode ?? "returns_api",
     }),
   });
 }
@@ -301,11 +333,22 @@ export async function createShippitReturnOrder(payload: {
   orderId: number;
   returnId: number;
   operationId: string;
-  courierType: string;
-  quotedCost: number;
-  currency: string;
+  courierType: "standard" | "express";
+  mode: "standard";
+  parcels: ReturnParcel[];
+  parcelSource: "ny_recommendation" | "manual";
 }): Promise<ShippitReturnOrderResponse> {
-  return acceptShippitReturnQuote(payload);
+  return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/create`, {
+    method: "POST",
+    body: JSON.stringify({
+      return_id: payload.returnId,
+      operation_id: payload.operationId,
+      courier_type: payload.courierType,
+      mode: payload.mode,
+      parcels: payload.parcels,
+      parcel_source: payload.parcelSource,
+    }),
+  });
 }
 
 export async function acceptShippitReturnQuote(payload: {
@@ -315,6 +358,7 @@ export async function acceptShippitReturnQuote(payload: {
   courierType: string;
   quotedCost: number;
   currency: string;
+  mode?: ShippitReturnMode;
 }): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/accept`, {
     method: "POST",
@@ -324,6 +368,7 @@ export async function acceptShippitReturnQuote(payload: {
       courier_type: payload.courierType,
       quoted_cost: payload.quotedCost,
       currency: payload.currency,
+      mode: payload.mode ?? "returns_api",
     }),
   });
 }
@@ -331,20 +376,22 @@ export async function acceptShippitReturnQuote(payload: {
 export async function confirmShippitReturnOrder(payload: {
   orderId: number;
   returnId: number;
+  mode?: ShippitReturnMode;
 }): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/confirm`, {
     method: "POST",
-    body: JSON.stringify({ return_id: payload.returnId }),
+    body: JSON.stringify({ return_id: payload.returnId, mode: payload.mode }),
   });
 }
 
 export async function bookShippitReturnPickup(payload: {
   orderId: number;
   returnId: number;
+  mode?: ShippitReturnMode;
 }): Promise<ShippitReturnOrderResponse> {
   return fetchJson<ShippitReturnOrderResponse>(`/api/v1/shippit/returns/order/${payload.orderId}/book`, {
     method: "POST",
-    body: JSON.stringify({ return_id: payload.returnId }),
+    body: JSON.stringify({ return_id: payload.returnId, mode: payload.mode ?? "standard" }),
   });
 }
 
