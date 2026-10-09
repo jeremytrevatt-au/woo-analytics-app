@@ -105,6 +105,7 @@ export const PRODUCT_RETURN_MACRO_SOURCES: Array<{
   { value: "product_name", label: "Product name" },
   { value: "product_sku", label: "Product SKU" },
   { value: "quantity", label: "Quantity" },
+  { value: "product_description", label: "Product description" },
   { value: "label_url", label: "Label URL" },
 ];
 
@@ -119,6 +120,7 @@ export const DEFAULT_PRODUCT_RETURN_MACRO_MAPPINGS: DocumentMacroMapping[] = [
   { token: "{product_name}", source_key: "product_name", is_required: true },
   { token: "{product_sku}", source_key: "product_sku", is_required: true },
   { token: "{quantity}", source_key: "quantity", is_required: true },
+  { token: "{product_description}", source_key: "product_description", is_required: true },
 ];
 
 export function defaultProductReturnMappings(templateName: string): DocumentMacroMapping[] {
