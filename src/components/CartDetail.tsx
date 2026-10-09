@@ -20,6 +20,7 @@ import {
   getLatestCustomerCart,
   getLatestVisitorCart,
 } from "../api/cartsApi";
+import { ApiRequestError } from "../api/httpClient";
 import { getCrmCustomerProfile } from "../api/crmApi";
 import {
   cartAbandonmentLabel,
@@ -56,6 +57,7 @@ export default function CartDetail({
   const [cart, setCart] = useState<AuthoritativeCart | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visitorCartMissing, setVisitorCartMissing] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerError, setCustomerError] = useState<string | null>(null);
@@ -64,8 +66,10 @@ export default function CartDetail({
     let active = true;
     setCart(null);
     setError(null);
+    setVisitorCartMissing(false);
     setLoading(false);
 
+    const latestVisitorLookup = !cartId && Boolean(visitorId);
     const request = cartId
       ? getCart(cartId)
       : visitorId
@@ -88,13 +92,23 @@ export default function CartDetail({
         }
       })
       .catch((requestError: unknown) => {
-        if (active) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : String(requestError),
-          );
+        if (!active) {
+          return;
         }
+        if (
+          latestVisitorLookup
+          && requestError instanceof ApiRequestError
+          && requestError.status === 404
+        ) {
+          setCart(null);
+          setVisitorCartMissing(true);
+          return;
+        }
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : String(requestError),
+        );
       })
       .finally(() => {
         if (active) {
@@ -156,6 +170,14 @@ export default function CartDetail({
         <CircularProgress size={22} />
         <Typography variant="body2">Loading authoritative cart…</Typography>
       </Stack>
+    );
+  }
+
+  if (visitorCartMissing) {
+    return (
+      <Alert severity="info">
+        No cart is recorded for this visitor.
+      </Alert>
     );
   }
 

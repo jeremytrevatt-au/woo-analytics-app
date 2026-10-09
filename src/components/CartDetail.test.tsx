@@ -6,6 +6,7 @@ import {
   getLatestCustomerCart,
   getLatestVisitorCart,
 } from "../api/cartsApi";
+import { ApiRequestError } from "../api/httpClient";
 import { getCrmCustomerProfile } from "../api/crmApi";
 import CartDetail from "./CartDetail";
 
@@ -131,6 +132,48 @@ describe("CartDetail", () => {
 
     await waitFor(() => expect(getLatestCustomerCart).toHaveBeenCalledWith(42));
     expect(getCart).not.toHaveBeenCalled();
+    expect(getLatestVisitorCart).not.toHaveBeenCalled();
+  });
+
+  it("shows an empty cart when the latest visitor lookup is not found", async () => {
+    vi.mocked(getLatestVisitorCart).mockRejectedValue(
+      new ApiRequestError(
+        "API request failed (404) https://analytics.naturalyield.com.au/api/v1/carts/latest/visitor/x: Not Found",
+        404,
+        "https://analytics.naturalyield.com.au/api/v1/carts/latest/visitor/x",
+        { detail: "Not Found" },
+      ),
+    );
+
+    const view = render(
+      <MemoryRouter>
+        <CartDetail visitorId={cart.visitor_id} customerId={42} />
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByText("No cart is recorded for this visitor.")).toBeInTheDocument();
+    expect(view.queryByText(/API request failed/)).not.toBeInTheDocument();
+    expect(getLatestCustomerCart).not.toHaveBeenCalled();
+  });
+
+  it("still shows a cart id 404 as a failed request", async () => {
+    vi.mocked(getCart).mockRejectedValue(
+      new ApiRequestError(
+        "API request failed (404) https://analytics.naturalyield.com.au/api/v1/carts/missing: Not Found",
+        404,
+        "https://analytics.naturalyield.com.au/api/v1/carts/missing",
+        { detail: "Not Found" },
+      ),
+    );
+
+    const view = render(
+      <MemoryRouter>
+        <CartDetail cartId={cart.cart_id} visitorId={cart.visitor_id} />
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByText(/API request failed \(404\)/)).toBeInTheDocument();
+    expect(view.queryByText("No cart is recorded for this visitor.")).not.toBeInTheDocument();
     expect(getLatestVisitorCart).not.toHaveBeenCalled();
   });
 
