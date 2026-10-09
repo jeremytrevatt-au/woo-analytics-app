@@ -277,8 +277,9 @@ describe("ReturnsPage Shippit workflow", () => {
     expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole("button", { name: "Send customer email" }));
     expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+    expect(view.getByRole("textbox", { name: "Send to" })).toHaveValue("customer@example.test");
     fireEvent.click(view.getByRole("button", { name: "Send the email" }));
-    await waitFor(() => expect(sendReturnDocumentEmail).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(sendReturnDocumentEmail).toHaveBeenCalledWith(7, "customer@example.test"));
     expect(fetchReturnDocument).not.toHaveBeenCalled();
   }, 30000);
 
@@ -716,6 +717,68 @@ describe("ReturnsPage Shippit workflow", () => {
     fireEvent.click(view.getByRole("button", { name: "Generate customer email" }));
     await waitFor(() => expect(fetchReturnDocument).toHaveBeenCalledWith(501, "email"));
     expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends the customer email to the address entered on the confirm dialog", async () => {
+    vi.mocked(listReturns).mockResolvedValue([{
+      id: 502,
+      order_id: 134502,
+      status: "requested",
+      reason: "Size",
+      resolution: "",
+      refund_expected: false,
+      refund_reference: "",
+      notes: "",
+      shippit_tracking_number: "TEST-TRACK",
+      shippit_state: "processing",
+      shippit_label_url: "https://labels.example.test/return.pdf",
+      originating_order: {
+        id: 134502,
+        number: "134502",
+        status: "completed",
+        status_label: "Completed",
+        fulfillment_status: "Fulfilled",
+        currency: "AUD",
+        billing_email: "billing@example.test",
+      },
+      created_at: "2026-10-08",
+      updated_at: "2026-10-08",
+      lines: [{ id: 1, order_item_id: 11, qty: 1 }],
+    }]);
+    vi.mocked(sendReturnDocumentEmail).mockResolvedValue({
+      return_id: 502,
+      order_id: 134502,
+      template_name: "WC Integrated Returns Email",
+      action: "send_email",
+      sent: true,
+      override_recipient_used: true,
+    });
+
+    const view = render(<ReturnsPage />);
+    await waitFor(() => expect(view.getByText("#502")).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "View" }));
+    fireEvent.click(view.getByRole("button", { name: "Send customer email" }));
+    expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+
+    const sendTo = view.getByRole("textbox", { name: "Send to" });
+    expect(sendTo).toHaveValue("billing@example.test");
+    fireEvent.change(sendTo, { target: { value: "" } });
+    fireEvent.click(view.getByRole("button", { name: "Send the email" }));
+    expect(view.getByText("Enter one email address.")).toBeInTheDocument();
+    expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+
+    fireEvent.change(sendTo, { target: { value: "one@example.test, two@example.test" } });
+    fireEvent.click(view.getByRole("button", { name: "Send the email" }));
+    expect(sendReturnDocumentEmail).not.toHaveBeenCalled();
+
+    fireEvent.change(sendTo, { target: { value: "owner@example.test" } });
+    fireEvent.click(view.getByRole("button", { name: "Send the email" }));
+    await waitFor(() => expect(sendReturnDocumentEmail).toHaveBeenCalledWith(502, "owner@example.test"));
+    expect(sendReturnDocumentEmail).toHaveBeenCalledTimes(1);
+    expect(updateReturn).not.toHaveBeenCalled();
+    expect(createReturn).not.toHaveBeenCalled();
+    expect(confirmShippitReturnOrder).not.toHaveBeenCalled();
+    await waitFor(() => expect(view.getByText("Customer email sent for return #502.")).toBeInTheDocument());
   });
 
   it("keeps document and print actions on a booked return and does not offer accept again", async () => {

@@ -130,6 +130,23 @@ function savedSenderIsDifferent(saved: ReturnSender | null | undefined, original
   return senderAddressKey({ ...emptyReturnSender, ...saved }) !== senderAddressKey(original);
 }
 
+const SINGLE_EMAIL_ADDRESS = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+function isSingleEmailAddress(value: string): boolean {
+  return value.length <= 254 && SINGLE_EMAIL_ADDRESS.test(value);
+}
+
+function customerReturnEmailRecipient(
+  senderEmail: string | null | undefined,
+  billingEmail: string | null | undefined,
+): string {
+  const sender = (senderEmail || "").trim();
+  if (sender) {
+    return sender;
+  }
+  return (billingEmail || "").trim();
+}
+
 function liveTrackingNumber(returnCase: ReturnCase): string {
   const tracking = (returnCase.shippit_tracking_number || returnCase.return_shipment?.tracking_number || "").trim();
   if (!tracking) {
@@ -1110,7 +1127,10 @@ function ReturnsPage() {
               onPrintLabel={handleFetchLabel}
               onRefreshStatus={handlePollShippitReturn}
               returnId={activeReturnCase.id}
-              recipientEmail={activeReturnCase.return_sender?.email || ""}
+              recipientEmail={customerReturnEmailRecipient(
+                activeReturnCase.return_sender?.email,
+                activeReturnCase.originating_order?.billing_email || returnableOrder?.order.customer.email,
+              )}
             />
           ) : null}
           <TextField
@@ -1420,6 +1440,8 @@ function ReturnDocumentActions({
 }) {
   const [busyAction, setBusyAction] = useState<"email" | "insert-letter" | "send" | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [sendTo, setSendTo] = useState(recipientEmail.trim());
+  const [sendToError, setSendToError] = useState("");
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const documentsReady = returnId > 0 && Boolean(trackingNumber.trim());
 
@@ -1448,11 +1470,23 @@ function ReturnDocumentActions({
     }
   };
 
+  const openSendDialog = () => {
+    setSendTo(recipientEmail.trim());
+    setSendToError("");
+    setConfirmSend(true);
+  };
+
   const sendEmail = async () => {
+    const recipient = sendTo.trim();
+    if (!isSingleEmailAddress(recipient)) {
+      setSendToError("Enter one email address.");
+      return;
+    }
+    setSendToError("");
     setBusyAction("send");
     setNotice(null);
     try {
-      await sendReturnDocumentEmail(returnId);
+      await sendReturnDocumentEmail(returnId, recipient);
       setConfirmSend(false);
       setNotice({ type: "success", text: `Customer email sent for return #${returnId}.` });
     } catch (error: unknown) {
@@ -1492,7 +1526,7 @@ function ReturnDocumentActions({
         <Button
           size="small"
           variant="contained"
-          onClick={() => setConfirmSend(true)}
+          onClick={openSendDialog}
           disabled={!documentsReady || busyAction !== null}
         >
           Send customer email
@@ -1510,10 +1544,22 @@ function ReturnDocumentActions({
         <DialogTitle>Send the customer email?</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
-            This sends the WC Integrated Returns Email
-            {recipientEmail.trim() ? ` to ${recipientEmail.trim()}` : " to the return sender"}
-            {" "}and attaches the return label. Requesting the label does not send this email.
+            This sends the WC Integrated Returns Email to the address in Send to and attaches the return label. Requesting the label does not send this email. The return sender and the order billing email stay unchanged.
           </Typography>
+          <TextField
+            label="Send to"
+            value={sendTo}
+            onChange={(event) => {
+              setSendTo(event.target.value);
+              setSendToError("");
+            }}
+            error={Boolean(sendToError)}
+            helperText={sendToError || "One address. This send uses only the address in this field."}
+            fullWidth
+            autoFocus
+            disabled={busyAction === "send"}
+            margin="dense"
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmSend(false)} disabled={busyAction === "send"}>Cancel</Button>
@@ -1756,7 +1802,10 @@ function ReturnShipmentDetails({
             returnId={returnCase.id}
             trackingNumber={tracking}
             labelUrl={shipment.label_url || ""}
-            recipientEmail={returnCase.return_sender?.email || ""}
+            recipientEmail={customerReturnEmailRecipient(
+              returnCase.return_sender?.email,
+              returnCase.originating_order?.billing_email,
+            )}
           />
           {["requested", "approved"].includes(returnCase.status) ? (
             <Button

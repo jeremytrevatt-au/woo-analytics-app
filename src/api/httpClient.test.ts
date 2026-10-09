@@ -115,6 +115,8 @@ describe("return contact redaction", () => {
       url: "https://analytics.example/api/v1/returns",
       requestBody: JSON.stringify({
         order_id: 134400,
+        confirm_send: true,
+        recipient_email: "owner@example.test",
         return_sender: {
           name: "Customer",
           email: "customer@example.test",
@@ -142,6 +144,8 @@ describe("return contact redaction", () => {
 
     expect(redacted.requestBody).toEqual({
       order_id: 134400,
+      confirm_send: true,
+      recipient_email: "[redacted]",
       return_sender: {
         name: "Customer",
         email: "[redacted]",

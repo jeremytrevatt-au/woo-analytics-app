@@ -59,6 +59,7 @@ export type ReturnCase = {
     fulfillment_status: string;
     date_created?: string | null;
     currency: string;
+    billing_email?: string;
   } | null;
   outbound_shipment?: {
     tracking_number?: string;
@@ -370,16 +371,20 @@ export async function fetchReturnDocument(returnId: number, kind: "email" | "ins
   return fetchBinary(`/api/v1/returns/${returnId}/documents/${kind}`);
 }
 
-export async function sendReturnDocumentEmail(returnId: number): Promise<{
+export async function sendReturnDocumentEmail(returnId: number, recipientEmail: string): Promise<{
   return_id: number;
   order_id: number;
   template_name: string;
   action: string;
   sent: boolean;
+  override_recipient_used?: boolean;
 }> {
   return fetchJson(`/api/v1/returns/${returnId}/documents/email/send`, {
     method: "POST",
-    body: JSON.stringify({ confirm_send: true }),
+    body: JSON.stringify({
+      confirm_send: true,
+      recipient_email: recipientEmail.trim(),
+    }),
   });
 }
 
