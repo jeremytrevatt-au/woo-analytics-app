@@ -855,3 +855,45 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
    2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
    3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
+
+## 2026-10-09 10:10 UTC — Returns page, document templates, and print station printers
+
+1. TODOs completed since the previous main push:
+   1. Kept the Returns page on the Returns API only: quote, accept into Shippit New Orders, and request label confirms the return and allocates the courier. Removed the standard pickup return mode.
+   2. Let a Requested return case be edited before it has a shipment.
+   3. Let a created return open its label, print it with the NY Print Agent, and generate the customer email and insert letter.
+   4. Added the Product Return template trigger, Edit Mappings, and editing of an existing template's source Doc.
+   5. Listed Product Return macros for Edit Mappings: `customer_first_name`, `order_number`, `return_case_number`, `tracking_number`, `tracking_url`, `carrier_name`, `return_instruction`, `product_name`, `product_sku`, `quantity`, `product_description`, and `product_variation_attributes`. `{{token}}` placeholders work. `product_description` stays the WooCommerce description. `product_variation_attributes` is the variation attribute names and values.
+   6. Added a Send to field on Send customer email and required confirmation before sending.
+   7. Showed an empty cart when a Chat visitor has no cart. Other 404 responses stay errors.
+   8. Let Print Jobs set a station's A4 and Shippit label printers.
+   9. Enabled Submit Selected Quote to create a Shippit order when the packing order does not have one yet, without booking it.
+2. Git build reference:
+   1. Book returns from the Book button: `5b27d9e2dfb0765e5fd2921be1f827a2c8bb06fe`.
+   2. Accept a return quote into New Orders: `f0546f519673f5a618764cb5373c25a5d568a91b`.
+   3. Standard pickup return option: `8000c5478eac389a8ae2d84736894aecbbe7bead`.
+   4. Standard pickup quotes: `094d1a3bf4c1a1c8347f074b1e7723c54b99de60`.
+   5. Edit a Requested return: `8edcc5349a16a308899b9c17469133ca14832456`.
+   6. Submit Selected Quote: `37e1b329e5dda59a9a51325176a3d9eec711488e`.
+   7. Edit action on a Requested case: `b02e6dd94e5a2cbb7e1c54610c8b70cc29cbf120`.
+   8. Return sender prefill: `6355354a5346bb2c4d0e69a7008fefbee85268d4`.
+   9. Remove standard pickup: `8cd913abb73c7ff2210f8a1b4eb1e53be3eec65c`.
+   10. Return quote, accept, label, and instruction steps: `78168390f0247568dc2ea0f4074a26ec556a2910`.
+   11. Product Return template trigger: `3e9587b106b737789a0456b1a2b57cdf0295b100`.
+   12. Product Return template trigger follow-up: `4910c066b5974d4c947dfb606ac367100695d50d`.
+   13. Created-return label, print, email, and insert letter: `be0c9dafa4e44efb65c5c8519bfda484f6d782c4`.
+   14. Editable template source Doc: `b04673e7a0a17275449252bf629046e76cad474c`.
+   15. Product description macro: `20329c4a6058d516b82c1f4b82e27a943f63d791`.
+   16. Variation attributes macro: `a265e6c47097c2d3c43f8f7f8658edfe2c63438c`.
+   17. Empty cart for a visitor with no cart: `6d78c8733a35db263ab839ec2815054f2aefb541`.
+   18. Send to field: `d7a02b45f25e9c62193d2fbd13007efe5d5b88b9`.
+   19. Print station printers: `974de75666745a9732bd32d09b7d79ed4e53c2f7`.
+   20. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. Request label confirms the return and allocates the courier. The Returns page no longer offers standard pickup.
+   2. Send customer email waits for confirmation and uses the Send to address. It leaves the return sender and the order billing email unchanged.
+   3. A Chat visitor with no cart is an empty cart. Other 404 responses remain errors.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
