@@ -26,9 +26,16 @@ export type PrintPrintersResponse = {
   default_station_id: string;
   station_id?: string;
   default_printer_name: string;
+  shippit_label_printer_name?: string;
   printers: PrintPrinterOption[];
   last_seen_at?: string | null;
   is_reported?: boolean;
+};
+
+export type StationPrinterSettingsPayload = {
+  station_id: string;
+  default_printer_name: string;
+  shippit_label_printer_name: string;
 };
 
 export type PrintJobCreatePayload = {
@@ -55,6 +62,19 @@ export async function createPrintJob(payload: PrintJobCreatePayload): Promise<Pr
   });
 }
 
-export async function listPrintPrinters(): Promise<PrintPrintersResponse> {
-  return fetchJson<PrintPrintersResponse>("/api/v1/print-jobs/printers");
+export async function listPrintPrinters(stationId?: string): Promise<PrintPrintersResponse> {
+  const query = new URLSearchParams();
+  const trimmedStationId = stationId?.trim();
+  if (trimmedStationId) query.set("station_id", trimmedStationId);
+  const qs = query.toString();
+  return fetchJson<PrintPrintersResponse>(`/api/v1/print-jobs/printers${qs ? `?${qs}` : ""}`);
+}
+
+export async function updateStationPrinters(
+  payload: StationPrinterSettingsPayload,
+): Promise<PrintPrintersResponse> {
+  return fetchJson<PrintPrintersResponse>("/api/v1/print-jobs/stations/printers", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
