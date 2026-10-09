@@ -17,6 +17,7 @@ export type DocumentMacroSource =
   | "product_sku"
   | "quantity"
   | "product_description"
+  | "product_variation_attributes"
   | "label_url"
   | "po_number"
   | "po_created_date"

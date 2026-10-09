@@ -51,7 +51,7 @@ const TRIGGER_OPTIONS = [
 ];
 
 const PURCHASE_ORDER_MACRO_HELP = "Map every purchase-order field, including {po_number}. Put line tokens in one table row. PDF export requires each mapped token to appear in the Google Doc. Blank Supplier SKU and Supplier price values stay in that row.";
-const PRODUCT_RETURN_MACRO_HELP = "Product Return tokens use {token_name}. Put {product_name}, {product_sku}, {quantity}, and {product_description} in one table row. {product_description} is the line's attribute names and values plus its description. {label_url} belongs on the returns email template. Edit Mappings saves the token each Google Doc uses and the return field it reads.";
+const PRODUCT_RETURN_MACRO_HELP = "Product Return tokens use {token_name}. Put {product_name}, {product_sku}, {quantity}, {product_description}, and {product_variation_attributes} in one table row. {product_description} is the product description. {product_variation_attributes} is the variation's attribute names and values. {label_url} belongs on the returns email template. Edit Mappings saves the token each Google Doc uses and the return field it reads.";
 
 function DocumentTemplatesPage() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
