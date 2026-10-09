@@ -38,6 +38,7 @@ import DocumentMacroMappingsEditor, {
   documentMacroSourceLabel,
   documentMacroSourcesForTrigger,
 } from "../components/DocumentMacroMappingsEditor";
+import { normalizeGoogleDocUrl } from "../lib/googleDocUrl";
 
 const TRIGGER_OPTIONS = [
   { value: "manual", label: "Manual" },
@@ -67,6 +68,13 @@ function DocumentTemplatesPage() {
   const [macroMappings, setMacroMappings] = useState<DocumentMacroMapping[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
   const [editingMappings, setEditingMappings] = useState<DocumentMacroMapping[]>([]);
+  const [definitionTemplate, setDefinitionTemplate] = useState<DocumentTemplate | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editTriggerType, setEditTriggerType] = useState("manual");
+  const [editMatchValue, setEditMatchValue] = useState("");
+  const [editGoogleDriveUrl, setEditGoogleDriveUrl] = useState("");
+  const [editEnabled, setEditEnabled] = useState(true);
+  const [editNotes, setEditNotes] = useState("");
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -147,6 +155,59 @@ function DocumentTemplatesPage() {
     }
   };
 
+  const openDefinitionEditor = (template: DocumentTemplate) => {
+    setDefinitionTemplate(template);
+    setEditName(template.name);
+    setEditTriggerType(template.trigger_type);
+    setEditMatchValue(template.match_value || "");
+    setEditGoogleDriveUrl(template.google_drive_url);
+    setEditEnabled(Boolean(Number(template.enabled)));
+    setEditNotes(template.notes || "");
+  };
+
+  const handleSaveDefinition = async () => {
+    if (!definitionTemplate) return;
+    if (!editName.trim()) {
+      setMessage({ type: "error", text: "Name is required." });
+      return;
+    }
+    let googleDriveUrl = "";
+    try {
+      googleDriveUrl = normalizeGoogleDocUrl(editGoogleDriveUrl);
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Enter a Google Doc URL or Doc ID.",
+      });
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      const updated = await updateDocumentTemplate(definitionTemplate.id, {
+        name: editName.trim(),
+        trigger_type: editTriggerType,
+        match_value: editMatchValue,
+        google_drive_url: googleDriveUrl,
+        enabled: editEnabled,
+        notes: editNotes,
+      });
+      setTemplates(previous => previous.map(template => (
+        template.id === updated.id ? updated : template
+      )));
+      setDefinitionTemplate(null);
+      setMessage({ type: "success", text: `Template ${updated.id} updated. Mappings stay on this template.` });
+    } catch (error: unknown) {
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to update document template.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleEnabledChange = async (template: DocumentTemplate, nextEnabled: boolean) => {
     setSaving(true);
     setMessage(null);
@@ -167,7 +228,7 @@ function DocumentTemplatesPage() {
         Document Templates
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Configure Google Drive documents for packing prints, purchase order PDFs, and product return emails and insert letters. Purchase Order and Product Return templates each use one repeating product-line row. Edit Mappings chooses the token and the field it reads.
+        Configure Google Drive documents for packing prints, purchase order PDFs, and product return emails and insert letters. Edit an existing template to change its name, source Doc, trigger, or enabled flag without creating a new template. Edit Mappings stays on that same template id. Purchase Order and Product Return templates each use one repeating product-line row.
       </Typography>
 
       {message ? (
@@ -325,9 +386,18 @@ function DocumentTemplatesPage() {
                   </Stack>
                 </TableCell>
                 <TableCell>
-                  <Button href={template.google_drive_url} target="_blank" rel="noreferrer" size="small">
-                    Open Source
-                  </Button>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      size="small"
+                      onClick={() => openDefinitionEditor(template)}
+                      disabled={saving}
+                    >
+                      Edit
+                    </Button>
+                    <Button href={template.google_drive_url} target="_blank" rel="noreferrer" size="small">
+                      Open Source
+                    </Button>
+                  </Stack>
                 </TableCell>
                 <TableCell>{template.updated_at}</TableCell>
               </TableRow>
@@ -353,6 +423,84 @@ function DocumentTemplatesPage() {
           </TableBody>
         </Table>
       </Paper>
+      <Dialog
+        open={!!definitionTemplate}
+        onClose={() => !saving && setDefinitionTemplate(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          Edit template{definitionTemplate ? ` ${definitionTemplate.id}` : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              label="Name"
+              value={editName}
+              onChange={(event) => setEditName(event.target.value)}
+              fullWidth
+              disabled={saving}
+            />
+            <FormControl fullWidth disabled={saving}>
+              <InputLabel>Trigger Type</InputLabel>
+              <Select
+                label="Trigger Type"
+                value={editTriggerType}
+                onChange={(event) => setEditTriggerType(event.target.value)}
+              >
+                {TRIGGER_OPTIONS.map(option => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Match Value"
+              value={editMatchValue}
+              onChange={(event) => setEditMatchValue(event.target.value)}
+              helperText="Example: SKU, category, or tag depending on trigger type"
+              fullWidth
+              disabled={saving}
+            />
+            <TextField
+              label="Source Google Doc"
+              value={editGoogleDriveUrl}
+              onChange={(event) => setEditGoogleDriveUrl(event.target.value)}
+              helperText="Paste the Doc URL or the Doc ID. Saving updates this template in place."
+              fullWidth
+              disabled={saving}
+            />
+            <TextField
+              label="Notes"
+              value={editNotes}
+              onChange={(event) => setEditNotes(event.target.value)}
+              multiline
+              minRows={2}
+              fullWidth
+              disabled={saving}
+            />
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={editEnabled}
+                  onChange={(event) => setEditEnabled(event.target.checked)}
+                  disabled={saving}
+                />
+              )}
+              label="Enabled"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDefinitionTemplate(null)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSaveDefinition} disabled={saving}>
+            Save template
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={!!editingTemplate}
         onClose={() => !saving && setEditingTemplate(null)}
