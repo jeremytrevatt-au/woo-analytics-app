@@ -192,7 +192,7 @@ describe("SupplierSkuMappingPage", () => {
     await user.click(option);
     await user.click(within(dialog).getByRole("button", { name: "Use this product" }));
     await waitFor(() => expect(within(screen.getByTestId("sku-target-3")).getByTestId("woo-product-name")).toHaveTextContent("Greenstalk Vertical Planter"));
-    expect(within(screen.getByTestId("sku-target-3")).getByText("Chosen by hand")).toBeInTheDocument();
+    expect(within(screen.getByTestId("sku-row-3")).getByText("Chosen by hand")).toBeInTheDocument();
   });
 
   it("flags duplicate Supplier SKUs inside the sheet and blocks them from commit", async () => {
