@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Chip } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
@@ -9,6 +9,12 @@ import { Supplier, suppliersApi } from "../api/suppliersApi";
 import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
 import { ProductSearchResult } from "../api/productsApi";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
+import { supplierSkuMappingApi } from "../api/supplierSkuMappingApi";
+import {
+  applySupplierValuesToLine,
+  supplierCurrencyMismatchMessage,
+  type SupplierDefaultsContext,
+} from "../lib/purchaseOrderSupplierDefaults";
 
 type Props = {
   open: boolean;
@@ -142,10 +148,23 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
   const [lineProductError, setLineProductError] = useState<string | null>(null);
   const [lineFilter, setLineFilter] = useState("");
+  const [supplierDefaultWarnings, setSupplierDefaultWarnings] = useState<string[]>([]);
+  const formDataRef = useRef<Partial<PurchaseOrder>>(formData);
+  formDataRef.current = formData;
 
   useEffect(() => {
     suppliersApi.getAll().then(setSuppliers).catch(console.error);
   }, []);
+
+  const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id);
+  const supplierCurrencyMismatch = selectedSupplier
+    ? supplierCurrencyMismatchMessage({
+      supplierId: selectedSupplier.id,
+      poCurrency: formData.supplier_currency,
+      supplierDefaultCurrency: selectedSupplier.default_currency,
+      rate: toNumber(formData.currency_conversion_rate, 1),
+    })
+    : null;
 
   useEffect(() => {
     if (po) {
@@ -158,6 +177,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     }
     setLineFilter("");
     setActiveRowIndex(null);
+    setSupplierDefaultWarnings([]);
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
@@ -165,6 +185,22 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
       const updated = { ...prev, [field]: value };
       const recalculated = recalculatePurchaseOrder(updated);
       return { ...recalculated, [field]: value };
+    });
+  };
+
+  /**
+   * Choosing a supplier on a draft PO defaults the PO currency to that supplier's default currency.
+   * The conversion rate stays manual. Saved POs are not touched until the admin picks a supplier here.
+   */
+  const handleSupplierChange = (supplierId: number | undefined) => {
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    setFormData(prev => {
+      const updated: Partial<PurchaseOrder> = { ...prev, supplier_id: supplierId };
+      if (supplier?.default_currency && (prev.status || "draft") === "draft") {
+        updated.supplier_currency = supplier.default_currency;
+      }
+      const recalculated = recalculatePurchaseOrder(updated);
+      return { ...recalculated, supplier_id: supplierId, supplier_currency: updated.supplier_currency };
     });
   };
 
@@ -231,7 +267,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
       wsviGroupId = product.wsvi_group_id;
     }
 
-    const newLines = [...(formData.lines || []), { 
+    const newLine: PurchaseOrderLine = {
       product_id: product.id, 
       parent_product_id: product.parent_id || 0,
       edit_product_id: product.edit_product_id || product.parent_id || product.id,
@@ -253,9 +289,58 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
       unit_price_aud: 0,
       supplier_total: 0,
       total_aud: 0
-    }];
-    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
+    };
+    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: [...(prev.lines || []), newLine] }));
     setLineProductError(null);
+    void applySupplierDefaultsToAddedLine(newLine);
+  };
+
+  const sameAddedLine = (candidate: PurchaseOrderLine, added: PurchaseOrderLine) =>
+    Number(candidate.product_id) === Number(added.product_id)
+    && (candidate.wsvi_group_id || "") === (added.wsvi_group_id || "");
+
+  const findAddedLineIndex = (lines: PurchaseOrderLine[], added: PurchaseOrderLine) => {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      if (sameAddedLine(lines[index], added)) return index;
+    }
+    return -1;
+  };
+
+  /**
+   * Copy Supplier SKU / price from the Woo product record onto a line just added from search.
+   * Runs after the line exists, and only fills values the user has not entered in the meantime.
+   */
+  const applySupplierDefaultsToAddedLine = async (added: PurchaseOrderLine) => {
+    const supplierId = formDataRef.current.supplier_id;
+    if (!supplierId) return;
+    try {
+      const lookup = await supplierSkuMappingApi.lookup(supplierId, [added.product_id]);
+      const item = lookup.items.find((entry) => Number(entry.product_id) === Number(added.product_id));
+      const contextFor = (po: Partial<PurchaseOrder>): SupplierDefaultsContext => ({
+        supplierId: po.supplier_id,
+        poCurrency: po.supplier_currency,
+        supplierDefaultCurrency: lookup.default_currency || suppliers.find((s) => s.id === po.supplier_id)?.default_currency,
+        rate: toNumber(po.currency_conversion_rate, 1),
+      });
+      const current = formDataRef.current;
+      const currentIndex = findAddedLineIndex(current.lines || [], added);
+      if (currentIndex < 0) return;
+      const preview = applySupplierValuesToLine((current.lines || [])[currentIndex], item, contextFor(current));
+      if (preview.warning) {
+        const warning = preview.warning;
+        setSupplierDefaultWarnings((existing) => (existing.includes(warning) ? existing : [...existing, warning]));
+      }
+      setFormData((prev) => {
+        const lines = [...(prev.lines || [])];
+        const index = findAddedLineIndex(lines, added);
+        if (index < 0) return prev;
+        lines[index] = applySupplierValuesToLine(lines[index], item, contextFor(prev)).line;
+        return recalculatePurchaseOrder({ ...prev, lines });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setLineProductError(`Supplier SKU lookup failed for ${added.sku || added.product_name}. The line was added without supplier values. ${message}`);
+    }
   };
 
   const handleExistingProduct = (lineIndex: number, product: ProductSearchResult) => {
@@ -372,6 +457,19 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
               {saveError}
             </Alert>
           ) : null}
+          {supplierCurrencyMismatch ? (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {supplierCurrencyMismatch}
+            </Alert>
+          ) : null}
+          {supplierDefaultWarnings.length > 0 ? (
+            <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setSupplierDefaultWarnings([])}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>Some supplier values were not copied onto lines:</Typography>
+              {supplierDefaultWarnings.map((warning) => (
+                <Typography key={warning} variant="body2">{warning}</Typography>
+              ))}
+            </Alert>
+          ) : null}
           <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField
@@ -399,7 +497,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                   select
                   label="Supplier"
                   value={formData.supplier_id || ""}
-                onChange={(e) => handleChange("supplier_id", e.target.value ? parseInt(e.target.value) : undefined)}
+                onChange={(e) => handleSupplierChange(e.target.value ? parseInt(e.target.value) : undefined)}
                   margin="normal"
                   sx={selectTextFieldSx}
                 >

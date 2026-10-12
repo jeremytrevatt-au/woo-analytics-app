@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, MenuItem, CircularProgress, Typography } from "@mui/material";
 import { purchaseOrdersApi, PurchaseOrder } from "../api/purchaseOrdersApi";
-import { mergePurchaseOrderLines, type StockPurchaseOrderSelection } from "../lib/addToPurchaseOrder";
+import { mergePurchaseOrderLines, mergePurchaseOrderLinesWithSupplierDefaults, type StockPurchaseOrderSelection } from "../lib/addToPurchaseOrder";
+import { loadSupplierDefaults } from "../lib/purchaseOrderSupplierDefaults";
 
 type Props = {
   open: boolean;
@@ -16,9 +17,12 @@ export default function AddToPOModal({ open, onClose, selectedItems, initialTarg
   const [selectedPoId, setSelectedPoId] = useState<string>("new");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
+  /** Set once the lines were saved but some supplier values could not be copied; the dialog stays open to show why. */
+  const [savedWarnings, setSavedWarnings] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (open) {
+      setSavedWarnings(null);
       setLoading(true);
       setRequestError(null);
       setValidationError(null);
@@ -72,8 +76,19 @@ export default function AddToPOModal({ open, onClose, selectedItems, initialTarg
       } else {
         const poToUpdate: PurchaseOrder = await purchaseOrdersApi.get(parseInt(selectedPoId));
         const currentLines = poToUpdate.lines || [];
-        const mergedLines = mergePurchaseOrderLines(currentLines, selectedItems);
+        // Supplier SKU / price held on the Woo product records, when the PO has a supplier.
+        const supplierDefaults = await loadSupplierDefaults({
+          supplierId: poToUpdate.supplier_id,
+          poCurrency: poToUpdate.supplier_currency,
+          rate: poToUpdate.currency_conversion_rate,
+          productIds: selectedItems.map((item) => Number(item.product_id)),
+        });
+        const { lines: mergedLines, warnings } = mergePurchaseOrderLinesWithSupplierDefaults(currentLines, selectedItems, supplierDefaults);
         await purchaseOrdersApi.update(poToUpdate.id!, { lines: mergedLines });
+        if (warnings.length > 0) {
+          setSavedWarnings(warnings);
+          return;
+        }
       }
       onClose(true);
     } catch (err) {
@@ -101,8 +116,16 @@ export default function AddToPOModal({ open, onClose, selectedItems, initialTarg
             {requestError}
           </Alert>
         )}
-        
-        {loading ? (
+        {savedWarnings && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Added to the purchase order. Some supplier values were not copied:</Typography>
+            {savedWarnings.map((warning) => (
+              <Typography key={warning} variant="body2">{warning}</Typography>
+            ))}
+          </Alert>
+        )}
+
+        {savedWarnings ? null : loading ? (
           <CircularProgress size={24} />
         ) : (
           <TextField
@@ -123,10 +146,16 @@ export default function AddToPOModal({ open, onClose, selectedItems, initialTarg
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => onClose(false)}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={loading || selectedPoId === ""}>
-          {loading ? "Saving..." : selectedPoId === "new" ? "Create PO" : "Add to PO"}
-        </Button>
+        {savedWarnings ? (
+          <Button onClick={() => onClose(true)} variant="contained">Done</Button>
+        ) : (
+          <>
+            <Button onClick={() => onClose(false)}>Cancel</Button>
+            <Button onClick={handleSave} variant="contained" disabled={loading || selectedPoId === ""}>
+              {loading ? "Saving..." : selectedPoId === "new" ? "Create PO" : "Add to PO"}
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );

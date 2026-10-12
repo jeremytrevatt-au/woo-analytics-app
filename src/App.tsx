@@ -26,6 +26,7 @@ import VisitorJourneysPage from "./pages/VisitorJourneysPage";
 import AppUpdateBanner from "./components/AppUpdateBanner";
 
 import SuppliersPage from "./pages/SuppliersPage";
+import SupplierSkuMappingPage from "./pages/SupplierSkuMappingPage";
 import SecurityRegisteredAccountsPage from "./pages/SecurityRegisteredAccountsPage";
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
                 <Route path="/document-templates" element={<DocumentTemplatesPage />} />
                 <Route path="/print-jobs" element={<PrintJobsPage />} />
                 <Route path="/suppliers" element={<SuppliersPage />} />
+                <Route path="/supplier-sku-mapping" element={<SupplierSkuMappingPage />} />
                 <Route path="/site-health" element={<SiteHealthPage />} />
                 <Route path="/admin" element={<AdminPage />} />
               </Routes>

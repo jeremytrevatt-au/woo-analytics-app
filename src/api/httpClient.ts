@@ -1,5 +1,10 @@
 import { pushApiDebugEvent } from "../debug/apiDebugStore";
 import { ApiDebugEvent } from "../types/analytics";
+import {
+  SUPPLIER_SKU_PREVIEW_PATH,
+  compactSupplierSkuPreviewForDebug,
+  describeRequestBodyForDebug,
+} from "../debug/supplierSkuPreviewDebug";
 
 const apiBaseUrl = (import.meta.env.VITE_ANALYTICS_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
 
@@ -51,7 +56,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     ? redactSensitivePayload(init?.body)
     : isReturnRequest
       ? redactReturnContactPayload(init?.body)
-      : init?.body ? String(init.body) : undefined;
+      : describeRequestBodyForDebug(init?.body);
 
   let response: Response;
   try {
@@ -91,7 +96,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       ? redactSensitivePayload(parsedBody)
       : isReturnRequest
         ? redactReturnContactPayload(parsedBody)
-        : parsedBody,
+        : path.startsWith(SUPPLIER_SKU_PREVIEW_PATH)
+          ? compactSupplierSkuPreviewForDebug(parsedBody)
+          : parsedBody,
     outcome: expectedApiOutcome(path, response.status),
   };
   pushApiDebugEvent(event);

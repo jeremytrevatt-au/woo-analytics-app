@@ -1,4 +1,5 @@
 import type { PurchaseOrderLine } from "../api/purchaseOrdersApi";
+import { applySupplierValuesToNewLines, type SupplierDefaultsInput } from "./purchaseOrderSupplierDefaults";
 
 export type StockPurchaseOrderSelection = {
   product_id: number | string;
@@ -39,16 +40,32 @@ export function mergePurchaseOrderLines(
   currentLines: PurchaseOrderLine[],
   selectedItems: StockPurchaseOrderSelection[],
 ): PurchaseOrderLine[] {
+  return mergePurchaseOrderLinesWithSupplierDefaults(currentLines, selectedItems).lines;
+}
+
+/**
+ * Same merge, plus Supplier SKU / Supplier price from the Woo product records on NEW lines only.
+ * Existing PO lines are never touched (apart from the qty increase), so user-edited values are preserved.
+ * Warnings (for example a currency mismatch that stopped a price being copied) are returned for display.
+ */
+export function mergePurchaseOrderLinesWithSupplierDefaults(
+  currentLines: PurchaseOrderLine[],
+  selectedItems: StockPurchaseOrderSelection[],
+  supplierDefaults?: SupplierDefaultsInput,
+): { lines: PurchaseOrderLine[]; warnings: string[] } {
   const merged = currentLines.map((line) => ({ ...line }));
   const indexByKey = new Map(merged.map((line, index) => [purchaseOrderLineKey(line), index]));
+  const warnings: string[] = [];
 
   for (const selectedItem of selectedItems) {
     const newLine = stockSelectionToPurchaseOrderLine(selectedItem);
     const key = purchaseOrderLineKey(newLine);
     const existingIndex = indexByKey.get(key);
     if (existingIndex === undefined) {
+      const withDefaults = applySupplierValuesToNewLines([newLine], supplierDefaults);
+      warnings.push(...withDefaults.warnings);
       indexByKey.set(key, merged.length);
-      merged.push(newLine);
+      merged.push(withDefaults.lines[0]);
       continue;
     }
 
@@ -59,5 +76,5 @@ export function mergePurchaseOrderLines(
     };
   }
 
-  return merged;
+  return { lines: merged, warnings };
 }

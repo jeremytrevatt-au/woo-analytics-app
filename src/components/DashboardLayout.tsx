@@ -31,6 +31,7 @@ const navItems = [
   { label: "Document Templates", to: "/document-templates" },
   { label: "Print Jobs", to: "/print-jobs" },
   { label: "Suppliers", to: "/suppliers" },
+  { label: "Supplier SKU Mapping", to: "/supplier-sku-mapping" },
   { label: "Site Health", to: "/site-health" },
   { label: "Admin", to: "/admin" }
 ];
