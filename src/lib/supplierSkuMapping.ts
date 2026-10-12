@@ -232,6 +232,32 @@ export function buildCommitRows(views: RowView[], supplierId: number): SkuMappin
   return commitRows;
 }
 
+export type CommitPreviewEntry = {
+  rowId: number;
+  supplierName: string;
+  supplierSku: string;
+  price: string;
+  replace: boolean;
+  product: SkuMappingCandidate;
+};
+
+/** The rows the commit confirmation is about to send, each tied to a named Woo product. Mirrors buildCommitRows. */
+export function buildCommitPreview(views: RowView[]): CommitPreviewEntry[] {
+  const entries: CommitPreviewEntry[] = [];
+  for (const view of views) {
+    if ((view.action !== "write" && view.action !== "replace") || !view.target || view.row.price === null) continue;
+    entries.push({
+      rowId: view.row.row_id,
+      supplierName: view.row.supplier_name,
+      supplierSku: view.sku,
+      price: view.row.price,
+      replace: view.action === "replace",
+      product: view.target,
+    });
+  }
+  return entries;
+}
+
 export type ActionCounts = Record<RowAction, number>;
 
 export function countActions(views: RowView[]): ActionCounts {
@@ -282,6 +308,7 @@ export type ConflictReplacement = {
   rowId: number;
   supplierName: string;
   wooSku: string;
+  product: SkuMappingCandidate;
   before: { supplierSku: string; supplierPrice: string; supplierId: number | null };
   after: { supplierSku: string; supplierPrice: string };
 };
@@ -289,11 +316,13 @@ export type ConflictReplacement = {
 /** Conflict rows that could be replaced right now: included, with a target and no other blocker. */
 export function replaceableConflicts(views: RowView[]): ConflictReplacement[] {
   return views
-    .filter((view) => view.status === "conflict" && view.include && !view.blockReason && view.target && view.row.price !== null)
+    .filter((view): view is RowView & { target: SkuMappingCandidate } =>
+      view.status === "conflict" && view.include && !view.blockReason && view.target !== null && view.row.price !== null)
     .map((view) => ({
       rowId: view.row.row_id,
       supplierName: view.row.supplier_name,
-      wooSku: view.target?.sku ?? "",
+      wooSku: view.target.sku,
+      product: view.target,
       before: {
         supplierSku: view.target?.supplier_sku ?? "",
         supplierPrice: view.target?.supplier_price ?? "",
@@ -318,6 +347,8 @@ export type CommitReportEntry = {
   supplierSku: string;
   wooId: number | null;
   wooSku: string;
+  /** The Woo product (name, attributes, id, SKU, status) the before/after values belong to. */
+  wooProduct: SkuMappingCandidate | null;
   outcome: CommitReportOutcome;
   message: string;
   before: SkuMappingSupplierValues | null;
@@ -338,6 +369,7 @@ export function buildCommitReport(views: RowView[], response: SkuMappingCommitRe
       supplierSku: view.sku,
       wooId: view.target?.id ?? null,
       wooSku: view.target?.sku ?? "",
+      wooProduct: view.target,
       before: null,
       after: null,
     };

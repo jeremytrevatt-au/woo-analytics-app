@@ -24,6 +24,7 @@ import {
   type SkuMappingPreview,
 } from "../api/supplierSkuMappingApi";
 import {
+  buildCommitPreview,
   buildCommitReport,
   buildCommitRows,
   countActions,
@@ -122,6 +123,7 @@ export default function SupplierSkuMappingPage() {
   const actionCounts = useMemo(() => countActions(views), [views]);
   const filteredViews = useMemo(() => filterViews(views, filter), [views, filter]);
   const conflicts = useMemo(() => replaceableConflicts(views), [views]);
+  const commitPreviewEntries = useMemo(() => buildCommitPreview(views), [views]);
   const families = useMemo(() => {
     if (!preview) return [];
     const labels = new Map(preview.family_resolution.map((family) => [family.family, family.label]));
@@ -344,6 +346,7 @@ export default function SupplierSkuMappingPage() {
       <CommitConfirmDialog
         open={confirmOpen}
         counts={actionCounts}
+        entries={commitPreviewEntries}
         supplierName={preview?.supplier.name ?? ""}
         committing={committing}
         onConfirm={handleCommit}

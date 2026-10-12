@@ -38,7 +38,4 @@ export function formatCurrentSupplierValues(candidate: SkuMappingCandidate | nul
   return parts.length > 0 ? parts.join(" / ") : "empty";
 }
 
-export function wooStatusLabel(status: string): string {
-  if (status === "publish") return "published";
-  return status;
-}
+export { wooStatusText as wooStatusLabel } from "../../lib/wooProductDisplay";

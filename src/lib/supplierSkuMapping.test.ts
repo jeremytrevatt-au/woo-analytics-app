@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SkuMappingCandidate, SkuMappingPreviewRow } from "../api/supplierSkuMappingApi";
 import {
+  buildCommitPreview,
   buildCommitReport,
   buildCommitRows,
   countActions,
@@ -23,6 +24,8 @@ function candidate(id: number, overrides: Partial<SkuMappingCandidate> = {}): Sk
     status: "publish",
     parent_id: 1,
     parent_name: "Parent",
+    name: "Parent",
+    attributes: [],
     label: `Product ${id}`,
     supplier_id: null,
     supplier_sku: "",
@@ -212,6 +215,46 @@ describe("buildCommitReport", () => {
     expect(report[3].message).toContain("Price TBD");
   });
 
+  it("ties every entry to the named Woo product so before and after values read against a product", () => {
+    const named = candidate(101, {
+      name: "Greenstalk Vertical Planter",
+      attributes: [{ name: "Tier", term_name: "3 Tier" }],
+    });
+    const views = deriveRowViews([row(1, { matched: named }), row(2, { matched: null, base_status: "no_woo_product", status: "no_woo_product", include_default: false })], {}, SUPPLIER);
+    const report = buildCommitReport(views, {
+      success: true,
+      counts: { updated: 1, unchanged: 0, conflict_skipped: 0, error: 0 },
+      results: [{ index: 0, product_id: 101, status: "updated" }],
+    });
+    expect(report).toHaveLength(1);
+    expect(report[0].wooProduct).toEqual(named);
+    expect(report[0].wooProduct?.name).toBe("Greenstalk Vertical Planter");
+  });
+
+  it("lists the rows about to be committed with their named Woo products", () => {
+    const named = candidate(101, { name: "Greenstalk Vertical Planter", attributes: [{ name: "Tier", term_name: "3 Tier" }] });
+    const conflictTarget = candidate(202, { supplier_id: SUPPLIER, supplier_sku: "OLD", supplier_price: "9.00" });
+    const views = deriveRowViews(
+      [row(1, { matched: named }), row(2, { matched: conflictTarget, base_status: "conflict", status: "conflict" })],
+      {},
+      SUPPLIER,
+    );
+    const preview = buildCommitPreview(views);
+    expect(preview.map((entry) => [entry.rowId, entry.product.id, entry.replace])).toEqual([[1, 101, false]]);
+    expect(preview[0].product.name).toBe("Greenstalk Vertical Planter");
+    expect(preview[0].supplierSku).toBe("SUP-1");
+    expect(preview[0].price).toBe("10.00");
+    const replacingViews = deriveRowViews(
+      [row(2, { matched: conflictTarget, base_status: "conflict", status: "conflict" })],
+      { 2: { replace: true } },
+      SUPPLIER,
+    );
+    const replacing = buildCommitPreview(replacingViews);
+    expect(replacing[0].replace).toBe(true);
+    // The confirmation lists exactly the products the commit payload will send.
+    expect(replacing.map((entry) => entry.product.id)).toEqual(buildCommitRows(replacingViews, SUPPLIER).map((item) => item.product_id));
+  });
+
   it("reports a sent row the server did not answer as an error", () => {
     const views = deriveRowViews([row(1)], {}, SUPPLIER);
     const report = buildCommitReport(views, { success: false, counts: { updated: 0, unchanged: 0, conflict_skipped: 0, error: 0 }, results: [] });
@@ -248,6 +291,7 @@ describe("summaries and filters", () => {
         rowId: 2,
         supplierName: "Sheet product 2",
         wooSku: "GS-202",
+        product: matched,
         before: { supplierSku: "OLD", supplierPrice: "9.00", supplierId: SUPPLIER },
         after: { supplierSku: "SUP-2", supplierPrice: "10.00" },
       },

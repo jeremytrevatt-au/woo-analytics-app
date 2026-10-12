@@ -15,7 +15,8 @@ import {
   Typography,
 } from "@mui/material";
 import type { SkuMappingSupplierValues } from "../../api/supplierSkuMappingApi";
-import type { ActionCounts, CommitReportEntry, ConflictReplacement } from "../../lib/supplierSkuMapping";
+import type { ActionCounts, CommitPreviewEntry, CommitReportEntry, ConflictReplacement } from "../../lib/supplierSkuMapping";
+import WooProductLabel from "./WooProductLabel";
 
 const formatValues = (values: SkuMappingSupplierValues | null) =>
   values
@@ -42,7 +43,7 @@ export function ReplaceConflictsDialog({ open, conflicts, onConfirm, onClose }: 
           <TableHead>
             <TableRow>
               <TableCell>Sheet row</TableCell>
-              <TableCell>Woo SKU</TableCell>
+              <TableCell>Woo product</TableCell>
               <TableCell>Before (on the product now)</TableCell>
               <TableCell>After (from the sheet)</TableCell>
             </TableRow>
@@ -53,7 +54,9 @@ export function ReplaceConflictsDialog({ open, conflicts, onConfirm, onClose }: 
                 <TableCell>
                   {conflict.rowId}: {conflict.supplierName}
                 </TableCell>
-                <TableCell>{conflict.wooSku}</TableCell>
+                <TableCell>
+                  <WooProductLabel product={conflict.product} />
+                </TableCell>
                 <TableCell>
                   {formatValues({
                     supplier_id: conflict.before.supplierId,
@@ -82,16 +85,18 @@ export function ReplaceConflictsDialog({ open, conflicts, onConfirm, onClose }: 
 type ConfirmProps = {
   open: boolean;
   counts: ActionCounts;
+  /** The rows that will be sent, each with the named Woo product it will be written to. */
+  entries: CommitPreviewEntry[];
   supplierName: string;
   committing: boolean;
   onConfirm: () => void;
   onClose: () => void;
 };
 
-export function CommitConfirmDialog({ open, counts, supplierName, committing, onConfirm, onClose }: ConfirmProps) {
+export function CommitConfirmDialog({ open, counts, entries, supplierName, committing, onConfirm, onClose }: ConfirmProps) {
   const toSend = counts.write + counts.replace;
   return (
-    <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle>Commit to WooCommerce?</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ mb: 2 }}>
@@ -125,6 +130,35 @@ export function CommitConfirmDialog({ open, counts, supplierName, committing, on
             </TableRow>
           </TableBody>
         </Table>
+        {entries.length > 0 ? (
+          <Box sx={{ mt: 2, maxHeight: 320, overflow: "auto" }}>
+            <Table size="small" stickyHeader data-testid="commit-confirm-rows">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Woo product</TableCell>
+                  <TableCell>Will write</TableCell>
+                  <TableCell>Sheet row</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {entries.map((entry) => (
+                  <TableRow key={entry.rowId}>
+                    <TableCell>
+                      <WooProductLabel product={entry.product} />
+                    </TableCell>
+                    <TableCell>
+                      {entry.supplierSku} / ${entry.price}
+                      {entry.replace ? " (replaces existing values)" : ""}
+                    </TableCell>
+                    <TableCell>
+                      {entry.rowId}: {entry.supplierName}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        ) : null}
         {counts.not_committable > 0 ? (
           <Alert severity="info" sx={{ mt: 2 }}>
             Rows that cannot be committed are not sent. Fix them first, or untick them, if you want them included.
@@ -197,7 +231,9 @@ export function CommitResults({ entries, counts, onDismiss }: ResultsProps) {
                   {entry.rowId}: {entry.supplierName}
                 </TableCell>
                 <TableCell>{entry.supplierSku}</TableCell>
-                <TableCell>{entry.wooId ? `#${entry.wooId} ${entry.wooSku}` : ""}</TableCell>
+                <TableCell>
+                  {entry.wooProduct ? <WooProductLabel product={entry.wooProduct} /> : entry.wooId ? `#${entry.wooId} ${entry.wooSku}` : ""}
+                </TableCell>
                 <TableCell>
                   <Chip size="small" color={display.color} label={display.label} />
                 </TableCell>

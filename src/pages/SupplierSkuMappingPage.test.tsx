@@ -23,7 +23,13 @@ function candidate(id: number, overrides: Partial<SkuMappingCandidate> = {}): Sk
     sku: `GS-${id}`,
     status: "publish",
     parent_id: 1,
-    parent_name: "Parent",
+    parent_name: "Greenstalk Vertical Planter",
+    name: "Greenstalk Vertical Planter",
+    attributes: [
+      { name: "Tier", term_name: "3 Tier" },
+      { name: "Style", term_name: "Basic" },
+      { name: "Colour", term_name: "Stunning Stone" },
+    ],
     label: `Product ${id}`,
     supplier_id: null,
     supplier_sku: "",
@@ -127,6 +133,68 @@ describe("SupplierSkuMappingPage", () => {
     expect(screen.getByTestId("alias-table")).toBeInTheDocument();
   });
 
+  it("shows the matched Woo product name, then its attributes by term name, then id, SKU and status", async () => {
+    mocks.preview.mockResolvedValue(previewPayload);
+    await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    const target = within(screen.getByTestId("sku-target-1"));
+    expect(target.getByTestId("woo-product-name")).toHaveTextContent("Greenstalk Vertical Planter");
+    expect(target.getByTestId("woo-product-attributes")).toHaveTextContent("Tier: 3 Tier, Style: Basic, Colour: Stunning Stone");
+    expect(target.getByTestId("woo-product-identity")).toHaveTextContent("#101 / GS-101 / published");
+  });
+
+  it("shows a simple product by name only, and a private product as private", async () => {
+    mocks.preview.mockResolvedValue({
+      ...previewPayload,
+      rows: [row(1, { matched: candidate(50, { type: "simple", name: "Ultimate Spinner Base Only", attributes: [], status: "private", sku: "GS-SPINNER-BASE" }) })],
+      row_count: 1,
+    });
+    await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    const target = within(screen.getByTestId("sku-target-1"));
+    expect(target.getByTestId("woo-product-name")).toHaveTextContent("Ultimate Spinner Base Only");
+    expect(target.queryByTestId("woo-product-attributes")).not.toBeInTheDocument();
+    expect(target.getByTestId("woo-product-identity")).toHaveTextContent("#50 / GS-SPINNER-BASE / private");
+  });
+
+  it("lists each candidate of an Ambiguous row with name, attributes, id, SKU and status", async () => {
+    const candidates = [
+      candidate(401, { attributes: [{ name: "Colour", term_name: "Snow" }] }),
+      candidate(402, { name: "Greenstalk Garden Lid", attributes: [{ name: "Colour", term_name: "Sage Green" }] }),
+    ];
+    mocks.preview.mockResolvedValue({
+      ...previewPayload,
+      rows: [row(5, { matched: null, candidates, base_status: "ambiguous", status: "ambiguous", include_default: false })],
+      row_count: 1,
+    });
+    await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    const list = within(screen.getByTestId("sku-candidates-5"));
+    expect(list.getByText("2 candidates:")).toBeInTheDocument();
+    expect(list.getByText("Colour: Snow")).toBeInTheDocument();
+    expect(list.getByText("Greenstalk Garden Lid")).toBeInTheDocument();
+    expect(list.getByText("Colour: Sage Green")).toBeInTheDocument();
+    expect(list.getByText("#401 / GS-401 / published")).toBeInTheDocument();
+    expect(list.getByText("#402 / GS-402 / published")).toBeInTheDocument();
+  });
+
+  it("offers manual-select options by name and attributes, and shows the chosen product's name", async () => {
+    mocks.preview.mockResolvedValue(previewPayload);
+    const user = await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    await user.click(within(screen.getByTestId("sku-row-3")).getByRole("button", { name: "Select" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox"));
+    const option = await screen.findByRole("option", { name: /#303/ });
+    expect(option).toHaveTextContent("Greenstalk Vertical Planter");
+    expect(option).toHaveTextContent("Tier: 3 Tier, Style: Basic, Colour: Stunning Stone");
+    expect(option).toHaveTextContent("#303 / GS-303 / published");
+    await user.click(option);
+    await user.click(within(dialog).getByRole("button", { name: "Use this product" }));
+    await waitFor(() => expect(within(screen.getByTestId("sku-target-3")).getByTestId("woo-product-name")).toHaveTextContent("Greenstalk Vertical Planter"));
+    expect(within(screen.getByTestId("sku-target-3")).getByText("Chosen by hand")).toBeInTheDocument();
+  });
+
   it("flags duplicate Supplier SKUs inside the sheet and blocks them from commit", async () => {
     mocks.preview.mockResolvedValue(previewPayload);
     await uploadAndPreview();
@@ -168,8 +236,18 @@ describe("SupplierSkuMappingPage", () => {
     expect(within(counts).getByText("New values to write").nextSibling).toHaveTextContent("1");
     expect(within(counts).getByText(/Skipped: conflict, Replace not ticked/).nextSibling).toHaveTextContent("1");
 
+    // The confirmation names the Woo product each value will be written to.
+    const confirmRows = within(screen.getByTestId("commit-confirm-rows"));
+    expect(confirmRows.getByText("Greenstalk Vertical Planter")).toBeInTheDocument();
+    expect(confirmRows.getByText("Tier: 3 Tier, Style: Basic, Colour: Stunning Stone")).toBeInTheDocument();
+    expect(confirmRows.getByText("#101 / GS-101 / published")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Commit 1 row" }));
     await screen.findByTestId("commit-results");
+    // The per-row result ties before/after values to the named product.
+    const resultProduct = within(screen.getByTestId("commit-results"));
+    expect(resultProduct.getAllByText("Greenstalk Vertical Planter").length).toBeGreaterThan(0);
+    expect(resultProduct.getByText("#101 / GS-101 / published")).toBeInTheDocument();
     expect(mocks.commit).toHaveBeenCalledWith([
       { product_id: 101, supplier_id: 2, supplier_sku: "SUP-1-FIXED", supplier_price: "10.00", replace: false },
     ]);

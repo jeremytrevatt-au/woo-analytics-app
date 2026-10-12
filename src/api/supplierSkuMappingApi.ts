@@ -12,6 +12,13 @@ export type SkuMappingStatus =
   | "sheet_warning"
   | "woo_disabled";
 
+export type SkuMappingAttribute = {
+  /** The WooCommerce attribute label as the plugin reports it (e.g. "Tier"). */
+  name: string;
+  /** The term name (never the slug). Blank means the variation's attribute is set to "Any". */
+  term_name: string;
+};
+
 export type SkuMappingCandidate = {
   id: number;
   type: "simple" | "variation";
@@ -19,6 +26,10 @@ export type SkuMappingCandidate = {
   status: string;
   parent_id: number;
   parent_name: string;
+  /** Product name: the parent product's name for a variation, the product's own name for a simple product. */
+  name: string;
+  /** Variation attributes with term names; empty for a simple product. */
+  attributes: SkuMappingAttribute[];
   label: string;
   supplier_id: number | null;
   supplier_sku: string;

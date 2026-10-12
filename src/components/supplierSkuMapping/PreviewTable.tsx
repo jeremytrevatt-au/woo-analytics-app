@@ -18,7 +18,10 @@ import {
   Typography,
 } from "@mui/material";
 import type { RowView } from "../../lib/supplierSkuMapping";
-import { FLAG_LABELS, StatusChip, formatCurrentSupplierValues, wooStatusLabel } from "./statusDisplay";
+import { FLAG_LABELS, StatusChip, formatCurrentSupplierValues } from "./statusDisplay";
+import WooProductLabel from "./WooProductLabel";
+
+const MAX_LISTED_CANDIDATES = 5;
 
 type Props = {
   views: RowView[];
@@ -139,13 +142,12 @@ export default function PreviewTable({
                   <TableCell sx={{ minWidth: 230 }}>
                     {view.target ? (
                       <Box>
-                        <Typography variant="body2">
-                          #{view.target.id} {view.target.sku || "(no SKU)"}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                          {view.target.type} / {wooStatusLabel(view.target.status)}
-                          {view.isManual ? " / chosen by hand" : ""}
-                        </Typography>
+                        <WooProductLabel product={view.target} testId={`sku-target-${row.row_id}`} />
+                        {view.isManual ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                            Chosen by hand
+                          </Typography>
+                        ) : null}
                         {view.sharedTarget ? (
                           <Typography variant="caption" color="error" sx={{ display: "block" }}>
                             Another included row points at this product.
@@ -157,6 +159,23 @@ export default function PreviewTable({
                         No product matched
                       </Typography>
                     )}
+                    {!view.target && row.candidates.length > 0 ? (
+                      <Box sx={{ mt: 0.5 }} data-testid={`sku-candidates-${row.row_id}`}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                          {row.candidates.length} candidate{row.candidates.length === 1 ? "" : "s"}:
+                        </Typography>
+                        {row.candidates.slice(0, MAX_LISTED_CANDIDATES).map((candidate) => (
+                          <Box key={candidate.id} sx={{ mt: 0.5, pl: 1, borderLeft: 2, borderColor: "divider" }}>
+                            <WooProductLabel product={candidate} />
+                          </Box>
+                        ))}
+                        {row.candidates.length > MAX_LISTED_CANDIDATES ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                            and {row.candidates.length - MAX_LISTED_CANDIDATES} more (use Select to see them all)
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    ) : null}
                     <Box sx={{ mt: 0.5 }}>
                       <Button size="small" onClick={() => onPickProduct(row.row_id)}>
                         {view.target ? "Change" : "Select"}

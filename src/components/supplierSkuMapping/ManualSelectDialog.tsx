@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from "@mui/material";
 import type { SkuMappingCandidate, SkuMappingPreviewRow } from "../../api/supplierSkuMappingApi";
-import { wooStatusLabel } from "./statusDisplay";
+import { formatProductOneLine } from "../../lib/wooProductDisplay";
+import WooProductLabel from "./WooProductLabel";
 
 type Props = {
   row: SkuMappingPreviewRow | null;
@@ -11,8 +12,8 @@ type Props = {
   onClose: () => void;
 };
 
-const optionLabel = (candidate: SkuMappingCandidate) =>
-  `${candidate.sku || "(no SKU)"} - ${candidate.label} [#${candidate.id}, ${candidate.type}, ${wooStatusLabel(candidate.status)}]`;
+/** Name, attributes, then id / SKU / status. Search matches against all of it. */
+const optionLabel = (candidate: SkuMappingCandidate) => formatProductOneLine(candidate);
 
 export default function ManualSelectDialog({ row, candidates, onSelect, onClose }: Props) {
   const [value, setValue] = useState<SkuMappingCandidate | null>(null);
@@ -50,6 +51,14 @@ export default function ManualSelectDialog({ row, candidates, onSelect, onClose 
                 const needle = state.inputValue.trim().toLowerCase();
                 const matches = needle ? all.filter((candidate) => optionLabel(candidate).toLowerCase().includes(needle)) : all;
                 return matches.slice(0, 100);
+              }}
+              renderOption={(props, option) => {
+                const { key, ...liProps } = props as typeof props & { key?: string };
+                return (
+                  <li {...liProps} key={key ?? option.id}>
+                    <WooProductLabel product={option} />
+                  </li>
+                );
               }}
               renderInput={(params) => <TextField {...params} label="Search by SKU, name or id" autoFocus />}
             />
