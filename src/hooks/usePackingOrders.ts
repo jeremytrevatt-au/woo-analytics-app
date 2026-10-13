@@ -24,17 +24,21 @@ const initialState: PackingOrdersState = {
 export function usePackingOrders(page = 1, pageSize = 100) {
   const { filters } = useFilters();
   const [state, setState] = useState<PackingOrdersState>(initialState);
-  const requestSequence = useRef(0);
+  const listRequestInFlight = useRef(false);
 
   const refresh = useCallback(async (showLoading = false) => {
-    const requestId = ++requestSequence.current;
+    // A poll must not start while the list request is still running. Dropping
+    // that response left the packing spinner on after a slow successful load.
+    if (listRequestInFlight.current) {
+      return;
+    }
+    listRequestInFlight.current = true;
     if (showLoading) {
       setState(previous => ({ ...previous, isLoading: true, error: null }));
     }
 
     try {
       const response = await getPackingOrders(filters, page, pageSize);
-      if (requestId !== requestSequence.current) return;
       setState({
         rows: response.records,
         currentUser: response.currentUser,
@@ -43,12 +47,13 @@ export function usePackingOrders(page = 1, pageSize = 100) {
         error: null,
       });
     } catch (error) {
-      if (requestId !== requestSequence.current) return;
       setState(previous => ({
         ...previous,
         isLoading: false,
         error: error instanceof Error ? error.message : "Failed to refresh packing orders.",
       }));
+    } finally {
+      listRequestInFlight.current = false;
     }
   }, [filters, page, pageSize]);
 
