@@ -940,3 +940,24 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
    3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
    4. The print-agent signed release is still open.
+
+## 2026-10-13 09:33 UTC — Extra shipping email and held booking
+
+1. TODOs completed since the previous main push:
+   1. Packing: email the customer a pending order for extra shipping and hold booking until it is paid. The packing screen shows the GST-inclusive difference and keeps booking disabled until the pending fee order is paid. The email is from shop@naturalyield.com.au through template 5 trigger `additional_shipping`. Resend reuses the unpaid order. A different quote while that order is unpaid is refused. Commit `e3a129bb027477a8ce66101eab0590a5c7fb7210` (2026-10-13 08:53:21 UTC).
+   2. Packing: give the reserve packing test recommended parcels so Finalise can enable. This is the deployed app build. Commit `b826bf8ba0c54754f638a69ada472ca1568bce4d` (2026-10-13 09:02:46 UTC).
+2. Git build reference:
+   1. Inclusive difference and booking held until the pending order is paid: `e3a129bb027477a8ce66101eab0590a5c7fb7210`.
+   2. Deployed app build, reserve packing test parcels: `b826bf8ba0c54754f638a69ada472ca1568bce4d`.
+   3. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. No production customer was emailed and no production extra order was created.
+   2. Google Doc `1xR5i7x061FvayhgGm0wOawmFidVKpSMIx7OPZ941E14` was not readable, so the Doc body was not compared with the seven tokens.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
+   4. The print-agent signed release is still open.
+   5. Gmail history-cursor recovery was blocked and is not finished.
+   6. The chat "don't show this again" prompt remains plan only.
+   7. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
