@@ -81,9 +81,20 @@ export type SkuMappingAlias = {
   applies_to: string;
 };
 
+export type SkuMappingReferenceDiff = {
+  reference_label: string;
+  sheet_row_count: number;
+  pdf_row_count: number;
+  skus_only_on_sheet: string[];
+  skus_only_in_pdf: string[];
+  colour_headers_only_on_sheet: string[];
+  colour_headers_only_in_pdf: string[];
+};
+
 export type SkuMappingPreview = {
   run_id?: string;
   supplier: { id: number; name: string; default_currency: string };
+  reference_diff?: SkuMappingReferenceDiff;
   parse: {
     stats: Record<string, number>;
     colour_headers: string[];
@@ -142,14 +153,11 @@ export type SupplierSkuLookupResponse = {
 };
 
 export const supplierSkuMappingApi = {
-  /** Read-only: parses the uploaded sheet and matches it against the live catalog. Nothing is written. */
-  async preview(supplierId: number, file: File): Promise<SkuMappingPreview> {
-    const form = new FormData();
-    form.append("supplier_id", String(supplierId));
-    form.append("file", file, file.name);
+  /** Read-only: reads the supplier's stored Google Sheet and matches it. Nothing is written. */
+  async preview(supplierId: number): Promise<SkuMappingPreview> {
     return fetchJson<SkuMappingPreview>("/api/v1/supplier-sku-mapping/preview", {
       method: "POST",
-      body: form,
+      body: JSON.stringify({ supplier_id: supplierId }),
     });
   },
 

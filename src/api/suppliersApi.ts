@@ -7,6 +7,8 @@ export type Supplier = {
   email: string;
   default_currency: string;
   default_lead_time_days: number;
+  catalog_spreadsheet_id?: string;
+  catalog_sheet_tab?: string;
   created_at?: string;
 };
 

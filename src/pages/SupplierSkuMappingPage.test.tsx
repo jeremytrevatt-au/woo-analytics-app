@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../api/httpClient";
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   commit: vi.fn(),
 }));
 
-vi.mock("../api/suppliersApi", () => ({ suppliersApi: { getAll: mocks.getAll } }));
+vi.mock("../api/suppliersApi", () => ({ suppliersApi: { getAll: mocks.getAll, update: vi.fn() } }));
 vi.mock("../api/supplierSkuMappingApi", () => ({
   supplierSkuMappingApi: { preview: mocks.preview, commit: mocks.commit },
 }));
@@ -94,8 +94,7 @@ async function uploadAndPreview() {
   render(<SupplierSkuMappingPage />);
   await screen.findByText("Supplier SKU Mapping");
   await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent("GreenStalk"));
-  const input = screen.getByTestId("sku-sheet-input");
-  fireEvent.change(input, { target: { files: [new File(["%PDF-1.4"], "greenstalk.pdf", { type: "application/pdf" })] } });
+  expect(screen.queryByTestId("sku-sheet-input")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Preview" }));
   return user;
 }
@@ -104,7 +103,16 @@ describe("SupplierSkuMappingPage", () => {
   beforeEach(() => {
     mocks.getAll.mockResolvedValue([
       { id: 1, name: "Other Supplier", default_currency: "AUD", contact_name: "", email: "", default_lead_time_days: 0 },
-      { id: 2, name: "GreenStalk", default_currency: "USD", contact_name: "", email: "", default_lead_time_days: 0 },
+      {
+        id: 2,
+        name: "GreenStalk",
+        default_currency: "USD",
+        contact_name: "",
+        email: "",
+        default_lead_time_days: 0,
+        catalog_spreadsheet_id: "1dzQGXFU2ctRqyPvmnzaDyyP0bq51wIqCM7WN9vAI7RI",
+        catalog_sheet_tab: "Sheet1",
+      },
     ]);
   });
 
@@ -113,13 +121,12 @@ describe("SupplierSkuMappingPage", () => {
     vi.clearAllMocks();
   });
 
-  it("defaults the supplier to GreenStalk and sends the chosen supplier and file to preview", async () => {
+  it("defaults the supplier to GreenStalk and previews the saved sheet without a PDF", async () => {
     mocks.preview.mockResolvedValue(previewPayload);
     await uploadAndPreview();
     await screen.findByTestId("sku-mapping-table");
     expect(mocks.preview).toHaveBeenCalledTimes(1);
-    expect(mocks.preview.mock.calls[0][0]).toBe(2);
-    expect((mocks.preview.mock.calls[0][1] as File).name).toBe("greenstalk.pdf");
+    expect(mocks.preview.mock.calls[0]).toEqual([2]);
   });
 
   it("shows the required columns, the Style (Woo: Texture) label and the read-only aliases", async () => {
