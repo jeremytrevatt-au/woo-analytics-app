@@ -920,3 +920,23 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
    3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
    4. The print-agent signed release is still open.
+
+## 2026-10-13 07:23 UTC — Packing match, substitution, and supplier catalog sheet
+
+1. TODOs completed since the previous main push:
+   1. Packing: group a guest order with the one registered customer that shares its phone or email, using the service `customer_match_key`. Commit `65f004409863c7a0f6d847fa44856d123663e148`.
+   2. Packing: substitute an unshipped order line from the packing screen. Commit `e62b97718ae09e3459cf06976068aeb46a191741`.
+   3. Supplier SKU Mapping: preview the catalog Google Sheet saved on the supplier. GreenStalk no longer uses a PDF upload. Commit `eb9f228542d0303a913299535535570a89e36d37`.
+2. Git build reference:
+   1. Guest packing match: `65f004409863c7a0f6d847fa44856d123663e148`.
+   2. Packing product substitution: `e62b97718ae09e3459cf06976068aeb46a191741`.
+   3. Supplier catalog Google Sheet: `eb9f228542d0303a913299535535570a89e36d37`.
+   4. These commits were already deployed before this push, as Cloud Run revision `woo-analytics-app-00239-j9h` from image `eb9f228`.
+   5. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. The deployed sheet tip already contained the guest-match and substitution commits. Merging that tip onto main kept the invoice upload and product-name commits that were already on main.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
+   4. The print-agent signed release is still open.
