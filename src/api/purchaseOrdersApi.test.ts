@@ -51,6 +51,41 @@ describe("purchaseOrdersApi.receiveStock", () => {
   });
 });
 
+describe("purchaseOrdersApi.uploadSupplierInvoice", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("posts the PDF through fetchJson so the debug panel can summarise it", async () => {
+    const file = new File(["%PDF-1.4"], "invoice.pdf", { type: "application/pdf" });
+    vi.mocked(fetchJson).mockResolvedValue({
+      purchase_order_id: 4,
+      supplier_invoice_url: "https://drive.google.com/file/d/inv/view",
+      supplier_invoice_link: "https://drive.google.com/file/d/inv/view",
+      supplier_invoice_link_saved: true,
+      supplier_invoice_replaced: false,
+      folder_created: true,
+      drive_link: "https://drive.google.com/drive/folders/folder",
+    });
+
+    await purchaseOrdersApi.uploadSupplierInvoice(4, file);
+
+    expect(fetchJson).toHaveBeenCalledWith(
+      "/api/v1/purchase-orders/4/supplier-invoice",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData),
+      }),
+    );
+    const init = vi.mocked(fetchJson).mock.calls[0][1] as RequestInit;
+    const body = init.body as FormData;
+    const uploaded = body.get("file");
+    expect(uploaded).toBeInstanceOf(File);
+    expect((uploaded as File).name).toBe("invoice.pdf");
+    expect((uploaded as File).type).toBe("application/pdf");
+  });
+});
+
 describe("purchaseOrderSheetExportMessage", () => {
   it("reports when the sheet is saved in the purchase order folder", () => {
     expect(purchaseOrderSheetExportMessage({

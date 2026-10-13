@@ -148,3 +148,57 @@ describe("PurchaseOrderModal apply", () => {
     expect(purchaseOrdersApi.get).not.toHaveBeenCalled();
   });
 });
+
+describe("PurchaseOrderModal supplier invoice", () => {
+  it("keeps the uploaded invoice and folder links in the save payload", async () => {
+    const user = userEvent.setup();
+    const invoiceLink = "https://drive.google.com/file/d/inv/view";
+    const driveLink = "https://drive.google.com/drive/folders/new-folder";
+    vi.spyOn(purchaseOrdersApi, "uploadSupplierInvoice").mockResolvedValue({
+      purchase_order_id: 1,
+      supplier_invoice_url: invoiceLink,
+      supplier_invoice_link: invoiceLink,
+      supplier_invoice_link_saved: true,
+      supplier_invoice_replaced: false,
+      folder_created: true,
+      drive_link: driveLink,
+    });
+    vi.spyOn(purchaseOrdersApi, "update").mockImplementation(async (_id, payload) => ({
+      ...purchaseOrder,
+      ...payload,
+      id: 1,
+    }));
+    vi.spyOn(purchaseOrdersApi, "get").mockResolvedValue({
+      ...purchaseOrder,
+      drive_link: driveLink,
+      supplier_invoice_link: invoiceLink,
+    });
+
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={purchaseOrder} />,
+    );
+    const file = new File(["%PDF-1.4"], "supplier-original.pdf", { type: "application/pdf" });
+    await user.upload(view.getByTestId("supplier-invoice-file"), file);
+
+    expect(await view.findByRole("link", { name: "Open supplier invoice" })).toHaveAttribute("href", invoiceLink);
+    expect(view.getByLabelText("Supplier invoice")).toHaveValue(invoiceLink);
+    expect(view.getByLabelText("Google Drive Folder")).toHaveValue(driveLink);
+    expect(view.getByRole("button", { name: "Replace supplier invoice" })).toBeEnabled();
+
+    await user.click(view.getByRole("button", { name: "Apply" }));
+    expect(purchaseOrdersApi.update).toHaveBeenCalledWith(1, expect.objectContaining({
+      supplier_invoice_link: invoiceLink,
+      drive_link: driveLink,
+    }));
+    expect(view.getByLabelText("Supplier invoice")).toHaveValue(invoiceLink);
+    expect(view.getByLabelText("Google Drive Folder")).toHaveValue(driveLink);
+  });
+
+  it("disables upload until the purchase order has been saved", () => {
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={null} />,
+    );
+
+    expect(view.getByRole("button", { name: "Upload supplier invoice" })).toBeDisabled();
+  });
+});

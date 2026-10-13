@@ -5,6 +5,7 @@ import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
+import { ApiRequestError } from "../api/httpClient";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
 import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
 import { ProductSearchResult } from "../api/productsApi";
@@ -54,8 +55,11 @@ const defaultPo: Partial<PurchaseOrder> = {
   sheet_link: "",
   supplier_sheet_link: "",
   pdf_link: "",
+  supplier_invoice_link: "",
   lines: []
 };
+
+const SUPPLIER_INVOICE_MAX_BYTES = 20 * 1024 * 1024;
 
 const toNumber = (value: unknown, fallback = 0) => {
   if (value === "" || value === null || value === undefined) return fallback;
@@ -128,6 +132,18 @@ const formatPoProductSearchLabel = (product: ProductSearchResult) =>
 const variableParentMessage = (skuOrName: string) =>
   `${skuOrName} is a variable parent product. Select the specific variation SKU for purchase order stock.`;
 
+function driveLinkFromUploadError(error: unknown): string {
+  if (!(error instanceof ApiRequestError) || !error.responseBody || typeof error.responseBody !== "object") {
+    return "";
+  }
+  const body = error.responseBody as { drive_link?: unknown; detail?: { drive_link?: unknown } };
+  if (typeof body.drive_link === "string" && body.drive_link) return body.drive_link;
+  if (body.detail && typeof body.detail === "object" && typeof body.detail.drive_link === "string") {
+    return body.detail.drive_link;
+  }
+  return "";
+}
+
 const selectTextFieldSx = {
   "& .MuiSelect-select": {
     minWidth: 0,
@@ -149,6 +165,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   const [lineProductError, setLineProductError] = useState<string | null>(null);
   const [lineFilter, setLineFilter] = useState("");
   const [supplierDefaultWarnings, setSupplierDefaultWarnings] = useState<string[]>([]);
+  const [uploadingInvoice, setUploadingInvoice] = useState(false);
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null);
   const formDataRef = useRef<Partial<PurchaseOrder>>(formData);
   formDataRef.current = formData;
 
@@ -170,7 +188,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     if (po) {
       setFormData(recalculatePurchaseOrder({
         ...po,
-        shipping_type: po.shipping_type || "sea"
+        shipping_type: po.shipping_type || "sea",
+        supplier_invoice_link: po.supplier_invoice_link || "",
       }));
     } else {
       setFormData(defaultPo);
@@ -441,6 +460,47 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     setDraggedRowIndex(null);
   };
 
+  const handleSupplierInvoiceSelected = async (file: File) => {
+    const poId = po?.id;
+    if (!poId) return;
+    const looksLikePdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!looksLikePdf) {
+      setSaveError("Supplier invoice must be a PDF.");
+      return;
+    }
+    if (file.size > SUPPLIER_INVOICE_MAX_BYTES) {
+      setSaveError("Supplier invoice exceeds the 20 MB limit.");
+      return;
+    }
+    setUploadingInvoice(true);
+    setSaveError(null);
+    setSaveNotice(null);
+    try {
+      const result = await purchaseOrdersApi.uploadSupplierInvoice(poId, file);
+      const driveLink = result.drive_link || "";
+      const invoiceLink = result.supplier_invoice_link || result.supplier_invoice_url || "";
+      setFormData((prev) => ({
+        ...prev,
+        drive_link: driveLink || prev.drive_link,
+        supplier_invoice_link: invoiceLink || prev.supplier_invoice_link,
+      }));
+      if (!result.supplier_invoice_link_saved || !invoiceLink) {
+        throw new Error("The supplier invoice was saved in Drive, but its link was not saved on the purchase order.");
+      }
+      setSaveNotice(result.supplier_invoice_replaced
+        ? "Supplier invoice replaced in the purchase order Drive folder."
+        : "Supplier invoice saved in the purchase order Drive folder.");
+    } catch (err) {
+      const driveLink = driveLinkFromUploadError(err);
+      if (driveLink) {
+        setFormData((prev) => ({ ...prev, drive_link: driveLink }));
+      }
+      setSaveError(err instanceof Error ? err.message : "Failed to upload supplier invoice");
+    } finally {
+      setUploadingInvoice(false);
+    }
+  };
+
   const visibleLineEntries = filterPurchaseOrderLines(formData.lines || [], lineFilter);
 
   return (
@@ -684,6 +744,51 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                     Open PDF
                   </Button>
                 )}
+              </Box>
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Supplier invoice"
+                  value={formData.supplier_invoice_link || ""}
+                  margin="normal"
+                  placeholder="Upload the supplier invoice PDF"
+                  InputProps={{ readOnly: true }}
+                />
+                {formData.supplier_invoice_link ? (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    href={formData.supplier_invoice_link}
+                    target="_blank"
+                    sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                  >
+                    Open supplier invoice
+                  </Button>
+                ) : null}
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  disabled={!po?.id || uploadingInvoice}
+                  onClick={() => invoiceInputRef.current?.click()}
+                  sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                >
+                  {formData.supplier_invoice_link ? "Replace supplier invoice" : "Upload supplier invoice"}
+                </Button>
+                <input
+                  ref={invoiceInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  hidden
+                  data-testid="supplier-invoice-file"
+                  aria-label="Supplier invoice PDF"
+                  onChange={(event) => {
+                    const selected = event.target.files?.[0];
+                    event.target.value = "";
+                    if (selected) void handleSupplierInvoiceSelected(selected);
+                  }}
+                />
               </Box>
             </Grid>
 

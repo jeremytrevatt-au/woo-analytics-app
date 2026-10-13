@@ -58,6 +58,7 @@ export type PurchaseOrder = {
   sheet_link?: string;
   supplier_sheet_link?: string;
   pdf_link?: string;
+  supplier_invoice_link?: string;
   lines: PurchaseOrderLine[];
 };
 
@@ -118,6 +119,16 @@ export type PurchaseOrderPdfExport = {
   pdf_link: string;
   pdf_link_saved: boolean;
   pdf_replaced: boolean;
+  drive_link: string;
+};
+
+export type PurchaseOrderSupplierInvoiceUpload = {
+  purchase_order_id: number;
+  supplier_invoice_url: string;
+  supplier_invoice_link: string;
+  supplier_invoice_link_saved: boolean;
+  supplier_invoice_replaced: boolean;
+  folder_created: boolean;
   drive_link: string;
 };
 
@@ -258,6 +269,15 @@ export const purchaseOrdersApi = {
 
   async exportPdf(id: number): Promise<PurchaseOrderPdfExport> {
     return fetchJson<PurchaseOrderPdfExport>(`/api/v1/purchase-orders/${id}/pdf`);
+  },
+
+  async uploadSupplierInvoice(id: number, file: File): Promise<PurchaseOrderSupplierInvoiceUpload> {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return fetchJson<PurchaseOrderSupplierInvoiceUpload>(`/api/v1/purchase-orders/${id}/supplier-invoice`, {
+      method: "POST",
+      body: form,
+    });
   },
 
   async exportSheet(id: number, audience: PurchaseOrderSheetAudience = "internal"): Promise<PurchaseOrderSheetExport> {
