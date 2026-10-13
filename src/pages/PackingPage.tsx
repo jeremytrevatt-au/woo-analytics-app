@@ -19,7 +19,7 @@ import PackingOrderFooter from "../components/PackingOrderFooter";
 import PackingStockDisplay from "../components/PackingStockDisplay";
 import FulfillmentShipmentDialog from "../components/FulfillmentShipmentDialog";
 import CombinedShipmentDialog from "../components/CombinedShipmentDialog";
-import { groupPackingOrdersByUser } from "../lib/packing";
+import { getCustomerMatchKey, groupPackingOrdersByUser } from "../lib/packing";
 import { wordpressAdminUrl } from "../config/wordpress";
 
 type QueueContext = {
@@ -218,22 +218,6 @@ function PackingPage() {
   };
 
   const normaliseFirstNameKey = (firstName: string) => firstName.trim().toLowerCase();
-
-  const getCustomerMatchKey = (order: any) => {
-    const apiKey = String(order.customer_match_key || "").trim();
-    if (apiKey && !apiKey.startsWith("order:")) return apiKey;
-
-    const customerId = Number(order.customer_id || 0);
-    if (customerId > 0) return `customer:${customerId}`;
-
-    const phone = String(order.billing_phone || "").replace(/\D/g, "");
-    if (phone) return `phone:${phone}`;
-
-    const email = String(order.billing_email || "").trim().toLowerCase();
-    if (email) return `email:${email}`;
-
-    return "";
-  };
 
   const getOrderCrmIdentity = (order: any) => ({
     customer_id: Number(order.customer_id || 0) > 0 ? Number(order.customer_id) : undefined,
