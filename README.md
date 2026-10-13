@@ -897,3 +897,26 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
    2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
    3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
+
+## 2026-10-13 07:11 UTC — Supplier SKU mapping page and purchase-order invoice upload
+
+1. TODOs completed since the previous main push:
+   1. Supplier SKU Mapping: added the page at `/supplier-sku-mapping` with upload, a preview table and status filters, manual product select, include/replace, replace-all-conflicts with before/after, commit confirmation, per-row results, and a read-only alias table. The debug panel summarizes the multipart request and the large preview response. New purchase-order lines copy Supplier SKU and price only when the product's supplier is the purchase-order supplier and the currencies match, with a visible warning otherwise and without overwriting edited values. A draft purchase order defaults its currency to the chosen supplier's default currency. Commit `ef7eab018c694420c90eea6b2fbeaea642301f0a`.
+   2. Supplier SKU Mapping: the Matched Woo product column shows the name (parent name for variations), attributes by term name, then id, SKU, and status. The same display is used for ambiguous candidate lists, manual-select options, commit confirmation, and per-row commit results. Commit `691e4554519f863d2d2f048a9cfa289c11d935e2`.
+   3. Supplier SKU Mapping: the matched-name test asserts the "Chosen by hand" caption inside the row. Commit `7a81eaa01047e01d3860913057bf8bb79a835b1d`.
+   4. Purchase order: added supplier invoice upload on the purchase order editor and kept the returned Drive links in the form so Save does not clear them. Commit `e95f2d6ccc2d38bbd2bf57b63f85aad2a2a42f05`.
+2. Git build reference:
+   1. Supplier SKU Mapping page: `ef7eab018c694420c90eea6b2fbeaea642301f0a`.
+   2. Matched Woo product name: `691e4554519f863d2d2f048a9cfa289c11d935e2`.
+   3. Matched-name test assertion: `7a81eaa01047e01d3860913057bf8bb79a835b1d`.
+   4. Supplier invoice upload: `e95f2d6ccc2d38bbd2bf57b63f85aad2a2a42f05`.
+   5. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. This main range still previews a supplier catalog from a PDF upload. The Google Sheet preview, guest packing match, and substitution UI are on other local branches and are not in this push.
+   2. Supplier SKU and price are copied onto a new purchase-order line only when the product supplier and currency match the purchase order.
+   3. Save keeps the Drive links returned by the supplier invoice upload.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
+   4. The print-agent signed release is still open.
