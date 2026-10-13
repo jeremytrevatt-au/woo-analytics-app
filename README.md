@@ -941,7 +941,7 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    3. Elementor production stays on core `4.3.1`. Staging was trialed at `4.3.4` and then restored to `4.3.1` to match production.
    4. The print-agent signed release is still open.
 
-## 2026-10-13 09:33 UTC — Extra shipping email and held booking
+## 2026-10-13 09:34 UTC — Extra shipping email and held booking
 
 1. TODOs completed since the previous main push:
    1. Packing: email the customer a pending order for extra shipping and hold booking until it is paid. The packing screen shows the GST-inclusive difference and keeps booking disabled until the pending fee order is paid. The email is from shop@naturalyield.com.au through template 5 trigger `additional_shipping`. Resend reuses the unpaid order. A different quote while that order is unpaid is refused. Commit `e3a129bb027477a8ce66101eab0590a5c7fb7210` (2026-10-13 08:53:21 UTC).
