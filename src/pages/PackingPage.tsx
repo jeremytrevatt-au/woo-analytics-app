@@ -17,6 +17,7 @@ import PackingDocumentsDialog from "../components/PackingDocumentsDialog";
 import PackingLineDetails from "../components/PackingLineDetails";
 import PackingOrderFooter from "../components/PackingOrderFooter";
 import PackingStockDisplay from "../components/PackingStockDisplay";
+import PackingProductSubstitution, { canSubstitutePackingLine } from "../components/PackingProductSubstitution";
 import FulfillmentShipmentDialog from "../components/FulfillmentShipmentDialog";
 import CombinedShipmentDialog from "../components/CombinedShipmentDialog";
 import { getCustomerMatchKey, groupPackingOrdersByUser } from "../lib/packing";
@@ -792,6 +793,16 @@ function PackingPage() {
                             </Stack>
                           </Box>
                         </Popover>
+                      )}
+                      {canSubstitutePackingLine(line) && line.order_item_id && (
+                        <PackingProductSubstitution
+                          orderId={Number(order.order_id)}
+                          orderItemId={Number(line.order_item_id)}
+                          onApplied={() => {
+                            void refetch();
+                            void loadCrmNotes();
+                          }}
+                        />
                       )}
                   </Box>
                 </Box>
