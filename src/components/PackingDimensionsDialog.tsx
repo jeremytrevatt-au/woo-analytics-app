@@ -25,6 +25,8 @@ import {
   updatePackingShippitOrder,
 } from "../api/shippitPackingApi";
 import type { PackingDestination, PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
+import AdditionalShippingCost from "./AdditionalShippingCost";
+import { additionalShippingBlocksBooking, inclusiveQuotePrice } from "../lib/additionalShipping";
 
 type ParcelDraft = {
   id: string;
@@ -163,7 +165,7 @@ function extractQuoteOptions(response: PackingQuoteResponse | null): QuoteOption
       const quoteData = quoteRow as Record<string, unknown>;
       const courierType = String(carrierData.courier_type || quoteData.courier_type || "");
       const serviceLevel = String(carrierData.service_level || quoteData.service_level || "");
-      const price = Number(quoteData.price);
+      const price = inclusiveQuotePrice(quoteData, String(carrierData.carrier_id || quoteData.carrier_id || ""));
       if (!courierType && !serviceLevel) return;
       if (quoteData.success === false || carrierData.success === false) return;
       if (!Number.isFinite(price) || price < 0) return;
@@ -315,7 +317,8 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
   const trackingNumber = shippitOrder?.tracking_number || shippitOrder?.shippit_tracking_number;
   const shippitStatus = shippitOrder?.shippit_status || shippitOrder?.shippit_state;
   const quoteSelectionPending = Boolean(selectedQuoteId && submittedQuoteId !== selectedQuoteId);
-  const canBook = Boolean(shippitOrder?.can_book && !quoteSelectionPending);
+  const additionalShippingUnpaid = additionalShippingBlocksBooking(order?.additional_shipping?.payment_state);
+  const canBook = Boolean(shippitOrder?.can_book && !quoteSelectionPending && !additionalShippingUnpaid);
   const canPrintLabel = Boolean(shippitOrder?.can_print_label);
   const hasUpdatedQuote = Boolean(
     !quoteSelectionPending
@@ -702,6 +705,11 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
                     ))}
                   </Stack>
                 ) : null}
+                <AdditionalShippingCost
+                  orderId={Number(order?.order_id || 0)}
+                  quote={selectedQuote}
+                  hidden={canFinaliseReserveShipping || Boolean(order?.is_reserve_order || order?.purchase_mode === "reserve")}
+                />
               </Box>
             ) : null}
           </Stack>

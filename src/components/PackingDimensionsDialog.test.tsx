@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PackingDimensionsDialog from "./PackingDimensionsDialog";
 
 const apiMocks = vi.hoisted(() => ({
@@ -12,6 +12,14 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../api/shippitPackingApi", () => apiMocks);
 
+const shippingMocks = vi.hoisted(() => ({
+  previewAdditionalShipping: vi.fn(),
+  createAdditionalShipping: vi.fn(),
+  sendAdditionalShippingEmail: vi.fn(),
+}));
+
+vi.mock("../api/additionalShippingApi", () => shippingMocks);
+
 const destination = {
   address_1: "1 Martin Place",
   address_2: "",
@@ -21,10 +29,153 @@ const destination = {
   country: "AU",
 };
 
+const positivePreview = {
+  order_id: 501,
+  paid_shipping: 12.34,
+  new_shipping: 20,
+  difference: 7.66,
+  paid_shipping_display: "$12.34",
+  new_shipping_display: "$20.00",
+  difference_display: "$7.66",
+  show_action: true,
+  billing_email: "buyer@example.test",
+  payment_state: "none",
+};
+
 describe("PackingDimensionsDialog", () => {
+  beforeEach(() => {
+    shippingMocks.previewAdditionalShipping.mockResolvedValue({
+      order_id: 1,
+      paid_shipping: 1,
+      new_shipping: 1,
+      difference: 0,
+      paid_shipping_display: "$1.00",
+      new_shipping_display: "$1.00",
+      difference_display: "$0.00",
+      show_action: false,
+      billing_email: "buyer@example.test",
+      payment_state: "none",
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+  });
+
+  it("shows the extra shipping summary and keeps quote submit available while booking stays disabled", async () => {
+    shippingMocks.previewAdditionalShipping.mockResolvedValue(positivePreview);
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 501,
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: true,
+      can_print_label: false,
+      parcels: [{ qty: 1, weight_g: 700, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 20,
+      body: {
+        response: [{
+          courier_name: "Couriers Please",
+          courier_type: "couriers_please",
+          quotes: [{ service_level: "Standard", price: 20 }],
+        }],
+      },
+    });
+    apiMocks.updatePackingShippitOrder.mockResolvedValue({
+      order_id: 501,
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: true,
+      parcels: [{ qty: 1, weight_g: 700, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+
+    const view = render(
+      <PackingDimensionsDialog
+        open
+        order={{ order_id: 501, additional_shipping: { payment_state: "unpaid" } }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByRole("button", { name: "Get Shippit Quotes" })).toBeEnabled());
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    expect(await view.findByText("Paid shipping: $12.34")).toBeInTheDocument();
+    expect(view.getByText("New shipping: $20.00")).toBeInTheDocument();
+    expect(view.getByText("Difference: $7.66")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Send Extra Shipping Cost Email to Customer" })).toBeEnabled();
+    const submit = view.getByRole("button", { name: "Submit Selected Quote" });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(apiMocks.updatePackingShippitOrder).toHaveBeenCalled());
+    expect(view.getByRole("button", { name: "Book / Confirm Shipment" })).toBeDisabled();
+    expect(apiMocks.bookPackingShippitOrder).not.toHaveBeenCalled();
+  });
+
+  it("enables booking after the extra shipping order is paid without booking the courier", async () => {
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 501,
+      has_shippit_order: true,
+      can_edit: true,
+      can_book: true,
+      can_print_label: false,
+      parcels: [{ qty: 1, weight_g: 700, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+
+    const view = render(
+      <PackingDimensionsDialog
+        open
+        order={{ order_id: 501, additional_shipping: { payment_state: "paid" } }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByRole("button", { name: "Book / Confirm Shipment" })).toBeEnabled());
+    expect(apiMocks.bookPackingShippitOrder).not.toHaveBeenCalled();
+  });
+
+  it("does not offer the extra shipping email on a reserve order", async () => {
+    shippingMocks.previewAdditionalShipping.mockResolvedValue(positivePreview);
+    apiMocks.getPackingShippitOrder.mockResolvedValue({
+      order_id: 501,
+      has_shippit_order: false,
+      can_edit: false,
+      can_finalise_reserve_shipping: true,
+      parcels: [{ qty: 1, weight_g: 400, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      destination,
+    });
+    apiMocks.previewPackingQuote.mockResolvedValue({
+      name: "packing_quote_preview_v3",
+      method: "POST",
+      url: "https://app.shippit.com/api/3/quotes",
+      status_code: 200,
+      duration_ms: 20,
+      body: {
+        response: [{
+          courier_name: "Couriers Please",
+          courier_type: "couriers_please",
+          quotes: [{ service_level: "Standard", price: 20 }],
+        }],
+      },
+    });
+
+    const view = render(
+      <PackingDimensionsDialog open order={{ order_id: 501 }} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() => expect(view.getByRole("button", { name: "Get Shippit Quotes" })).toBeEnabled());
+    fireEvent.click(view.getByRole("button", { name: "Get Shippit Quotes" }));
+    await waitFor(() => expect(view.getByRole("button", { name: "Finalise Shipping & Send Invoice" })).toBeEnabled());
+    expect(view.queryByRole("button", { name: "Send Extra Shipping Cost Email to Customer" })).not.toBeInTheDocument();
+    expect(shippingMocks.previewAdditionalShipping).not.toHaveBeenCalled();
   });
 
   it("allows an Australia Post order to enter parcels and request quotes", async () => {

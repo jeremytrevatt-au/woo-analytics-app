@@ -40,7 +40,12 @@ export type DocumentMacroSource =
   | "po_product_description"
   | "po_qty"
   | "po_supplier_unit_price"
-  | "po_line_total";
+  | "po_line_total"
+  | "shipping_cost"
+  | "new_shipping_cost"
+  | "shipping_cost_delta"
+  | "shipping_cost_order_link"
+  | "additional_shipping_order_number";
 
 export type DocumentMacroMapping = {
   id?: number;

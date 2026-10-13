@@ -34,6 +34,7 @@ import DocumentMacroMappingsEditor, {
   DEFAULT_DOCUMENT_MACRO_MAPPING,
   DEFAULT_PURCHASE_ORDER_MACRO_MAPPINGS,
   PRODUCT_RETURN_EMAIL_TEMPLATE_NAME,
+  DEFAULT_ADDITIONAL_SHIPPING_MACRO_MAPPINGS,
   defaultProductReturnMappings,
   documentMacroSourceLabel,
   documentMacroSourcesForTrigger,
@@ -48,10 +49,12 @@ const TRIGGER_OPTIONS = [
   { value: "order_tag", label: "Order Tag" },
   { value: "purchase_order", label: "Purchase Order" },
   { value: "product_return", label: "Product Return" },
+  { value: "additional_shipping", label: "Additional Shipping" },
 ];
 
 const PURCHASE_ORDER_MACRO_HELP = "Map every purchase-order field, including {po_number}. Put line tokens in one table row. PDF export requires each mapped token to appear in the Google Doc. Blank Supplier SKU and Supplier price values stay in that row.";
 const PRODUCT_RETURN_MACRO_HELP = "Product Return tokens use {token_name}. Put {product_name}, {product_sku}, {quantity}, {product_description}, and {product_variation_attributes} in one table row. {product_description} is the product description. {product_variation_attributes} is the variation's attribute names and values. {label_url} belongs on the returns email template. Edit Mappings saves the token each Google Doc uses and the return field it reads.";
+const ADDITIONAL_SHIPPING_MACRO_HELP = "Additional shipping tokens are {shipping_cost}, {new_shipping_cost}, {shipping_cost_delta}, {shipping_cost_order_link}, {order_number}, {customer_first_name}, and {additional_shipping_order_number}. Money values are plain store-currency text. The payment link is the raw checkout URL. A required token that is missing from the document stops the email.";
 
 function DocumentTemplatesPage() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
@@ -274,6 +277,9 @@ function DocumentTemplatesPage() {
                   if (nextTriggerType === "product_return") {
                     setMacroMappings(defaultProductReturnMappings(name));
                   }
+                  if (nextTriggerType === "additional_shipping") {
+                    setMacroMappings(DEFAULT_ADDITIONAL_SHIPPING_MACRO_MAPPINGS.map((mapping) => ({ ...mapping })));
+                  }
                 }}
               >
                 {TRIGGER_OPTIONS.map(option => (
@@ -307,7 +313,9 @@ function DocumentTemplatesPage() {
                 ? PURCHASE_ORDER_MACRO_HELP
                 : triggerType === "product_return"
                   ? PRODUCT_RETURN_MACRO_HELP
-                  : undefined
+                  : triggerType === "additional_shipping"
+                    ? ADDITIONAL_SHIPPING_MACRO_HELP
+                    : undefined
             }
             disabled={saving}
           />
@@ -520,7 +528,9 @@ function DocumentTemplatesPage() {
                 ? PURCHASE_ORDER_MACRO_HELP
                 : editingTemplate?.trigger_type === "product_return"
                   ? PRODUCT_RETURN_MACRO_HELP
-                  : undefined
+                  : editingTemplate?.trigger_type === "additional_shipping"
+                    ? ADDITIONAL_SHIPPING_MACRO_HELP
+                    : undefined
             }
             disabled={saving}
           />

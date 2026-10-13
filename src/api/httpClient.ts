@@ -50,8 +50,11 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const isChatRequest = path.startsWith("/api/v1/chat");
   const isEmailHistoryRequest = path.startsWith("/api/v1/crm/customer-email-history");
   const isReturnRequest = path.startsWith("/api/v1/returns") || path.startsWith("/api/v1/shippit/returns");
+  const isAdditionalShippingRequest = path.includes("/additional-shipping");
   const isSensitiveRequest = isChatRequest || isEmailHistoryRequest;
-  const debugUrl = isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url;
+  const debugUrl = isAdditionalShippingRequest
+    ? stripOrderKey(isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url)
+    : isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url;
   const debugRequestBody = isSensitiveRequest
     ? redactSensitivePayload(init?.body)
     : isReturnRequest
@@ -71,8 +74,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       durationMs: Math.round(performance.now() - startedAt),
       error: error instanceof Error ? error.message : String(error)
     };
-    pushApiDebugEvent(event);
-    mirrorDebugEvent(baseUrl, path, event);
+    const recordedEvent = isAdditionalShippingRequest ? redactAdditionalShippingDebugEvent(event) : event;
+    pushApiDebugEvent(recordedEvent);
+    mirrorDebugEvent(baseUrl, path, recordedEvent);
     throw error;
   }
 
@@ -101,8 +105,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
           : parsedBody,
     outcome: expectedApiOutcome(path, response.status),
   };
-  pushApiDebugEvent(event);
-  mirrorDebugEvent(baseUrl, path, event);
+  const recordedEvent = isAdditionalShippingRequest ? redactAdditionalShippingDebugEvent(event) : event;
+  pushApiDebugEvent(recordedEvent);
+  mirrorDebugEvent(baseUrl, path, recordedEvent);
 
   if (!response.ok) {
     throw new ApiRequestError(
@@ -398,6 +403,62 @@ function redactEmailHistoryUrl(url: string): string {
     /([?&]customer_email=)[^&]*/i,
     "$1[redacted]",
   );
+}
+
+export function redactAdditionalShippingDebugEvent(event: ApiDebugEvent): ApiDebugEvent {
+  return {
+    ...event,
+    url: stripOrderKey(event.url),
+    requestBody: redactAdditionalShippingPayload(event.requestBody),
+    responseBody: redactAdditionalShippingPayload(event.responseBody),
+    error: typeof event.error === "string" ? stripOrderKey(event.error) : event.error,
+  };
+}
+
+function redactAdditionalShippingPayload(value: unknown): unknown {
+  let parsed = value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+      return stripOrderKey(value);
+    }
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return stripOrderKey(value);
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.map(redactAdditionalShippingPayload);
+  }
+  if (parsed && typeof parsed === "object") {
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).map(([key, child]) => {
+        const normalized = key.toLowerCase();
+        if (
+          normalized.includes("email")
+          || normalized === "payment_url"
+          || normalized === "order_key"
+          || normalized === "customer_first_name"
+          || normalized === "customer_name"
+          || normalized === "billing_email"
+        ) {
+          return [key, "[redacted]"];
+        }
+        return [key, redactAdditionalShippingPayload(child)];
+      }),
+    );
+  }
+  if (typeof parsed === "string") {
+    return stripOrderKey(parsed);
+  }
+  return parsed;
+}
+
+export function stripOrderKey(value: string): string {
+  return value
+    .replace(/wc_order_[A-Za-z0-9]+/gi, "[redacted]")
+    .replace(/([?&]key=)[^&#\s]+/gi, "$1[redacted]");
 }
 
 export function redactReturnDebugEvent(event: ApiDebugEvent): ApiDebugEvent {

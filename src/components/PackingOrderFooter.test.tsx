@@ -32,6 +32,31 @@ describe("PackingOrderFooter", () => {
     );
   });
 
+  it("shows the live extra shipping chip and leaves Packed available", () => {
+    const onStatusChange = vi.fn();
+    const view = render(
+      <PackingOrderFooter
+        subtotal={100}
+        shipping={12}
+        total={112}
+        shippingMethod="Parcel Post"
+        currentStatus="packing"
+        isSaving={false}
+        canChangePackingStatus
+        canFulfill
+        additionalShippingPaymentState="unpaid"
+        onDimensions={vi.fn()}
+        onFulfillment={vi.fn()}
+        onCrm={vi.fn()}
+        onStatusChange={onStatusChange}
+      />,
+    );
+
+    expect(view.getByText("Extra shipping unpaid")).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "Packed" }));
+    expect(onStatusChange).toHaveBeenCalledWith("packed", expect.anything());
+  });
+
   it("keeps CRM and packing actions functional", () => {
     const onCrm = vi.fn();
     const onFulfillment = vi.fn();

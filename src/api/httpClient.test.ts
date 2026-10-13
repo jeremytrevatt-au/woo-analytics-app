@@ -2,10 +2,34 @@ import { describe, expect, it } from "vitest";
 import { ApiDebugEvent } from "../types/analytics";
 import {
   expectedApiOutcome,
+  redactAdditionalShippingDebugEvent,
   redactCouponDebugEvent,
   redactJourneyDebugEvent,
   redactReturnDebugEvent,
 } from "./httpClient";
+
+describe("additional shipping debug redaction", () => {
+  it("strips the order key from logged URLs and response bodies", () => {
+    const event: ApiDebugEvent = {
+      id: "debug-shipping",
+      timestamp: "2026-10-13T00:00:00Z",
+      method: "POST",
+      url: "https://analytics.example/api/v1/packing/orders/501/additional-shipping?key=wc_order_SECRET",
+      responseBody: {
+        billing_email: "buyer@example.test",
+        payment_url: "https://store.example/checkout/order-pay/900/?pay_for_order=true&key=wc_order_SECRET",
+        difference: 7.66,
+      },
+    };
+
+    const redacted = redactAdditionalShippingDebugEvent(event);
+
+    expect(redacted.url).not.toContain("wc_order_SECRET");
+    expect(JSON.stringify(redacted.responseBody)).not.toContain("wc_order_SECRET");
+    expect(JSON.stringify(redacted.responseBody)).not.toContain("buyer@example.test");
+    expect(JSON.stringify(redacted.responseBody)).toContain("7.66");
+  });
+});
 
 describe("expected API outcomes", () => {
   it("classifies only journey 404 responses as expected not-found outcomes", () => {

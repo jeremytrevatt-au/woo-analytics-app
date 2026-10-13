@@ -12,6 +12,7 @@ type Props = {
   canFulfill: boolean;
   fulfillmentTracking?: string | null;
   fulfillmentRemaining?: number | null;
+  additionalShippingPaymentState?: string | null;
   onDimensions: (event: React.MouseEvent) => void;
   onFulfillment: (event: React.MouseEvent) => void;
   onCrm: (event: React.MouseEvent) => void;
@@ -29,6 +30,7 @@ export default function PackingOrderFooter({
   canFulfill,
   fulfillmentTracking,
   fulfillmentRemaining,
+  additionalShippingPaymentState,
   onDimensions,
   onFulfillment,
   onCrm,
@@ -51,6 +53,12 @@ export default function PackingOrderFooter({
         <Chip size="small" label={`Total: ${formatCurrency(total)}`} variant="outlined" color="primary" />
         {fulfillmentTracking && (
           <Chip size="small" label={`Fulfilled: ${fulfillmentTracking}`} color="success" />
+        )}
+        {additionalShippingPaymentState === "unpaid" && (
+          <Chip size="small" label="Extra shipping unpaid" color="warning" />
+        )}
+        {additionalShippingPaymentState === "paid" && (
+          <Chip size="small" label="Extra shipping paid" color="success" />
         )}
       </Stack>
       <Typography variant="body2" color="text.secondary">

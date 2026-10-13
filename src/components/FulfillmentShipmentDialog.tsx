@@ -26,6 +26,8 @@ import {
 } from "../api/fulfillmentApi";
 import type { PackingQuoteResponse } from "../api/shippitPackingApi";
 import { fulfillmentQuoteOptions } from "../lib/fulfillmentQuotes";
+import AdditionalShippingCost from "./AdditionalShippingCost";
+import { additionalShippingBlocksBooking } from "../lib/additionalShipping";
 
 type Props = {
   open: boolean;
@@ -97,11 +99,13 @@ export default function FulfillmentShipmentDialog({
 
   const parcelsAreValid = parcels.length > 0
     && parcels.every(parcel => Object.values(parcel).every(value => Number(value) > 0));
+  const additionalShippingUnpaid = orders.some(order => additionalShippingBlocksBooking(order?.additional_shipping?.payment_state));
   const canSubmit = !isLoading
     && !isSaving
     && selectedItems.length > 0
     && parcelsAreValid
     && Boolean(selectedQuote)
+    && !additionalShippingUnpaid
     && (!preview?.requires_cancellation || approveCancellation);
 
   const requestQuote = async () => {
@@ -331,6 +335,13 @@ export default function FulfillmentShipmentDialog({
                   </Card>
                 ))}
               </Stack>
+              {orders.length === 1 && (
+                <AdditionalShippingCost
+                  orderId={Number(orders[0]?.order_id || 0)}
+                  quote={selectedQuote}
+                  hidden={Boolean(orders[0]?.is_reserve_order || orders[0]?.purchase_mode === "reserve")}
+                />
+              )}
               {preview.requires_cancellation && (
                 <Alert severity="warning">
                   One or more source orders already has a Shippit order. Creation requires explicit cancellation while those orders remain cancellable.

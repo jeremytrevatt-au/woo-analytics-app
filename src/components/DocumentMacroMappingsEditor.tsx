@@ -133,15 +133,35 @@ export function defaultProductReturnMappings(templateName: string): DocumentMacr
   return mappings;
 }
 
+export const ADDITIONAL_SHIPPING_MACRO_SOURCES: Array<{
+  value: DocumentMacroSource;
+  label: string;
+}> = [
+  { value: "shipping_cost", label: "Paid shipping" },
+  { value: "new_shipping_cost", label: "New shipping" },
+  { value: "shipping_cost_delta", label: "Shipping difference" },
+  { value: "shipping_cost_order_link", label: "Payment link" },
+  { value: "order_number", label: "Order number" },
+  { value: "customer_first_name", label: "Customer first name" },
+  { value: "additional_shipping_order_number", label: "Additional shipping order number" },
+];
+
+export const DEFAULT_ADDITIONAL_SHIPPING_MACRO_MAPPINGS: DocumentMacroMapping[] = ADDITIONAL_SHIPPING_MACRO_SOURCES.map((source) => ({
+  token: `{${source.value}}`,
+  source_key: source.value,
+  is_required: true,
+}));
+
 export function documentMacroSourcesForTrigger(triggerType: string) {
   if (triggerType === "purchase_order") return PURCHASE_ORDER_MACRO_SOURCES;
   if (triggerType === "product_return") return PRODUCT_RETURN_MACRO_SOURCES;
+  if (triggerType === "additional_shipping") return ADDITIONAL_SHIPPING_MACRO_SOURCES;
   return DOCUMENT_MACRO_SOURCES;
 }
 
 export function documentMacroSourceLabel(sourceKey: string): string {
   return (
-    [...DOCUMENT_MACRO_SOURCES, ...PURCHASE_ORDER_MACRO_SOURCES, ...PRODUCT_RETURN_MACRO_SOURCES]
+    [...DOCUMENT_MACRO_SOURCES, ...PURCHASE_ORDER_MACRO_SOURCES, ...PRODUCT_RETURN_MACRO_SOURCES, ...ADDITIONAL_SHIPPING_MACRO_SOURCES]
       .find((source) => source.value === sourceKey)?.label
     || sourceKey
   );

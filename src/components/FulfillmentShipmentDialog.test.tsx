@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFulfillment, previewFulfillment, quoteFulfillment } from "../api/fulfillmentApi";
 import FulfillmentShipmentDialog from "./FulfillmentShipmentDialog";
 
@@ -9,7 +9,30 @@ vi.mock("../api/fulfillmentApi", () => ({
   createFulfillment: vi.fn(),
 }));
 
+const shippingMocks = vi.hoisted(() => ({
+  previewAdditionalShipping: vi.fn(),
+  createAdditionalShipping: vi.fn(),
+  sendAdditionalShippingEmail: vi.fn(),
+}));
+
+vi.mock("../api/additionalShippingApi", () => shippingMocks);
+
 describe("FulfillmentShipmentDialog", () => {
+  beforeEach(() => {
+    shippingMocks.previewAdditionalShipping.mockResolvedValue({
+      order_id: 101,
+      paid_shipping: 1,
+      new_shipping: 1,
+      difference: 0,
+      paid_shipping_display: "$1.00",
+      new_shipping_display: "$1.00",
+      difference_display: "$0.00",
+      show_action: false,
+      billing_email: "buyer@example.test",
+      payment_state: "none",
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -184,5 +207,72 @@ describe("FulfillmentShipmentDialog", () => {
         price: 8.95,
       }),
     }));
+  });
+
+  it("shows the shipping difference and keeps shipment submit disabled while extra shipping is unpaid", async () => {
+    shippingMocks.previewAdditionalShipping.mockResolvedValue({
+      order_id: 101,
+      paid_shipping: 12.34,
+      new_shipping: 20,
+      difference: 7.66,
+      paid_shipping_display: "$12.34",
+      new_shipping_display: "$20.00",
+      difference_display: "$7.66",
+      show_action: true,
+      billing_email: "buyer@example.test",
+      payment_state: "unpaid",
+    });
+    vi.mocked(previewFulfillment).mockResolvedValue({
+      mode: "partial",
+      orders: [{ order_id: 101, number: "101", recipient: "Test Customer", address: "1 Test Street", shipping_methods: ["Parcel Post"] }],
+      items: [{
+        order_id: 101,
+        order_item_id: 55,
+        quantity: 1,
+        ordered_quantity: 1,
+        refunded_quantity: 0,
+        fulfilled_quantity: 0,
+        remaining_quantity: 1,
+        sku: "SKU-1",
+        name: "Test Product",
+      }],
+      parcels: [{ qty: 1, weight_kg: 1, length_cm: 10, width_cm: 10, height_cm: 10 }],
+      existing_shippit: [],
+      requires_cancellation: false,
+    });
+    vi.mocked(quoteFulfillment).mockResolvedValue({
+      name: "quote",
+      method: "POST",
+      url: "https://example.test/quote",
+      status_code: 200,
+      duration_ms: 10,
+      body: {
+        response: [{
+          carrier_id: "shippit",
+          courier_type: "couriers_please",
+          service_level: "Standard",
+          courier_name: "Couriers Please",
+          quotes: [{ price: 20, carrier_id: "shippit" }],
+        }],
+      },
+    });
+
+    const view = render(
+      <FulfillmentShipmentDialog
+        open
+        orders={[{ order_id: 101, additional_shipping: { payment_state: "unpaid" } }]}
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText(/Test Product/)).toBeInTheDocument());
+    fireEvent.click(view.getByRole("button", { name: "Get shipping quotes" }));
+    fireEvent.click(await view.findByText(/Couriers Please — \$20.00/));
+    expect(await view.findByText("Paid shipping: $12.34")).toBeInTheDocument();
+    expect(view.getByText("New shipping: $20.00")).toBeInTheDocument();
+    expect(view.getByText("Difference: $7.66")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Create quoted shipment" })).toBeDisabled();
+    expect(createFulfillment).not.toHaveBeenCalled();
   });
 });

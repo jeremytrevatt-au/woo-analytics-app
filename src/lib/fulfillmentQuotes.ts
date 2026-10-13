@@ -2,6 +2,7 @@ import type {
   PackingQuoteResponse,
   PackingQuoteSelection,
 } from "../api/shippitPackingApi";
+import { inclusiveQuotePrice } from "./additionalShipping";
 
 export type FulfillmentQuoteOption = PackingQuoteSelection & {
   id: string;
@@ -45,7 +46,7 @@ export function fulfillmentQuoteOptions(
       const productId = String(
         quote.product_id || carrierData.product_id || "",
       );
-      const price = Number(quote.price);
+      const price = inclusiveQuotePrice(quote, carrierId);
       if (
         (!courierType && !serviceLevel)
         || !Number.isFinite(price)

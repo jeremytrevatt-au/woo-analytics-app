@@ -823,6 +823,7 @@ function PackingPage() {
           canFulfill={Boolean(order.fulfillment?.can_fulfill) && currentStatus !== "packed" && canChangePackingStatus}
           fulfillmentTracking={order.fulfillment?.operation_tracking || null}
           fulfillmentRemaining={order.fulfillment?.remaining_quantity ?? null}
+          additionalShippingPaymentState={order.additional_shipping?.payment_state || null}
           onDimensions={(event) => {
             event.stopPropagation();
             setDimensionsOrder(order);
