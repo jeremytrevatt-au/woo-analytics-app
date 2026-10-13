@@ -148,8 +148,12 @@ describe("PackingDimensionsDialog", () => {
       order_id: 501,
       has_shippit_order: false,
       can_edit: false,
+      is_reserve_order: true,
       can_finalise_reserve_shipping: true,
-      parcels: [{ qty: 1, weight_g: 400, length_cm: 25, width_cm: 15, height_cm: 10 }],
+      parcels: [],
+      recommended_parcels: [
+        { qty: 1, weight_kg: 0.4, length_cm: 25, width_cm: 15, height_cm: 10 },
+      ],
       destination,
     });
     apiMocks.previewPackingQuote.mockResolvedValue({
@@ -168,7 +172,7 @@ describe("PackingDimensionsDialog", () => {
     });
 
     const view = render(
-      <PackingDimensionsDialog open order={{ order_id: 501 }} onClose={vi.fn()} />,
+      <PackingDimensionsDialog open order={{ order_id: 501, is_reserve_order: true, purchase_mode: "reserve" }} onClose={vi.fn()} />,
     );
 
     await waitFor(() => expect(view.getByRole("button", { name: "Get Shippit Quotes" })).toBeEnabled());
