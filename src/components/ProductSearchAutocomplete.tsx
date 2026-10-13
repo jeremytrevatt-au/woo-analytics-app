@@ -9,9 +9,10 @@ interface Props {
   size?: 'small' | 'medium';
   isOptionDisabled?: (option: ProductSearchResult) => boolean;
   formatOptionLabel?: (option: ProductSearchResult) => string;
+  id?: string;
 }
 
-export default function ProductSearchAutocomplete({ value, onChange, label = "Search Product", size = 'small', isOptionDisabled, formatOptionLabel }: Props) {
+export default function ProductSearchAutocomplete({ value, onChange, label = "Search Product", size = 'small', isOptionDisabled, formatOptionLabel, id = "product-search-autocomplete" }: Props) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<readonly ProductSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,7 +52,7 @@ export default function ProductSearchAutocomplete({ value, onChange, label = "Se
   return (
     <Autocomplete
       fullWidth
-      id="product-search-autocomplete"
+      id={id}
       size={size}
       open={open}
       onOpen={() => setOpen(true)}

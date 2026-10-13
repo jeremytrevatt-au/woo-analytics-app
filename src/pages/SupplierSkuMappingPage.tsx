@@ -14,7 +14,6 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
 import { ApiRequestError } from "../api/httpClient";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
 import {
@@ -78,7 +77,9 @@ export default function SupplierSkuMappingPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [suppliersLoading, setSuppliersLoading] = useState(true);
   const [supplierId, setSupplierId] = useState<number | "">("");
-  const [file, setFile] = useState<File | null>(null);
+  const [sheetId, setSheetId] = useState("");
+  const [sheetTab, setSheetTab] = useState("");
+  const [savingSheet, setSavingSheet] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<SkuMappingPreview | null>(null);
   const [pageError, setPageError] = useState<PageError | null>(null);
@@ -113,7 +114,15 @@ export default function SupplierSkuMappingPage() {
   }, []);
 
   const supplier = suppliers.find((entry) => entry.id === supplierId) ?? null;
+  const savedSheetId = supplier?.catalog_spreadsheet_id ?? "";
+  const savedSheetTab = supplier?.catalog_sheet_tab ?? "";
+  const sheetDirty = sheetId.trim() !== savedSheetId || sheetTab.trim() !== savedSheetTab;
   const effectiveSupplierId = preview?.supplier.id ?? (supplierId === "" ? 0 : supplierId);
+
+  useEffect(() => {
+    setSheetId(savedSheetId);
+    setSheetTab(savedSheetTab);
+  }, [savedSheetId, savedSheetTab]);
 
   const views = useMemo(
     () => (preview ? deriveRowViews(preview.rows, edits, preview.supplier.id) : []),
@@ -140,25 +149,40 @@ export default function SupplierSkuMappingPage() {
     setCommitError(null);
   }, []);
 
-  const handleFileChange = (selected: File | null) => {
-    setFile(selected);
-    setPageError(null);
-    resetPreview();
-  };
-
   const handleSupplierChange = (value: number) => {
     setSupplierId(value);
     setPageError(null);
     resetPreview();
   };
 
+  const handleSaveSheet = async () => {
+    if (!supplier) return;
+    setSavingSheet(true);
+    setPageError(null);
+    try {
+      const updated = await suppliersApi.update(supplier.id, {
+        name: supplier.name,
+        catalog_spreadsheet_id: sheetId.trim(),
+        catalog_sheet_tab: sheetTab.trim(),
+      });
+      setSuppliers((current) =>
+        current.map((entry) => (entry.id === supplier.id ? { ...entry, ...updated, id: supplier.id } : entry)),
+      );
+      resetPreview();
+    } catch (error) {
+      setPageError(describeError(error));
+    } finally {
+      setSavingSheet(false);
+    }
+  };
+
   const handlePreview = async () => {
-    if (!file || supplierId === "") return;
+    if (supplierId === "" || !savedSheetId || !savedSheetTab) return;
     setPreviewing(true);
     setPageError(null);
     resetPreview();
     try {
-      setPreview(await supplierSkuMappingApi.preview(supplierId, file));
+      setPreview(await supplierSkuMappingApi.preview(supplierId));
     } catch (error) {
       setPageError(describeError(error));
     } finally {
@@ -214,9 +238,9 @@ export default function SupplierSkuMappingPage() {
       <Box>
         <Typography variant="h5">Supplier SKU Mapping</Typography>
         <Typography variant="body2" color="text.secondary">
-          Upload a supplier's SKU sheet, review how each row matches a WooCommerce product, then commit the Supplier SKU and
-          Supplier price onto the products. Nothing is written until you commit. Every request and response is visible in the
-          API debug panel.
+          Read the catalog Google Sheet saved on the supplier, review how each row matches a WooCommerce product, then commit
+          the Supplier SKU and Supplier price onto the products. Nothing is written until you commit. Every request and
+          response is visible in the API debug panel.
         </Typography>
       </Box>
 
@@ -237,30 +261,36 @@ export default function SupplierSkuMappingPage() {
               </MenuItem>
             ))}
           </TextField>
-          <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}>
-            {file ? "Choose a different PDF" : "Choose the supplier PDF"}
-            <input
-              type="file"
-              hidden
-              accept="application/pdf,.pdf"
-              data-testid="sku-sheet-input"
-              onChange={(event) => {
-                handleFileChange(event.target.files?.[0] ?? null);
-                event.target.value = "";
-              }}
-            />
+          <TextField
+            size="small"
+            label="Spreadsheet id"
+            value={sheetId}
+            onChange={(event) => setSheetId(event.target.value)}
+            sx={{ minWidth: 360 }}
+          />
+          <TextField
+            size="small"
+            label="Tab name"
+            value={sheetTab}
+            onChange={(event) => setSheetTab(event.target.value)}
+            sx={{ minWidth: 180 }}
+          />
+          <Button variant="outlined" onClick={handleSaveSheet} disabled={!supplier || savingSheet || !sheetDirty}>
+            {savingSheet ? "Saving..." : "Save sheet"}
           </Button>
-          <Typography variant="body2">{file ? file.name : "No file chosen"}</Typography>
-          <Button variant="contained" onClick={handlePreview} disabled={!file || supplierId === "" || previewing}>
+          <Button
+            variant="contained"
+            onClick={handlePreview}
+            disabled={supplierId === "" || !savedSheetId || !savedSheetTab || previewing}
+          >
             {previewing ? "Parsing and matching..." : "Preview"}
           </Button>
           {previewing ? <CircularProgress size={22} /> : null}
         </Box>
-        {supplier && !supplier.name.toLowerCase().includes("greenstalk") ? (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-            Sheet parsers are written per supplier layout. If none exists for this supplier the preview will say so.
-          </Typography>
-        ) : null}
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+          Preview reads the spreadsheet id and tab saved on this supplier.
+          {sheetDirty ? " Save the sheet location before a preview will use these edits." : " PDF upload is not used."}
+        </Typography>
       </Paper>
 
       {pageError ? (
@@ -299,6 +329,17 @@ export default function SupplierSkuMappingPage() {
 
       {commitResult ? (
         <CommitResults entries={commitResult.entries} counts={commitResult.response.counts} onDismiss={() => setCommitResult(null)} />
+      ) : null}
+
+      {preview?.reference_diff ? (
+        <Alert severity="info" data-testid="sku-reference-diff">
+          <Typography variant="body2">
+            {preview.reference_diff.reference_label}: sheet {preview.reference_diff.sheet_row_count} rows, PDF{" "}
+            {preview.reference_diff.pdf_row_count} rows. SKUs only on the sheet:{" "}
+            {preview.reference_diff.skus_only_on_sheet.join(", ") || "none"}. SKUs only in the PDF:{" "}
+            {preview.reference_diff.skus_only_in_pdf.join(", ") || "none"}.
+          </Typography>
+        </Alert>
       ) : null}
 
       {preview ? (
