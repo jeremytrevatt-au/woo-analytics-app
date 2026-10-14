@@ -672,6 +672,19 @@ function PackingPage() {
                                   onClick={(e) => e.stopPropagation()}
                                   sx={{ cursor: 'pointer', height: '20px', fontSize: '0.7rem' }}
                                 />
+                                {canSubstitutePackingLine(line) && line.order_item_id && (
+                                  <PackingProductSubstitution
+                                    orderId={Number(order.order_id)}
+                                    orderItemId={Number(line.order_item_id)}
+                                    currentSku={String(line.sku || "")}
+                                    remainingQuantity={Number(line.remaining_quantity ?? line.qty ?? 0)}
+                                    productName={String(line.product_name || line.category || "")}
+                                    onApplied={() => {
+                                      void refetch();
+                                      void loadCrmNotes();
+                                    }}
+                                  />
+                                )}
                               </>
                             )}
                           />
@@ -793,16 +806,6 @@ function PackingPage() {
                             </Stack>
                           </Box>
                         </Popover>
-                      )}
-                      {canSubstitutePackingLine(line) && line.order_item_id && (
-                        <PackingProductSubstitution
-                          orderId={Number(order.order_id)}
-                          orderItemId={Number(line.order_item_id)}
-                          onApplied={() => {
-                            void refetch();
-                            void loadCrmNotes();
-                          }}
-                        />
                       )}
                   </Box>
                 </Box>

@@ -1,5 +1,17 @@
 import { useEffect, useState } from "react";
-import { Alert, Box, Button, Stack, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import ProductSearchAutocomplete from "./ProductSearchAutocomplete";
 import type { ProductSearchResult } from "../api/productsApi";
 import { ApiRequestError } from "../api/httpClient";
@@ -21,6 +33,9 @@ export type PackingSubstitutionLine = {
 type Props = {
   orderId: number;
   orderItemId: number;
+  currentSku: string;
+  remainingQuantity: number;
+  productName?: string;
   onApplied: () => void;
 };
 
@@ -47,7 +62,15 @@ function errorMessage(error: unknown): string {
   return "Product substitution failed.";
 }
 
-export default function PackingProductSubstitution({ orderId, orderItemId, onApplied }: Props) {
+export default function PackingProductSubstitution({
+  orderId,
+  orderItemId,
+  currentSku,
+  remainingQuantity,
+  productName,
+  onApplied,
+}: Props) {
+  const [open, setOpen] = useState(false);
   const [product, setProduct] = useState<ProductSearchResult | null>(null);
   const [quantity, setQuantity] = useState("");
   const [preview, setPreview] = useState<ProductSubstitutionPreview | null>(null);
@@ -59,8 +82,22 @@ export default function PackingProductSubstitution({ orderId, orderItemId, onApp
   const quantityIsValid = quantity !== "" && Number.isInteger(parsedQuantity) && parsedQuantity > 0;
   const selectedVariableParent = product ? isVariableParentProduct(product) : false;
 
+  const resetForm = () => {
+    setProduct(null);
+    setQuantity("");
+    setPreview(null);
+    setPreviewError(null);
+    setSubmitError(null);
+  };
+
+  const closeForm = () => {
+    if (submitting) return;
+    setOpen(false);
+    resetForm();
+  };
+
   useEffect(() => {
-    if (!product || selectedVariableParent || !quantityIsValid) {
+    if (!open || !product || selectedVariableParent || !quantityIsValid) {
       setPreview(null);
       return undefined;
     }
@@ -91,7 +128,7 @@ export default function PackingProductSubstitution({ orderId, orderItemId, onApp
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [orderId, orderItemId, parsedQuantity, product, quantityIsValid, selectedVariableParent]);
+  }, [open, orderId, orderItemId, parsedQuantity, product, quantityIsValid, selectedVariableParent]);
 
   const confirm = async () => {
     if (!product || !quantityIsValid || selectedVariableParent || !preview) return;
@@ -104,6 +141,8 @@ export default function PackingProductSubstitution({ orderId, orderItemId, onApp
         replacement_product_id: product.id,
         new_quantity: parsedQuantity,
       });
+      setOpen(false);
+      resetForm();
       onApplied();
     } catch (error: unknown) {
       const body = error instanceof ApiRequestError ? error.responseBody : null;
@@ -118,62 +157,104 @@ export default function PackingProductSubstitution({ orderId, orderItemId, onApp
   };
 
   return (
-    <Box sx={{ mt: 1 }} onClick={(event) => event.stopPropagation()}>
-      <Stack spacing={1}>
-        <ProductSearchAutocomplete
-          id={`product-substitution-${orderItemId}`}
-          value={product}
-          label="Replacement SKU"
-          onChange={(next) => {
-            setProduct(next);
-            setPreview(null);
-            setPreviewError(null);
-            setSubmitError(null);
-          }}
-          isOptionDisabled={isVariableParentProduct}
-          formatOptionLabel={(option) =>
-            `${option.sku ? `[${option.sku}] ` : ""}${option.name}${isVariableParentProduct(option) ? " (parent product - choose a variation SKU)" : ""}`
-          }
-        />
-        {selectedVariableParent && product && (
-          <Alert severity="warning">{variableParentMessage(product.sku || product.name)}</Alert>
-        )}
-        <TextField
+    <>
+      <Tooltip title="Replace SKU">
+        <IconButton
           size="small"
-          label="New quantity"
-          type="number"
-          value={quantity}
-          inputProps={{ min: 1, step: 1 }}
-          onChange={(event) => {
-            setQuantity(event.target.value);
-            setPreview(null);
-            setPreviewError(null);
+          color="primary"
+          aria-label="Replace SKU"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen(true);
           }}
-        />
-        {previewError && <Alert severity="error">{previewError}</Alert>}
-        {preview && (
-          <Alert severity="info">
-            <Typography variant="body2">
-              Stock: {preview.old_sku} {formatStock(preview.old_stock_before)} to {formatStock(preview.old_stock_after)}; {preview.new_sku} {formatStock(preview.new_stock_before)} to {formatStock(preview.new_stock_after)}.
-            </Typography>
-            <Typography variant="body2">
-              Price difference {preview.price_difference} {preview.currency} including GST. Refund is manual.
-            </Typography>
-            <Typography variant="body2">
-              Paid line total {preview.line_total} and tax {preview.line_tax} stay unchanged. Shipment {preview.shipment_tracking || "none"} is left unchanged.
-            </Typography>
-          </Alert>
-        )}
-        {submitError && <Alert severity="error">{submitError}</Alert>}
-        <Button
-          variant="contained"
-          size="small"
-          onClick={confirm}
-          disabled={!preview || submitting || selectedVariableParent}
+          sx={{
+            width: 22,
+            height: 22,
+            p: 0,
+            border: 1,
+            borderColor: "primary.main",
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
         >
-          Confirm substitution
-        </Button>
-      </Stack>
-    </Box>
+          R
+        </IconButton>
+      </Tooltip>
+      <Dialog open={open} onClose={closeForm} fullWidth maxWidth="sm" onClick={(event) => event.stopPropagation()}>
+        <DialogTitle>Replace SKU</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5} sx={{ pt: 0.5 }}>
+            <Stack spacing={0.25}>
+              <Typography variant="body2" fontWeight={700}>
+                Order #{orderId} · line {orderItemId}
+              </Typography>
+              <Typography variant="body2">
+                {remainingQuantity} x {currentSku || "current SKU"}
+                {productName ? ` — ${productName}` : ""}
+              </Typography>
+            </Stack>
+            <ProductSearchAutocomplete
+              id={`product-substitution-${orderItemId}`}
+              value={product}
+              label="Replacement SKU"
+              onChange={(next) => {
+                setProduct(next);
+                setPreview(null);
+                setPreviewError(null);
+                setSubmitError(null);
+              }}
+              isOptionDisabled={isVariableParentProduct}
+              formatOptionLabel={(option) =>
+                `${option.sku ? `[${option.sku}] ` : ""}${option.name}${isVariableParentProduct(option) ? " (parent product - choose a variation SKU)" : ""}`
+              }
+            />
+            {selectedVariableParent && product && (
+              <Alert severity="warning">{variableParentMessage(product.sku || product.name)}</Alert>
+            )}
+            <TextField
+              size="small"
+              label="New quantity"
+              type="number"
+              value={quantity}
+              inputProps={{ min: 1, step: 1 }}
+              onChange={(event) => {
+                setQuantity(event.target.value);
+                setPreview(null);
+                setPreviewError(null);
+              }}
+            />
+            {previewError && <Alert severity="error">{previewError}</Alert>}
+            {preview && (
+              <Alert severity="info">
+                <Typography variant="body2">
+                  Stock: {preview.old_sku} {formatStock(preview.old_stock_before)} to {formatStock(preview.old_stock_after)}; {preview.new_sku} {formatStock(preview.new_stock_before)} to {formatStock(preview.new_stock_after)}.
+                </Typography>
+                <Typography variant="body2">
+                  Price difference {preview.price_difference} {preview.currency} including GST. Refund is manual.
+                </Typography>
+                <Typography variant="body2">
+                  Paid line total {preview.line_total} and tax {preview.line_tax} stay unchanged. Shipment {preview.shipment_tracking || "none"} is left unchanged.
+                </Typography>
+              </Alert>
+            )}
+            {submitError && <Alert severity="error">{submitError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={closeForm} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={confirm}
+            disabled={!preview || submitting || selectedVariableParent}
+          >
+            Confirm substitution
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }

@@ -44,6 +44,24 @@ const preview = {
   is_preview: true,
 };
 
+function renderSubstitution(onApplied = vi.fn()) {
+  render(
+    <PackingProductSubstitution
+      orderId={900001}
+      orderItemId={16719}
+      currentSku="NY94128"
+      remainingQuantity={2}
+      productName="Example product"
+      onApplied={onApplied}
+    />,
+  );
+  return onApplied;
+}
+
+function openForm() {
+  fireEvent.click(screen.getByRole("button", { name: "Replace SKU" }));
+}
+
 describe("PackingProductSubstitution", () => {
   afterEach(() => {
     cleanup();
@@ -57,12 +75,40 @@ describe("PackingProductSubstitution", () => {
     expect(canSubstitutePackingLine({ remaining_quantity: 2, fulfilled_quantity: 0, is_bundle_parent: true })).toBe(false);
   });
 
+  it("keeps the row to an R button until the replacement form is opened", () => {
+    renderSubstitution();
+
+    const button = screen.getByRole("button", { name: "Replace SKU" });
+    expect(button).toHaveTextContent("R");
+    expect(screen.queryByLabelText("Replacement SKU")).toBeNull();
+    expect(screen.queryByLabelText("New quantity")).toBeNull();
+
+    openForm();
+
+    expect(screen.getByText("Order #900001 · line 16719")).toBeTruthy();
+    expect(screen.getByText(/2 x NY94128/)).toBeTruthy();
+    expect(screen.getByLabelText("New quantity")).toBeTruthy();
+  });
+
+  it("closes the form without submitting a substitution", async () => {
+    renderSubstitution();
+    openForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose replacement" }));
+    fireEvent.change(screen.getByLabelText("New quantity"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("New quantity")).toBeNull();
+    });
+    expect(apiMocks.substituteProduct).not.toHaveBeenCalled();
+  });
+
   it("previews stock and the inclusive price difference, then confirms without a refund control", async () => {
     apiMocks.previewProductSubstitution.mockResolvedValue(preview);
     apiMocks.substituteProduct.mockResolvedValue({ packing_status: "unpacked" });
-    const onApplied = vi.fn();
-
-    render(<PackingProductSubstitution orderId={900001} orderItemId={16719} onApplied={onApplied} />);
+    const onApplied = renderSubstitution();
+    openForm();
 
     expect(screen.getByText("variable parent blocked")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /refund/i })).toBeNull();
@@ -93,10 +139,14 @@ describe("PackingProductSubstitution", () => {
       });
     });
     expect(onApplied).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByLabelText("New quantity")).toBeNull();
+    });
   });
 
   it("blocks a variable parent before preview", async () => {
-    render(<PackingProductSubstitution orderId={900001} orderItemId={16719} onApplied={vi.fn()} />);
+    renderSubstitution();
+    openForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Choose variable parent" }));
     fireEvent.change(screen.getByLabelText("New quantity"), { target: { value: "5" } });
