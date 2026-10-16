@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { getCustomerMatchKey, groupPackingOrdersByUser } from "./packing";
+import { getCustomerMatchKey, groupPackingOrdersByUser, orderHasAwaitingStock } from "./packing";
+
+describe("orderHasAwaitingStock", () => {
+  it("keeps already-reduced out-of-stock lines out of Awaiting Stock", () => {
+    expect(orderHasAwaitingStock({
+      has_backorders: true,
+      lines: [{
+        remaining_quantity: 1,
+        reduced_stock: 1,
+        stock_status: "outofstock",
+      }],
+    })).toBe(false);
+  });
+
+  it("keeps real backorders in Awaiting Stock when remaining exceeds reduced", () => {
+    expect(orderHasAwaitingStock({
+      has_backorders: false,
+      lines: [{
+        remaining_quantity: 3,
+        reduced_stock: 1,
+        stock_status: "onbackorder",
+      }],
+    })).toBe(true);
+  });
+
+  it("falls back to has_backorders when reduced_stock is absent", () => {
+    expect(orderHasAwaitingStock({ has_backorders: true, lines: [{ stock_status: "outofstock" }] })).toBe(true);
+    expect(orderHasAwaitingStock({ has_backorders: false, lines: [{ stock_status: "outofstock" }] })).toBe(false);
+  });
+});
 
 describe("groupPackingOrdersByUser", () => {
   it("groups active orders by packer and pins the current user first", () => {

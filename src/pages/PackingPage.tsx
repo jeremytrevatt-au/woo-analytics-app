@@ -20,7 +20,7 @@ import PackingStockDisplay from "../components/PackingStockDisplay";
 import PackingProductSubstitution, { canSubstitutePackingLine } from "../components/PackingProductSubstitution";
 import FulfillmentShipmentDialog from "../components/FulfillmentShipmentDialog";
 import CombinedShipmentDialog from "../components/CombinedShipmentDialog";
-import { getCustomerMatchKey, groupPackingOrdersByUser } from "../lib/packing";
+import { getCustomerMatchKey, groupPackingOrdersByUser, orderHasAwaitingStock } from "../lib/packing";
 import { wordpressAdminUrl } from "../config/wordpress";
 
 type QueueContext = {
@@ -365,8 +365,8 @@ function PackingPage() {
   };
 
   const preOrders = rows.filter(r => r.order_status === 'wc-pre-ordered' && getOrderStatus(r) !== 'packing');
-  const readyToPack = rows.filter(r => r.order_status !== 'wc-pre-ordered' && !r.has_backorders && getOrderStatus(r) === 'unpacked');
-  const awaitingStock = rows.filter(r => r.order_status !== 'wc-pre-ordered' && r.has_backorders && getOrderStatus(r) === 'unpacked');
+  const readyToPack = rows.filter(r => r.order_status !== 'wc-pre-ordered' && !orderHasAwaitingStock(r) && getOrderStatus(r) === 'unpacked');
+  const awaitingStock = rows.filter(r => r.order_status !== 'wc-pre-ordered' && orderHasAwaitingStock(r) && getOrderStatus(r) === 'unpacked');
   const currentlyPacking = rows.filter(r => getOrderStatus(r) === 'packing');
   const recentlyPacked = rows.filter(r => r.order_status !== 'wc-pre-ordered' && getOrderStatus(r) === 'packed');
   const packingUserGroups = groupPackingOrdersByUser(currentlyPacking, currentUser);

@@ -29,6 +29,39 @@ export function getCustomerMatchKey(order: {
   return "";
 }
 
+/**
+ * An unpacked line is awaiting stock only when remaining qty exceeds the qty
+ * already reduced on that line (`_reduced_stock`). Prefer live line fields from
+ * fulfillment merge; fall back to the server `has_backorders` flag.
+ */
+export function orderHasAwaitingStock(order: {
+  has_backorders?: boolean | null;
+  lines?: Array<{
+    is_bundle_parent?: boolean | null;
+    remaining_quantity?: number | string | null;
+    reduced_stock?: number | string | null;
+    stock_status?: string | null;
+  }> | null;
+}): boolean {
+  const lines = Array.isArray(order?.lines) ? order.lines : [];
+  const hasReducedMeta = lines.some(line => line?.reduced_stock != null);
+  if (hasReducedMeta) {
+    return lines.some(line => {
+      if (line?.is_bundle_parent) {
+        return false;
+      }
+      const remaining = Math.max(0, Number(line?.remaining_quantity ?? 0));
+      const reduced = Math.max(0, Number(line?.reduced_stock ?? 0));
+      const stockStatus = String(line?.stock_status || "").toLowerCase();
+      return (
+        remaining > reduced
+        && (stockStatus === "outofstock" || stockStatus === "onbackorder")
+      );
+    });
+  }
+  return !!order?.has_backorders;
+}
+
 export type PackingUserGroup = {
   username: string;
   isCurrentUser: boolean;
