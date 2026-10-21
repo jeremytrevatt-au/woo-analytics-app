@@ -961,3 +961,31 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    5. Gmail history-cursor recovery was blocked and is not finished.
    6. The chat "don't show this again" prompt remains plan only.
    7. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
+
+## 2026-10-21 02:50 UTC — Packing R dialog, cart bundle nest, awaiting-stock
+
+1. TODOs completed since the previous main push:
+   1. Packing: move replacement SKU and quantity into an R dialog next to the Woo chip so the packing row is not too wide. Commit `88c884c5cc68186624c0f35e3c8ab9e0b77fbe8c`.
+   2. Nest cart bundle children under the parent on Chat Inbox and Carts using the packing-page layout. Share `CartLineItems` plus `nestCartLines` through `CartDetail`. Commit `921186d7ffb860e2c65bc24250e732bb952628cc`.
+   3. Cart bundle children indent but stay in original order; nest under the BSF-BDL parent like packing. Match each kit child to its parent cart-item HMAC instead of leaving indented children in capture order. Commit `d2c0408b0a63bc055c3032806de3d87231ff1cd5`.
+   4. Packing: show orders when the list request outlasts the poll. Keep one packing list request in flight so a response slower than the 5s poll clears the spinner and renders orders. Commit `2248fc4d34891f6bfa5aacef9dc42a4ccefc81e3`.
+   5. Awaiting-stock false positive for already-reduced lines. Packing Awaiting Stock uses remaining vs `reduced_stock` when fulfillment supplies it, so already-reduced out-of-stock lines stay Ready to Pack. Commit `1a8354f1e7f365deca8465db77625bd655aab9da`.
+2. Git build reference:
+   1. Packing list request outlasts the poll: `2248fc4d34891f6bfa5aacef9dc42a4ccefc81e3`.
+   2. Packing R button replace-SKU dialog: `88c884c5cc68186624c0f35e3c8ab9e0b77fbe8c`.
+   3. Awaiting Stock remaining vs `reduced_stock`: `1a8354f1e7f365deca8465db77625bd655aab9da`.
+   4. Cart/Chat bundle nesting: `921186d7ffb860e2c65bc24250e732bb952628cc`.
+   5. Parent HMAC attach for kit children: `d2c0408b0a63bc055c3032806de3d87231ff1cd5`.
+   6. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. Replacement SKU and quantity on the packing row made the row too wide. An R dialog next to the Woo chip is the layout that fits.
+   2. Chat Inbox and Carts have to share the packing nest helper. Indent alone leaves kit children in capture order.
+   3. Kit children attach to the parent cart-item HMAC, not to the first matching SKU in list order.
+   4. A packing list response slower than the 5s poll must not start a second request or the spinner never clears.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. The print-agent signed release is still open.
+   4. Gmail history-cursor recovery was blocked and is not finished.
+   5. The chat "don't show this again" prompt remains plan only.
+   6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
