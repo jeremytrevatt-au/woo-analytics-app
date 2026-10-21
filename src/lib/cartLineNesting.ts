@@ -124,22 +124,45 @@ function keysIntersect(left: string[], right: string[]): boolean {
   return right.some((key) => lookup.has(key));
 }
 
+function matchingParentIndexes(
+  childKeys: string[],
+  parentKeysByIndex: string[][],
+  canBeParent: boolean[],
+): number[] {
+  const matches: number[] = [];
+  parentKeysByIndex.forEach((parentKeys, index) => {
+    if (canBeParent[index] && keysIntersect(childKeys, parentKeys)) {
+      matches.push(index);
+    }
+  });
+  return matches;
+}
+
+function nearestParent(childIndex: number, matches: number[]): number {
+  const previous = [...matches].reverse().find((index) => index < childIndex);
+  if (previous != null) return previous;
+  return matches.find((index) => index > childIndex) ?? -1;
+}
+
+/**
+ * Packing matches a child to one parent instance via bundled_by / bundle_cart_key.
+ * Prefer that cart-item-key HMAC. Shared product/bundle ids are used only when
+ * exactly one parent candidate matches; two identical kit SKUs must not share children.
+ */
 function findParentIndex(
   childIndex: number,
   childKeys: string[],
   parentKeysByIndex: string[][],
   canBeParent: boolean[],
 ): number {
-  for (let index = childIndex - 1; index >= 0; index -= 1) {
-    if (canBeParent[index] && keysIntersect(childKeys, parentKeysByIndex[index])) {
-      return index;
-    }
-  }
-  for (let index = childIndex + 1; index < parentKeysByIndex.length; index += 1) {
-    if (canBeParent[index] && keysIntersect(childKeys, parentKeysByIndex[index])) {
-      return index;
-    }
-  }
+  const instanceKeys = childKeys.filter((key) => key.startsWith("cart:"));
+  const instanceMatches = matchingParentIndexes(instanceKeys, parentKeysByIndex, canBeParent);
+  if (instanceMatches.length === 1) return instanceMatches[0];
+  if (instanceMatches.length > 1) return nearestParent(childIndex, instanceMatches);
+
+  const sharedKeys = childKeys.filter((key) => !key.startsWith("cart:"));
+  const sharedMatches = matchingParentIndexes(sharedKeys, parentKeysByIndex, canBeParent);
+  if (sharedMatches.length === 1) return sharedMatches[0];
   return -1;
 }
 

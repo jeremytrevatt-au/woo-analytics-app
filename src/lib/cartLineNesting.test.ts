@@ -127,6 +127,135 @@ describe("cartLineNesting", () => {
     expect(readCartLineBundleFields(orphanChild).isChildItem).toBe(true);
   });
 
+  it("nests two identical BSF-BDL kits when children appear before their parents", () => {
+    const kitA = "parent-kit-a";
+    const kitB = "parent-kit-b";
+    const nested = nestCartLines([
+      line({
+        product_id: 122044,
+        sku: "BSF-TRA-1010-DP-NH-PI-01",
+        product_name: "Bootstrap Farmer 1010 Deep Trays",
+        metadata: { bundle_parent_key_hash: kitA },
+      }),
+      line({
+        product_id: 120574,
+        sku: "BSF-POT-5.0-BL-08",
+        product_name: "Bootstrap Farmer Seed Starter Pots Blue",
+        line_total: 43.64,
+        unit_total: 43.64,
+      }),
+      line({
+        product_id: 120574,
+        sku: "BSF-POT-5.0-PU-08",
+        product_name: "Bootstrap Farmer Seed Starter Pots Purple",
+        line_total: 43.64,
+        unit_total: 43.64,
+      }),
+      line({
+        product_id: 114051,
+        sku: "BSF-INS-06-BL-01",
+        product_name: "6 Cell Plug Tray Inserts",
+        quantity: 6,
+        metadata: { bundle_parent_key_hash: kitA },
+      }),
+      line({
+        product_id: 114051,
+        sku: "BSF-INS-06-BL-01",
+        product_name: "6 Cell Plug Tray Inserts second kit",
+        quantity: 6,
+        metadata: { bundle_parent_key_hash: kitB },
+      }),
+      line({
+        product_id: 122044,
+        sku: "BSF-TRA-1010-DP-NH-BL-01",
+        product_name: "1010 Deep Trays",
+        metadata: { bundle_parent_key_hash: kitB },
+      }),
+      line({
+        product_id: 122111,
+        sku: "BSF-BDL-1010-SSK",
+        product_name: "Bootstrap Farmer 1010 Seed Starter Kit",
+        line_total: 25.45,
+        unit_total: 25.45,
+        line_key_hash: kitA,
+      }),
+      line({
+        product_id: 121060,
+        sku: "BSF-DOM-1010-HD-5.5-01",
+        product_name: "1010 Humidity Dome",
+        metadata: { bundle_parent_key_hash: kitA },
+      }),
+      line({
+        product_id: 120574,
+        sku: "BSF-POT-5.0-GR-08",
+        product_name: "Bootstrap Farmer Seed Starter Pots Green",
+        line_total: 43.64,
+        unit_total: 43.64,
+      }),
+      line({
+        product_id: 121060,
+        sku: "BSF-DOM-1010-HD-5.5-01",
+        product_name: "1010 Humidity Dome second kit",
+        metadata: { bundle_parent_key_hash: kitB },
+      }),
+      line({
+        product_id: 122111,
+        sku: "BSF-BDL-1010-SSK",
+        product_name: "Bootstrap Farmer 1010 Seed Starter Kit second",
+        line_total: 25.45,
+        unit_total: 25.45,
+        line_key_hash: kitB,
+      }),
+    ]);
+
+    expect(nested.map((item) => `${item.role}:${item.line.sku}:${item.line.product_name}`)).toEqual([
+      "standalone:BSF-POT-5.0-BL-08:Bootstrap Farmer Seed Starter Pots Blue",
+      "standalone:BSF-POT-5.0-PU-08:Bootstrap Farmer Seed Starter Pots Purple",
+      "parent:BSF-BDL-1010-SSK:Bootstrap Farmer 1010 Seed Starter Kit",
+      "child:BSF-TRA-1010-DP-NH-PI-01:Bootstrap Farmer 1010 Deep Trays",
+      "child:BSF-INS-06-BL-01:6 Cell Plug Tray Inserts",
+      "child:BSF-DOM-1010-HD-5.5-01:1010 Humidity Dome",
+      "standalone:BSF-POT-5.0-GR-08:Bootstrap Farmer Seed Starter Pots Green",
+      "parent:BSF-BDL-1010-SSK:Bootstrap Farmer 1010 Seed Starter Kit second",
+      "child:BSF-INS-06-BL-01:6 Cell Plug Tray Inserts second kit",
+      "child:BSF-TRA-1010-DP-NH-BL-01:1010 Deep Trays",
+      "child:BSF-DOM-1010-HD-5.5-01:1010 Humidity Dome second kit",
+    ]);
+    expect(nested.filter((item) => item.role === "parent").every((item) => item.isParentBundle)).toBe(true);
+  });
+
+  it("does not attach both identical kit children to the first product_id match", () => {
+    const nested = nestCartLines([
+      line({
+        product_id: 41,
+        product_name: "Tray A",
+        metadata: { yith_wcpb_parent_id: 40 },
+      }),
+      line({
+        product_id: 42,
+        product_name: "Tray B",
+        metadata: { yith_wcpb_parent_id: 40 },
+      }),
+      line({
+        product_id: 40,
+        product_name: "Kit one",
+        sku: "BSF-BDL-1010-SSK",
+      }),
+      line({
+        product_id: 40,
+        product_name: "Kit two",
+        sku: "BSF-BDL-1010-SSK",
+      }),
+    ]);
+
+    expect(nested.map((item) => `${item.role}:${item.line.product_name}`)).toEqual([
+      "child:Tray A",
+      "child:Tray B",
+      "standalone:Kit one",
+      "standalone:Kit two",
+    ]);
+  });
+
   it("keeps standalone lines flat and unstyled as bundles", () => {
     const nested = nestCartLines([
       line({ product_id: 1, product_name: "A" }),

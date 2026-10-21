@@ -15,6 +15,8 @@ export type CartLine = {
   unit_total: number;
   line_subtotal: number;
   line_total: number;
+  /** HMAC of the WooCommerce cart item key. Public packing-equivalent parent identity. */
+  line_key_hash?: string;
   /** Packing-equivalent bundle keys when present: bundled_by, bundle_cart_key, yith_wcpb_parent_id, yith_wcpb_bundle_id, bundle_parent_key_hash, composite_parent. */
   metadata: Record<string, unknown>;
 };

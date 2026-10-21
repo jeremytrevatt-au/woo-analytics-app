@@ -56,6 +56,78 @@ describe("CartLineItems", () => {
     expect(rows[2].textContent).toContain("Child Mix");
   });
 
+  it("renders two identical kits as parent groups with their children underneath", () => {
+    const view = render(
+      <CartLineItems
+        currency="AUD"
+        lines={[
+          line({
+            product_id: 122044,
+            sku: "BSF-TRA-1010-DP-NH-PI-01",
+            product_name: "Bootstrap Farmer 1010 Deep Trays",
+            line_total: 0,
+            unit_total: 0,
+            metadata: { bundle_parent_key_hash: "parent-kit-a" },
+          }),
+          line({
+            product_id: 120574,
+            sku: "BSF-POT-5.0-BL-08",
+            product_name: "Standalone Pot Blue",
+            line_total: 43.64,
+            unit_total: 43.64,
+          }),
+          line({
+            product_id: 122111,
+            sku: "BSF-BDL-1010-SSK",
+            product_name: "Bootstrap Farmer 1010 Seed Starter Kit",
+            line_total: 25.45,
+            unit_total: 25.45,
+            line_key_hash: "parent-kit-a",
+          }),
+          line({
+            product_id: 121060,
+            sku: "BSF-DOM-1010-HD-5.5-01",
+            product_name: "1010 Humidity Dome",
+            line_total: 0,
+            unit_total: 0,
+            metadata: { bundle_parent_key_hash: "parent-kit-a" },
+          }),
+          line({
+            product_id: 122111,
+            sku: "BSF-BDL-1010-SSK",
+            product_name: "Bootstrap Farmer 1010 Seed Starter Kit second",
+            line_total: 25.45,
+            unit_total: 25.45,
+            line_key_hash: "parent-kit-b",
+          }),
+          line({
+            product_id: 114051,
+            sku: "BSF-INS-06-BL-01",
+            product_name: "6 Cell Plug Tray Inserts",
+            quantity: 6,
+            line_total: 0,
+            unit_total: 0,
+            metadata: { bundle_parent_key_hash: "parent-kit-b" },
+          }),
+        ]}
+      />,
+    );
+
+    const rows = Array.from(view.container.querySelectorAll("[data-cart-line-role]"));
+    expect(rows.map((node) => [
+      node.getAttribute("data-cart-line-role"),
+      node.textContent,
+    ])).toEqual([
+      ["standalone", expect.stringContaining("Standalone Pot Blue")],
+      ["parent", expect.stringContaining("Bootstrap Farmer 1010 Seed Starter Kit")],
+      ["child", expect.stringContaining("Bootstrap Farmer 1010 Deep Trays")],
+      ["child", expect.stringContaining("1010 Humidity Dome")],
+      ["parent", expect.stringContaining("Bootstrap Farmer 1010 Seed Starter Kit second")],
+      ["child", expect.stringContaining("6 Cell Plug Tray Inserts")],
+    ]);
+    expect(view.getAllByText("Bundle")).toHaveLength(2);
+  });
+
   it("indents an unmatched hashed child without moving it under another line", () => {
     const view = render(
       <CartLineItems
