@@ -100,7 +100,7 @@ describe("CartDetail", () => {
       </MemoryRouter>,
     );
 
-    expect(await view.findByText("Test Tea")).toBeInTheDocument();
+    expect(await view.findByText("2 x Test Tea")).toBeInTheDocument();
     expect(await view.findByRole("link", { name: "Taylor Green" })).toHaveAttribute(
       "href",
       "/customers/42",
@@ -175,6 +175,69 @@ describe("CartDetail", () => {
     expect(await view.findByText(/API request failed \(404\)/)).toBeInTheDocument();
     expect(view.queryByText("No cart is recorded for this visitor.")).not.toBeInTheDocument();
     expect(getLatestVisitorCart).not.toHaveBeenCalled();
+  });
+
+  it("nests bundle children under the parent in the shared line list", async () => {
+    vi.mocked(getCart).mockResolvedValue({
+      ...cart,
+      item_count: 3,
+      lines: [
+        {
+          id: 2,
+          product_id: 21,
+          variation_id: 0,
+          sku: "CHILD-1",
+          product_name: "Child Mix",
+          quantity: 1,
+          unit_total: 0,
+          line_subtotal: 0,
+          line_total: 0,
+          metadata: { yith_wcpb_parent_id: 20 },
+        },
+        {
+          id: 3,
+          product_id: 30,
+          variation_id: 0,
+          sku: "TEA-1",
+          product_name: "Loose Tea",
+          quantity: 1,
+          unit_total: 10,
+          line_subtotal: 10,
+          line_total: 10,
+          metadata: {},
+        },
+        {
+          id: 1,
+          product_id: 20,
+          variation_id: 0,
+          sku: "BUNDLE-1",
+          product_name: "Garden Bundle",
+          quantity: 1,
+          unit_total: 40,
+          line_subtotal: 40,
+          line_total: 40,
+          metadata: { yith_wcpb_bundle_id: 20 },
+        },
+      ],
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <CartDetail cartId={cart.cart_id} />
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByText("1 x Garden Bundle")).toBeInTheDocument();
+    const rows = Array.from(view.container.querySelectorAll("[data-cart-line-role]"));
+    expect(rows.map((node) => [
+      node.getAttribute("data-cart-line-role"),
+      node.textContent,
+    ])).toEqual([
+      ["standalone", expect.stringContaining("1 x Loose Tea")],
+      ["parent", expect.stringContaining("1 x Garden Bundle")],
+      ["child", expect.stringContaining("1 x Child Mix")],
+    ]);
+    expect(view.getByText("Bundle")).toBeInTheDocument();
   });
 
   it("shows lookup errors without trying another identity", async () => {

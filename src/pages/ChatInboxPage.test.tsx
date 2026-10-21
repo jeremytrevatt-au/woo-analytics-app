@@ -151,7 +151,7 @@ describe("ChatInboxPage", () => {
       "href",
       "https://staging.naturalyield.com.au/shop/sample-product",
     );
-    expect(await view.findByText("Test Tea")).toBeInTheDocument();
+    expect(await view.findByText("1 x Test Tea")).toBeInTheDocument();
     expect(view.getByText(
       `Journey references: ${conversation.nya_visitor_id} / none`,
     )).toBeInTheDocument();

@@ -6,11 +6,6 @@ import {
   Link,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
@@ -34,6 +29,7 @@ import {
 } from "../lib/cartPresentation";
 import { crmCustomerDisplayName } from "../lib/customerIdentity";
 import { AuthoritativeCart, CartSnapshot } from "../types/cart";
+import CartLineItems from "./CartLineItems";
 import CouponDialog from "./CouponDialog";
 import VisitorJourneyPanel from "./VisitorJourneyPanel";
 
@@ -256,35 +252,7 @@ export default function CartDetail({
           />
         </Stack>
         <Divider />
-        <Table size="small" aria-label="Cart line items">
-          <TableHead>
-            <TableRow>
-              <TableCell>Product</TableCell>
-              <TableCell>SKU</TableCell>
-              <TableCell align="right">Quantity</TableCell>
-              <TableCell align="right">Unit total</TableCell>
-              <TableCell align="right">Line total</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {cart.lines.map((line, index) => (
-              <TableRow key={line.id ?? `${line.product_id}-${line.variation_id}-${index}`}>
-                <TableCell>{line.product_name}</TableCell>
-                <TableCell>{line.sku || "—"}</TableCell>
-                <TableCell align="right">{line.quantity}</TableCell>
-                <TableCell align="right">{formatMoney(line.unit_total, cart.currency)}</TableCell>
-                <TableCell align="right">{formatMoney(line.line_total, cart.currency)}</TableCell>
-              </TableRow>
-            ))}
-            {cart.lines.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography color="text.secondary">This cart has no line items.</Typography>
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
+        <CartLineItems lines={cart.lines} currency={cart.currency} />
         <Stack direction={{ xs: "column", sm: "row" }} gap={3}>
           <CartValue label="Subtotal" value={formatMoney(cart.subtotal, cart.currency)} />
           <CartValue label="Discount" value={formatMoney(cart.discount_total, cart.currency)} />
