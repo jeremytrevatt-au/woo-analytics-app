@@ -102,6 +102,48 @@ describe("CouponDialog", () => {
     );
   });
 
+  it("allows a free-shipping-only coupon without an amount", async () => {
+    vi.mocked(createCoupon).mockResolvedValue({
+      id: 9,
+      code: "FREESHIP",
+      discount_type: "percent",
+      amount: 0,
+      usage_limit: 1,
+      expires_at: "2099-10-04T00:00:00.000Z",
+      customer_restricted: false,
+      delivery_message: "Use coupon code FREESHIP at checkout for free shipping - it expires by 2099-10-04T00:00:00Z",
+      chat_delivery: { status: "delivered" },
+    });
+
+    const view = render(<CouponDialog conversationId="conversation-1" />);
+    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    fireEvent.change(view.getByRole("textbox", { name: /Unique coupon code/ }), {
+      target: { value: "freeship" },
+    });
+    fireEvent.change(view.getByLabelText(/Expires at/), {
+      target: { value: "2099-10-04T00:00" },
+    });
+    expect(view.getByRole("button", { name: "Create coupon" })).toBeDisabled();
+    fireEvent.click(view.getByRole("checkbox", { name: "Free shipping" }));
+    expect(view.getByRole("button", { name: "Create coupon" })).toBeEnabled();
+    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+
+    expect(await view.findByText("Coupon FREESHIP created.")).toBeInTheDocument();
+    expect(view.getByText(/for free shipping/)).toBeInTheDocument();
+    expect(view.queryByText(/0% off/)).not.toBeInTheDocument();
+    expect(view.queryByText(/AUD 0 off/)).not.toBeInTheDocument();
+    expect(createCoupon).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "FREESHIP",
+        discount_type: "percent",
+        free_shipping: true,
+      }),
+      expect.any(String),
+    );
+    const [payload] = vi.mocked(createCoupon).mock.calls[0];
+    expect(payload).not.toHaveProperty("amount");
+  });
+
   it("rejects an invalid restriction email before create", () => {
     const view = render(<CouponDialog conversationId="conversation-1" />);
     fireEvent.click(view.getByRole("button", { name: "Create coupon" }));

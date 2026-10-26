@@ -63,12 +63,22 @@ export default function CouponDialog({
 
   const invalidReason = useMemo(() => {
     if (!code.trim()) return "Enter a unique coupon code.";
+    const amountBlank = amount.trim() === "";
     const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      return "Enter a discount greater than zero.";
-    }
-    if (discountType === "percent" && numericAmount > 100) {
-      return "Percentage discounts cannot exceed 100%.";
+    if (freeShipping) {
+      if (!amountBlank && (!Number.isFinite(numericAmount) || numericAmount < 0)) {
+        return "Enter a discount of zero or more, or leave it blank.";
+      }
+      if (!amountBlank && discountType === "percent" && numericAmount > 100) {
+        return "Percentage discounts cannot exceed 100%.";
+      }
+    } else {
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        return "Enter a discount greater than zero.";
+      }
+      if (discountType === "percent" && numericAmount > 100) {
+        return "Percentage discounts cannot exceed 100%.";
+      }
     }
     const numericLimit = Number(usageLimit);
     if (!Number.isInteger(numericLimit) || numericLimit < 1) {
@@ -82,7 +92,7 @@ export default function CouponDialog({
       return "Enter a valid email address, or leave the restriction blank.";
     }
     return null;
-  }, [amount, code, discountType, emailRestriction, expiresAt, usageLimit]);
+  }, [amount, code, discountType, emailRestriction, expiresAt, freeShipping, usageLimit]);
 
   const handleCreate = async () => {
     if (invalidReason) {
@@ -93,10 +103,9 @@ export default function CouponDialog({
     setError(null);
     try {
       const typedEmail = emailRestriction.trim();
-      const response = await createCoupon({
+      const payload = {
         code: code.trim(),
         discount_type: discountType,
-        amount: Number(amount),
         usage_limit: Number(usageLimit),
         expires_at: new Date(expiresAt).toISOString(),
         custom_message: customMessage.trim() || undefined,
@@ -107,7 +116,9 @@ export default function CouponDialog({
         deliver_via_chat: deliverViaChat,
         free_shipping: freeShipping,
         email_restrictions: typedEmail || undefined,
-      }, idempotencyKey);
+        ...(amount.trim() === "" ? {} : { amount: Number(amount) }),
+      };
+      const response = await createCoupon(payload, idempotencyKey);
       setResult(response);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
@@ -180,8 +191,9 @@ export default function CouponDialog({
                     type="number"
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
-                    inputProps={{ min: 0.01, max: discountType === "percent" ? 100 : undefined, step: 0.01 }}
-                    required
+                    inputProps={{ min: freeShipping ? 0 : 0.01, max: discountType === "percent" ? 100 : undefined, step: 0.01 }}
+                    required={!freeShipping}
+                    helperText={freeShipping ? "Optional for a free-shipping-only coupon." : undefined}
                   />
                 </Stack>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

@@ -5,7 +5,7 @@ export type CouponDiscountType = "percent" | "fixed_cart";
 export type CouponCreatePayload = {
   code: string;
   discount_type: CouponDiscountType;
-  amount: number;
+  amount?: number;
   usage_limit: number;
   expires_at: string;
   custom_message?: string;
