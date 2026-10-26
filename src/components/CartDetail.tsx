@@ -55,6 +55,7 @@ export default function CartDetail({
   const [error, setError] = useState<string | null>(null);
   const [visitorCartMissing, setVisitorCartMissing] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerError, setCustomerError] = useState<string | null>(null);
 
@@ -121,6 +122,7 @@ export default function CartDetail({
     let active = true;
     const linkedCustomerId = cart?.customer_id;
     setCustomerName(null);
+    setCustomerEmail(null);
     setCustomerError(null);
     if (!linkedCustomerId) {
       setCustomerLoading(false);
@@ -134,6 +136,7 @@ export default function CartDetail({
       .then((response) => {
         if (active) {
           setCustomerName(crmCustomerDisplayName(response.profile, linkedCustomerId));
+          setCustomerEmail(String(response.profile.billing_email || "").trim() || null);
         }
       })
       .catch((requestError: unknown) => {
@@ -208,6 +211,7 @@ export default function CartDetail({
             customerId={cart.customer_id}
             cartId={cart.cart_id}
             visitorId={cart.visitor_id}
+            restrictEmail={customerEmail}
           />
         </Stack>
         <Stack direction={{ xs: "column", sm: "row" }} gap={3} flexWrap="wrap">

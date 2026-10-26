@@ -101,6 +101,7 @@ describe("coupon Cloud Logging redaction", () => {
         customer_id: 42,
         cart_id: "cart-1",
         custom_message: "Private offer text",
+        email_restrictions: "guest@example.test",
       }),
       responseBody: {
         code: "HELP10",
@@ -119,6 +120,7 @@ describe("coupon Cloud Logging redaction", () => {
       customer_id: "[redacted]",
       cart_id: "[redacted]",
       custom_message: "[redacted]",
+      email_restrictions: "[redacted]",
     });
     expect(redacted.responseBody).toEqual({
       code: "[redacted]",

@@ -254,7 +254,10 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
             <Typography variant="subtitle1" fontWeight={700}>
               {displayName}
             </Typography>
-            <CouponDialog customerId={identity.customer_id} />
+            <CouponDialog
+              customerId={identity.customer_id}
+              restrictEmail={profileData?.billing_email || customer_email}
+            />
           </Stack>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             {profileData?.customer_key ? <Chip size="small" label={profileData.customer_key} /> : null}

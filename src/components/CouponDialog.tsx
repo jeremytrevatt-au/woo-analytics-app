@@ -24,6 +24,7 @@ type Props = {
   cartId?: string | null;
   visitorId?: string | null;
   conversationId?: string | null;
+  restrictEmail?: string | null;
   buttonLabel?: string;
 };
 
@@ -32,6 +33,7 @@ export default function CouponDialog({
   cartId,
   visitorId,
   conversationId,
+  restrictEmail,
   buttonLabel = "Create coupon",
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -41,19 +43,23 @@ export default function CouponDialog({
   const [usageLimit, setUsageLimit] = useState("1");
   const [expiresAt, setExpiresAt] = useState("");
   const [customMessage, setCustomMessage] = useState("");
+  const [freeShipping, setFreeShipping] = useState(false);
+  const [emailRestriction, setEmailRestriction] = useState("");
   const [deliverViaChat, setDeliverViaChat] = useState(true);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CouponCreateResponse | null>(null);
   const hasChatIdentity = Boolean(conversationId || cartId || visitorId || customerId);
+  const knownEmail = String(restrictEmail || "").trim();
 
   useEffect(() => {
     if (!open) return;
     setDeliverViaChat(hasChatIdentity);
+    setEmailRestriction(knownEmail);
     setError(null);
     setResult(null);
-  }, [hasChatIdentity, open]);
+  }, [hasChatIdentity, knownEmail, open]);
 
   const invalidReason = useMemo(() => {
     if (!code.trim()) return "Enter a unique coupon code.";
@@ -71,8 +77,12 @@ export default function CouponDialog({
     if (!expiresAt || Date.parse(expiresAt) <= Date.now()) {
       return "Choose a future expiry time.";
     }
+    const typedEmail = emailRestriction.trim();
+    if (typedEmail && !isCouponRestrictionEmail(typedEmail)) {
+      return "Enter a valid email address, or leave the restriction blank.";
+    }
     return null;
-  }, [amount, code, discountType, expiresAt, usageLimit]);
+  }, [amount, code, discountType, emailRestriction, expiresAt, usageLimit]);
 
   const handleCreate = async () => {
     if (invalidReason) {
@@ -82,6 +92,7 @@ export default function CouponDialog({
     setSaving(true);
     setError(null);
     try {
+      const typedEmail = emailRestriction.trim();
       const response = await createCoupon({
         code: code.trim(),
         discount_type: discountType,
@@ -94,6 +105,8 @@ export default function CouponDialog({
         visitor_id: visitorId || undefined,
         conversation_id: conversationId || undefined,
         deliver_via_chat: deliverViaChat,
+        free_shipping: freeShipping,
+        email_restrictions: typedEmail || undefined,
       }, idempotencyKey);
       setResult(response);
     } catch (requestError) {
@@ -111,6 +124,8 @@ export default function CouponDialog({
     setUsageLimit("1");
     setExpiresAt("");
     setCustomMessage("");
+    setFreeShipping(false);
+    setEmailRestriction("");
     setIdempotencyKey(crypto.randomUUID());
     setResult(null);
     setError(null);
@@ -189,6 +204,23 @@ export default function CouponDialog({
                     required
                   />
                 </Stack>
+                <FormControlLabel
+                  control={(
+                    <Checkbox
+                      checked={freeShipping}
+                      onChange={(event) => setFreeShipping(event.target.checked)}
+                    />
+                  )}
+                  label="Free shipping"
+                />
+                <TextField
+                  label="Restrict to email"
+                  type="email"
+                  value={emailRestriction}
+                  onChange={(event) => setEmailRestriction(event.target.value)}
+                  inputProps={{ maxLength: 320 }}
+                  helperText="Limits the coupon to this address. Prefills from the Woo customer, chat guest, or conversation email when known."
+                />
                 <TextField
                   label="Custom message"
                   multiline
@@ -233,6 +265,13 @@ export default function CouponDialog({
       </Dialog>
     </>
   );
+}
+
+function isCouponRestrictionEmail(value: string): boolean {
+  const email = value.trim();
+  const at = email.indexOf("@");
+  if (at <= 0 || at === email.length - 1 || email.includes(" ")) return false;
+  return email.slice(at + 1).includes(".");
 }
 
 function couponResultSeverity(

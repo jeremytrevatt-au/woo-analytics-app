@@ -1,5 +1,11 @@
 import { ChatConversation } from "../types/chat";
 
+export function conversationCouponEmail(
+  conversation: Pick<ChatConversation, "guest_email">,
+): string {
+  return String(conversation.guest_email || "").trim();
+}
+
 export function chatCustomerLabel(conversation: ChatConversation): string {
   if (conversation.customer_identity_type === "guest") {
     if (conversation.guest_email) return `Guest — ${conversation.guest_email}`;

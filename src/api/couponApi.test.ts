@@ -25,6 +25,8 @@ describe("couponApi", () => {
       visitor_id: "visitor-1",
       conversation_id: "conversation-1",
       deliver_via_chat: true,
+      free_shipping: true,
+      email_restrictions: "guest@example.test",
     };
 
     await createCoupon(payload, "coupon-request-123");

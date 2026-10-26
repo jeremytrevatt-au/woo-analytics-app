@@ -14,6 +14,8 @@ export type CouponCreatePayload = {
   visitor_id?: string;
   conversation_id?: string;
   deliver_via_chat: boolean;
+  free_shipping?: boolean;
+  email_restrictions?: string;
 };
 
 export type CouponCreateResponse = {

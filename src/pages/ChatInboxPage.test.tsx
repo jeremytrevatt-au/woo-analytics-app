@@ -171,4 +171,39 @@ describe("ChatInboxPage", () => {
       [],
     ));
   });
+
+  it("prefills the coupon email restriction from the conversation guest email", async () => {
+    const identified = {
+      ...conversation,
+      customer_identity_type: "guest" as const,
+      guest_email: "guest@example.test",
+    };
+    vi.mocked(listChatConversations).mockResolvedValue({
+      conversations: [identified],
+    });
+    vi.mocked(listChatMessages).mockResolvedValue({ messages: [] });
+    vi.mocked(markChatConversationRead).mockResolvedValue(undefined);
+    vi.mocked(getCart).mockResolvedValue({
+      cart_id: identified.nya_cart_id,
+      visitor_id: identified.nya_visitor_id,
+      is_marketing_eligible: false,
+      sequence: 1,
+      status: "active",
+      updated_at: "2026-09-19T07:01:00Z",
+      currency: "AUD",
+      item_count: 0,
+      subtotal: 0,
+      discount_total: 0,
+      shipping_total: 0,
+      tax_total: 0,
+      total: 0,
+      order_id: null,
+      lines: [],
+    });
+
+    const view = render(<MemoryRouter><ChatInboxPage /></MemoryRouter>);
+    expect((await view.findAllByText("Guest — guest@example.test")).length).toBeGreaterThan(0);
+    fireEvent.click(view.getByRole("button", { name: "Coupon" }));
+    expect(view.getByLabelText(/Restrict to email/)).toHaveValue("guest@example.test");
+  });
 });

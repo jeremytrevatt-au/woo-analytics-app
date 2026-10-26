@@ -42,7 +42,7 @@ import CustomerCrmPanel from "../components/CustomerCrmPanel";
 import CartDetail from "../components/CartDetail";
 import CouponDialog from "../components/CouponDialog";
 import VisitorJourneyPanel from "../components/VisitorJourneyPanel";
-import { chatCustomerLabel } from "../lib/chatIdentity";
+import { chatCustomerLabel, conversationCouponEmail } from "../lib/chatIdentity";
 import { wordpressStorefrontUrl } from "../config/wordpress";
 
 const statuses: ChatConversationStatus[] = ["open", "assigned", "waiting", "closed"];
@@ -366,6 +366,7 @@ function ChatInboxPage() {
                   customerId={selected.woo_customer_id}
                   cartId={selected.nya_cart_id}
                   visitorId={selected.nya_visitor_id}
+                  restrictEmail={conversationCouponEmail(selected)}
                   buttonLabel="Coupon"
                 />
                 <Button variant="contained" onClick={() => void handleReply()} disabled={saving || (!reply.trim() && !attachment)}>
