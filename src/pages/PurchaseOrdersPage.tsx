@@ -663,7 +663,13 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
                   {bulkReserveUpdating ? "Applying..." : `Apply to ${selectedLineIds.length} selected`}
                 </Button>
               </Stack>
-              <Table size="small" aria-label="purchases">
+              <TableContainer
+                component={Paper}
+                variant="outlined"
+                data-testid="po-readonly-line-table-container"
+                sx={{ maxHeight: "65vh", overflow: "auto" }}
+              >
+              <Table size="small" stickyHeader aria-label="purchases" data-testid="po-readonly-line-table">
                 <TableHead>
                   <TableRow>
                     <TableCell padding="checkbox">
@@ -893,6 +899,7 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
                   )}
                 </TableBody>
               </Table>
+              </TableContainer>
             </Box>
           </Collapse>
         </TableCell>

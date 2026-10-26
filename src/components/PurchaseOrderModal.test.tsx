@@ -1,6 +1,6 @@
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PurchaseOrder, purchaseOrdersApi } from "../api/purchaseOrdersApi";
 import PurchaseOrderModal from "./PurchaseOrderModal";
 
@@ -83,6 +83,8 @@ describe("PurchaseOrderModal stock quantity", () => {
     expect(view.getByText("Needs Reorder")).toBeInTheDocument();
     expect(view.getByTitle("Compared with 90-day effective lead time"))
       .toHaveTextContent("Yes");
+    expect(view.getByTestId("po-edit-line-table")).toHaveClass("MuiTable-stickyHeader");
+    expect(view.getByTestId("po-edit-line-table-container")).toHaveStyle({ maxHeight: "65vh" });
   });
 });
 
@@ -208,5 +210,128 @@ describe("PurchaseOrderModal supplier invoice", () => {
     );
 
     expect(view.getByRole("button", { name: "Upload supplier invoice" })).toBeDisabled();
+  });
+});
+
+describe("PurchaseOrderModal auto order", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  const autoOrderPo = {
+    ...purchaseOrder,
+    supplier_id: 2,
+    supplier_name: "GreenStalk",
+    lead_time_days: 0,
+    lines: [
+      {
+        id: 11,
+        product_id: 11,
+        sku: "ENOUGH",
+        product_name: "Covered",
+        qty: 9,
+        avg_daily_usage: 2,
+        stock_qty: 80,
+        backordered_qty: 0,
+        preordered_qty: 0,
+        effective_lead_time_days: 10,
+      },
+      {
+        id: 12,
+        product_id: 12,
+        sku: "SHORT",
+        product_name: "Short stock",
+        qty: 9,
+        avg_daily_usage: 2,
+        stock_qty: 10,
+        backordered_qty: 0,
+        preordered_qty: 0,
+        effective_lead_time_days: 10,
+      },
+      {
+        id: 13,
+        product_id: 13,
+        sku: "BACKORDER",
+        product_name: "No demand",
+        qty: 9,
+        avg_daily_usage: 0,
+        stock_qty: 40,
+        days_of_cover: 0,
+        backordered_qty: 5,
+        preordered_qty: 0,
+      },
+      {
+        id: 14,
+        product_id: 14,
+        sku: "GS-MISSING-LEAD",
+        product_name: "GreenStalk missing lead",
+        qty: 9,
+        avg_daily_usage: 1,
+        stock_qty: 0,
+        backordered_qty: 0,
+        preordered_qty: 0,
+      },
+    ],
+  } as PurchaseOrder;
+
+  it("writes recommended qty for every line and greens only positive recommendations", async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(purchaseOrdersApi, "update");
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={autoOrderPo} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "Auto Order" }));
+    await user.type(await view.findByLabelText("Days of cover required"), "20");
+    await user.click(view.getByRole("button", { name: "Apply recommended qty" }));
+    await waitFor(() => {
+      expect(view.queryByRole("dialog", { name: "Auto Order" })).not.toBeInTheDocument();
+    });
+
+    const enough = view.getByRole("spinbutton", { name: "Qty for ENOUGH" });
+    const short = view.getByRole("spinbutton", { name: "Qty for SHORT" });
+    const backorder = view.getByRole("spinbutton", { name: "Qty for BACKORDER" });
+    const greenstalk = view.getByRole("spinbutton", { name: "Qty for GS-MISSING-LEAD" });
+
+    expect(enough).toHaveValue(0);
+    expect(enough).toHaveAttribute("data-auto-ordered", "false");
+    expect(short).toHaveValue(50);
+    expect(short).toHaveAttribute("data-auto-ordered", "true");
+    expect(backorder).toHaveValue(5);
+    expect(backorder).toHaveAttribute("data-auto-ordered", "true");
+    expect(greenstalk).toHaveValue(91);
+    expect(greenstalk).toHaveAttribute("data-auto-ordered", "true");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("clears the green marker when the user edits that qty", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={autoOrderPo} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "Auto Order" }));
+    await user.type(await view.findByLabelText("Days of cover required"), "20");
+    await user.click(view.getByRole("button", { name: "Apply recommended qty" }));
+    await waitFor(() => {
+      expect(view.queryByRole("dialog", { name: "Auto Order" })).not.toBeInTheDocument();
+    });
+
+    const short = view.getByRole("spinbutton", { name: "Qty for SHORT" });
+    expect(short).toHaveAttribute("data-auto-ordered", "true");
+    await user.clear(short);
+    await user.type(short, "12");
+    expect(short).toHaveAttribute("data-auto-ordered", "false");
+    expect(view.getByRole("spinbutton", { name: "Qty for BACKORDER" })).toHaveAttribute("data-auto-ordered", "true");
+  });
+
+  it("does not show Auto Order on a new PO with no lines", () => {
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={null} />,
+    );
+    expect(view.getByRole("button", { name: "Auto Order" })).toBeDisabled();
   });
 });

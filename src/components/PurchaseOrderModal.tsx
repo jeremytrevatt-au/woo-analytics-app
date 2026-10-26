@@ -8,9 +8,15 @@ import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purc
 import { ApiRequestError } from "../api/httpClient";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
 import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
+import PurchaseOrderAutoOrderDialog from "./PurchaseOrderAutoOrderDialog";
 import { ProductSearchResult } from "../api/productsApi";
 import { formatOutstandingDemandQty } from "../lib/purchaseOrderLineDemand";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
+import {
+  autoOrderLineKey,
+  computeAutoOrderForLines,
+  logAutoOrderRecommendation,
+} from "../lib/purchaseOrderAutoOrder";
 import { supplierSkuMappingApi } from "../api/supplierSkuMappingApi";
 import {
   applySupplierValuesToLine,
@@ -167,6 +173,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   const [lineFilter, setLineFilter] = useState("");
   const [supplierDefaultWarnings, setSupplierDefaultWarnings] = useState<string[]>([]);
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
+  const [autoOrderOpen, setAutoOrderOpen] = useState(false);
+  const [autoOrderedKeys, setAutoOrderedKeys] = useState<Set<string>>(new Set());
   const invoiceInputRef = useRef<HTMLInputElement | null>(null);
   const formDataRef = useRef<Partial<PurchaseOrder>>(formData);
   formDataRef.current = formData;
@@ -198,6 +206,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     setLineFilter("");
     setActiveRowIndex(null);
     setSupplierDefaultWarnings([]);
+    setAutoOrderOpen(false);
+    setAutoOrderedKeys(new Set());
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
@@ -225,6 +235,15 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   };
 
   const handleLineChange = (index: number, field: keyof PurchaseOrderLine, value: any) => {
+    if (field === "qty") {
+      setAutoOrderedKeys((current) => {
+        const line = (formDataRef.current.lines || [])[index];
+        if (!line) return current;
+        const next = new Set(current);
+        next.delete(autoOrderLineKey(line, index));
+        return next;
+      });
+    }
     setFormData(prev => {
       const newLines = [...(prev.lines || [])];
       const line = { ...newLines[index], [field]: value };
@@ -265,6 +284,34 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
       recalculatedLines[index] = { ...recalculatedLines[index], [field]: value };
       return { ...recalculated, lines: recalculatedLines };
     });
+  };
+
+  const handleApplyAutoOrder = (daysOfCoverRequired: number) => {
+    const current = formDataRef.current;
+    const lines = current.lines || [];
+    const results = computeAutoOrderForLines(lines, daysOfCoverRequired, {
+      poLeadTimeDays: toNumber(current.lead_time_days),
+      supplierLeadTimeDays: selectedSupplier?.default_lead_time_days,
+      supplierName: selectedSupplier?.name || current.supplier_name,
+    });
+    results.forEach(logAutoOrderRecommendation);
+    setAutoOrderedKeys(new Set(results.filter((result) => result.isAutoOrdered).map((result) => result.key)));
+    setFormData((prev) => {
+      const rate = toNumber(prev.currency_conversion_rate, 1);
+      const newLines = (prev.lines || []).map((line, index) => {
+        const recommended = results[index]?.recommended ?? 0;
+        const unitPrice = toNumber(line.supplier_unit_price);
+        return {
+          ...line,
+          qty: recommended,
+          supplier_total: roundMoney(recommended * unitPrice),
+          unit_price_aud: roundMoney(unitPrice * rate),
+          total_aud: roundMoney(recommended * unitPrice * rate),
+        };
+      });
+      return recalculatePurchaseOrder({ ...prev, lines: newLines });
+    });
+    setAutoOrderOpen(false);
   };
 
   const handleAddBlankLine = () => {
@@ -507,6 +554,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   const visibleLineEntries = filterPurchaseOrderLines(formData.lines || [], lineFilter);
 
   return (
+    <>
       <Dialog open={open} onClose={() => onClose(false)} maxWidth={false} PaperProps={{ sx: { width: '98%', maxWidth: 'none' } }}>
         <DialogTitle>{po ? "Edit Purchase Order" : "Create Purchase Order"}</DialogTitle>
         <DialogContent dividers>
@@ -989,10 +1037,18 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
             </Grid>
 
             <Grid item xs={12} sx={{ width: '100%' }}>
-              <Box sx={{ mt: 3, mb: 1 }}>
+              <Box sx={{ mt: 3, mb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                 <Typography variant="h6" color="primary">Line Items</Typography>
-                <Divider sx={{ mb: 2 }} />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setAutoOrderOpen(true)}
+                  disabled={!formData.lines?.length}
+                >
+                  Auto Order
+                </Button>
               </Box>
+              <Divider sx={{ mb: 2 }} />
               
               <Box sx={{ mb: 2 }}>
                 <PurchaseOrderProductSearch
@@ -1010,9 +1066,14 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                 )}
               </Box>
   
-                <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                  <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
-                    <Table size="small" sx={{ width: '100%', minWidth: 2100 }}>
+                <Box sx={{ width: '100%' }}>
+                  <TableContainer
+                    component={Paper}
+                    variant="outlined"
+                    data-testid="po-edit-line-table-container"
+                    sx={{ width: '100%', maxHeight: "65vh", overflow: "auto" }}
+                  >
+                    <Table size="small" stickyHeader data-testid="po-edit-line-table" aria-label="Purchase order lines" sx={{ width: '100%', minWidth: 2100 }}>
                       <TableHead>
                       <TableRow>
                         <TableCell width="30%">Product Name</TableCell>
@@ -1038,6 +1099,10 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                   <TableBody>
                     {visibleLineEntries.map(({ line, originalIndex: index }) => {
                       const editUrl = wooProductEditUrl(line.edit_product_id || line.parent_product_id || (line.product_id > 0 ? line.product_id : null));
+                      const isAutoOrdered = autoOrderedKeys.has(autoOrderLineKey(line, index));
+                      const autoOrderQtySx = isAutoOrdered
+                        ? { bgcolor: "#e8f5e9", "& .MuiInputBase-root": { bgcolor: "#e8f5e9" } }
+                        : {};
                       return (
                         <TableRow 
                           key={index}
@@ -1095,13 +1160,19 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                             sx={{ '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={isAutoOrdered ? { bgcolor: "#e8f5e9" } : undefined}>
                           <TextField
                             size="small"
                             type="number"
                             value={line.qty ?? ""}
                             onChange={(e) => handleLineChange(index, "qty", e.target.value)}
-                            sx={{ width: 80 }}
+                            slotProps={{
+                              htmlInput: {
+                                "aria-label": `Qty for ${line.sku || `row ${index + 1}`}`,
+                                "data-auto-ordered": isAutoOrdered ? "true" : "false",
+                              },
+                            }}
+                            sx={{ width: 80, ...autoOrderQtySx }}
                           />
                         </TableCell>
                         <TableCell
@@ -1245,5 +1316,11 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
         </Button>
       </DialogActions>
     </Dialog>
+      <PurchaseOrderAutoOrderDialog
+        open={autoOrderOpen}
+        onClose={() => setAutoOrderOpen(false)}
+        onConfirm={handleApplyAutoOrder}
+      />
+    </>
   );
 }

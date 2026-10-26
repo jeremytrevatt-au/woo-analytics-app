@@ -89,5 +89,7 @@ describe("PurchaseOrdersPage outstanding demand columns", () => {
       .toHaveTextContent("3");
     expect(view.getByRole("button", { name: /Pre-ordered Qty/ })).toBeInTheDocument();
     expect(view.getByRole("button", { name: /Backordered Qty/ })).toBeInTheDocument();
+    expect(view.getByTestId("po-readonly-line-table")).toHaveClass("MuiTable-stickyHeader");
+    expect(view.getByTestId("po-readonly-line-table-container")).toHaveStyle({ maxHeight: "65vh" });
   });
 });
