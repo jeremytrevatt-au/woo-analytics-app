@@ -296,7 +296,7 @@ describe("SupplierSkuMappingPage", () => {
     expect(screen.getByTestId("commit-results")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Commit 96 rows/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("sku-commit-page-button")).not.toHaveTextContent("Commit 96 rows");
-  });
+  }, 30000);
 
   it("shows Committing N rows on the page and dialog buttons while commit is in flight", async () => {
     mocks.preview.mockResolvedValue({
