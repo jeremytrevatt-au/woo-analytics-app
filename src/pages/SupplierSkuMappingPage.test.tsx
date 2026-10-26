@@ -250,7 +250,8 @@ describe("SupplierSkuMappingPage", () => {
     expect(confirmRows.getByText("#101 / GS-101 / published")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Commit 1 row" }));
-    await screen.findByTestId("commit-results");
+    const alert = await screen.findByTestId("commit-result-alert");
+    expect(alert).toHaveTextContent("Committed 1 rows: updated 1, skipped 0, failed 0");
     // The per-row result ties before/after values to the named product.
     const resultProduct = within(screen.getByTestId("commit-results"));
     expect(resultProduct.getAllByText("Greenstalk Vertical Planter").length).toBeGreaterThan(0);
@@ -261,6 +262,100 @@ describe("SupplierSkuMappingPage", () => {
     const results = within(screen.getByTestId("commit-results"));
     expect(results.getByText("Updated")).toBeInTheDocument();
     expect(results.getByText("Skipped: conflict")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Commit 1 row/ })).not.toBeInTheDocument();
+  });
+
+  it("shows a sticky alert with server counts and stops offering the same 96 rows after a successful commit", async () => {
+    const manyRows = Array.from({ length: 96 }, (_, index) => row(index + 1));
+    mocks.preview.mockResolvedValue({
+      ...previewPayload,
+      row_count: 96,
+      rows: manyRows,
+      candidates: manyRows.map((entry) => entry.matched!).filter(Boolean),
+    });
+    mocks.commit.mockResolvedValue({
+      success: true,
+      counts: { updated: 90, unchanged: 4, conflict_skipped: 1, error: 1 },
+      results: manyRows.map((entry, index) => ({
+        index,
+        product_id: entry.matched!.id,
+        status: index === 95 ? "error" : index === 94 ? "conflict_skipped" : index < 90 ? "updated" : "unchanged",
+        after:
+          index < 94
+            ? { supplier_id: 2, supplier_sku: entry.supplier_sku, supplier_price: "10.00" }
+            : undefined,
+      })),
+    });
+    const user = await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    await user.click(screen.getByRole("button", { name: "Commit 96 rows..." }));
+    const dialogConfirm = await screen.findByRole("button", { name: "Commit 96 rows" });
+    await user.click(dialogConfirm);
+    const alert = await screen.findByTestId("commit-result-alert");
+    expect(alert).toHaveTextContent("Committed 96 rows: updated 90, skipped 5, failed 1");
+    expect(screen.getByTestId("commit-results")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Commit 96 rows/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("sku-commit-page-button")).not.toHaveTextContent("Commit 96 rows");
+  });
+
+  it("shows Committing N rows on the page and dialog buttons while commit is in flight", async () => {
+    mocks.preview.mockResolvedValue({
+      ...previewPayload,
+      rows: [row(1)],
+      row_count: 1,
+    });
+    let resolveCommit: (value: unknown) => void = () => undefined;
+    mocks.commit.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCommit = resolve;
+      }),
+    );
+    const user = await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    await user.click(screen.getByRole("button", { name: "Commit 1 row..." }));
+    await user.click(await screen.findByRole("button", { name: "Commit 1 row" }));
+    const dialogButton = await screen.findByRole("button", { name: /Committing 1 row/ });
+    const pageButton = screen.getByTestId("sku-commit-page-button");
+    expect(pageButton).toHaveTextContent("Committing 1 row");
+    expect(pageButton).toBeDisabled();
+    expect(dialogButton).toBeDisabled();
+    resolveCommit({
+      success: true,
+      counts: { updated: 1, unchanged: 0, conflict_skipped: 0, error: 0 },
+      results: [
+        {
+          index: 0,
+          product_id: 101,
+          status: "updated",
+          after: { supplier_id: 2, supplier_sku: "SUP-1", supplier_price: "10.00" },
+        },
+      ],
+    });
+    expect(await screen.findByTestId("commit-result-alert")).toHaveTextContent(
+      "Committed 1 rows: updated 1, skipped 0, failed 0",
+    );
+  });
+
+  it("shows the commit failure in the same sticky alert and includes counts when the server returned them", async () => {
+    mocks.preview.mockResolvedValue({
+      ...previewPayload,
+      rows: [row(1)],
+      row_count: 1,
+    });
+    mocks.commit.mockRejectedValue(
+      new ApiRequestError("API request failed (502)", 502, "/api/v1/supplier-sku-mapping/commit", {
+        detail: "WordPress Supplier SKU commit failed.",
+        counts: { updated: 2, unchanged: 0, conflict_skipped: 0, error: 3 },
+      }),
+    );
+    const user = await uploadAndPreview();
+    await screen.findByTestId("sku-mapping-table");
+    await user.click(screen.getByRole("button", { name: "Commit 1 row..." }));
+    await user.click(await screen.findByRole("button", { name: "Commit 1 row" }));
+    const alert = await screen.findByTestId("commit-result-alert");
+    expect(alert).toHaveTextContent("The commit failed:");
+    expect(alert).toHaveTextContent("WordPress Supplier SKU commit failed.");
+    expect(alert).toHaveTextContent("Committed 5 rows: updated 2, skipped 0, failed 3");
   });
 
   it("shows before and after values before replacing all conflicts, then commits with replace", async () => {

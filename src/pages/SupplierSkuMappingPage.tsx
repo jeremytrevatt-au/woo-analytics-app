@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -23,9 +23,11 @@ import {
   type SkuMappingPreview,
 } from "../api/supplierSkuMappingApi";
 import {
+  applyWrittenValues,
   buildCommitPreview,
   buildCommitReport,
   buildCommitRows,
+  commitCountsFromUnknown,
   countActions,
   countByStatus,
   deriveRowViews,
@@ -33,6 +35,7 @@ import {
   replaceableConflicts,
   setReplaceForRows,
   updateRowEdit,
+  type CommitCounts,
   type CommitReportEntry,
   type RowEdits,
   type ViewFilter,
@@ -90,7 +93,9 @@ export default function SupplierSkuMappingPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [commitErrorCounts, setCommitErrorCounts] = useState<CommitCounts | null>(null);
   const [commitResult, setCommitResult] = useState<{ response: SkuMappingCommitResponse; entries: CommitReportEntry[] } | null>(null);
+  const commitResultRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,7 +152,13 @@ export default function SupplierSkuMappingPage() {
     setFilter(EMPTY_FILTER);
     setCommitResult(null);
     setCommitError(null);
+    setCommitErrorCounts(null);
   }, []);
+
+  useEffect(() => {
+    if (!commitResult && !commitError) return;
+    commitResultRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [commitResult, commitError]);
 
   const handleSupplierChange = (value: number) => {
     setSupplierId(value);
@@ -219,12 +230,20 @@ export default function SupplierSkuMappingPage() {
     if (commitRows.length === 0) return;
     setCommitting(true);
     setCommitError(null);
+    setCommitErrorCounts(null);
     try {
       const response = await supplierSkuMappingApi.commit(commitRows);
+      const applied = applyWrittenValues(preview?.rows ?? [], edits, views, response, commitRows);
+      if (preview) {
+        setPreview({ ...preview, rows: applied.rows });
+        setEdits(applied.edits);
+      }
       setCommitResult({ response, entries: buildCommitReport(views, response) });
       setConfirmOpen(false);
     } catch (error) {
+      setCommitResult(null);
       setCommitError(describeError(error).message);
+      setCommitErrorCounts(commitCountsFromUnknown(error instanceof ApiRequestError ? error.responseBody : error));
       setConfirmOpen(false);
     } finally {
       setCommitting(false);
@@ -321,14 +340,19 @@ export default function SupplierSkuMappingPage() {
         </Alert>
       ) : null}
 
-      {commitError ? (
-        <Alert severity="error" onClose={() => setCommitError(null)}>
-          The commit failed: {commitError}
-        </Alert>
-      ) : null}
-
-      {commitResult ? (
-        <CommitResults entries={commitResult.entries} counts={commitResult.response.counts} onDismiss={() => setCommitResult(null)} />
+      {commitError || commitResult ? (
+        <Box ref={commitResultRef}>
+          <CommitResults
+            entries={commitResult?.entries ?? []}
+            counts={commitResult?.response.counts ?? commitErrorCounts}
+            error={commitError}
+            onDismiss={() => {
+              setCommitResult(null);
+              setCommitError(null);
+              setCommitErrorCounts(null);
+            }}
+          />
+        </Box>
       ) : null}
 
       {preview?.reference_diff ? (
@@ -355,8 +379,16 @@ export default function SupplierSkuMappingPage() {
             <Button variant="outlined" color="warning" disabled={conflicts.length === 0} onClick={() => setReplaceDialogOpen(true)}>
               Replace all conflicts ({conflicts.length})
             </Button>
-            <Button variant="contained" disabled={toCommit === 0 || committing} onClick={() => setConfirmOpen(true)}>
-              Commit {toCommit} row{toCommit === 1 ? "" : "s"}...
+            <Button
+              data-testid="sku-commit-page-button"
+              variant="contained"
+              disabled={toCommit === 0 || committing}
+              onClick={() => setConfirmOpen(true)}
+              startIcon={committing ? <CircularProgress size={16} color="inherit" /> : undefined}
+            >
+              {committing
+                ? `Committing ${toCommit} row${toCommit === 1 ? "" : "s"}...`
+                : `Commit ${toCommit} row${toCommit === 1 ? "" : "s"}...`}
             </Button>
           </Paper>
 

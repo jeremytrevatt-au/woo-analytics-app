@@ -404,3 +404,120 @@ export function setReplaceForRows(edits: RowEdits, rowIds: number[], replace: bo
 export function updateRowEdit(edits: RowEdits, rowId: number, patch: RowEdit): RowEdits {
   return { ...edits, [rowId]: { ...(edits[rowId] ?? {}), ...patch } };
 }
+
+export type CommitCountSummary = {
+  updated: number;
+  skipped: number;
+  failed: number;
+  total: number;
+};
+
+export type CommitCounts = SkuMappingCommitResponse["counts"];
+
+function asCount(value: unknown): number {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+/** Server counts as updated / skipped (unchanged + conflict_skipped) / failed. */
+export function summarizeCommitCounts(counts: CommitCounts | null | undefined): CommitCountSummary | null {
+  if (!counts) return null;
+  const updated = asCount(counts.updated);
+  const skipped = asCount(counts.unchanged) + asCount(counts.conflict_skipped);
+  const failed = asCount(counts.error);
+  return { updated, skipped, failed, total: updated + skipped + failed };
+}
+
+export function formatCommitResultLine(counts: CommitCountSummary): string {
+  return `Committed ${counts.total} rows: updated ${counts.updated}, skipped ${counts.skipped}, failed ${counts.failed}`;
+}
+
+export function commitCountsFromUnknown(value: unknown): CommitCounts | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const nested = record.counts && typeof record.counts === "object" && !Array.isArray(record.counts)
+    ? record.counts
+    : record.detail && typeof record.detail === "object" && !Array.isArray(record.detail)
+      ? (record.detail as { counts?: unknown }).counts
+      : null;
+  if (!nested || typeof nested !== "object" || Array.isArray(nested)) return null;
+  const raw = nested as Record<string, unknown>;
+  if (!("updated" in raw) && !("error" in raw) && !("unchanged" in raw) && !("conflict_skipped" in raw)) {
+    return null;
+  }
+  return {
+    updated: asCount(raw.updated),
+    unchanged: asCount(raw.unchanged),
+    conflict_skipped: asCount(raw.conflict_skipped),
+    error: asCount(raw.error),
+  };
+}
+
+function writtenValuesForProduct(
+  productId: number,
+  response: SkuMappingCommitResponse,
+  committedRows: SkuMappingCommitRow[],
+): SkuMappingSupplierValues | null {
+  const result = response.results.find((item) => item.product_id === productId);
+  if (!result || (result.status !== "updated" && result.status !== "unchanged")) return null;
+  if (result.after) return result.after;
+  const sent = committedRows.find((row) => row.product_id === productId);
+  if (!sent) return null;
+  return { supplier_id: sent.supplier_id, supplier_sku: sent.supplier_sku, supplier_price: sent.supplier_price };
+}
+
+/**
+ * After a successful write, put the stored supplier values onto the preview rows so they become
+ * Unchanged and drop out of the Commit N rows count without a full page reload.
+ */
+export function applyWrittenValues(
+  rows: SkuMappingPreviewRow[],
+  edits: RowEdits,
+  views: RowView[],
+  response: SkuMappingCommitResponse,
+  committedRows: SkuMappingCommitRow[],
+): { rows: SkuMappingPreviewRow[]; edits: RowEdits } {
+  const written = new Map<number, SkuMappingSupplierValues>();
+  for (const view of views) {
+    if ((view.action !== "write" && view.action !== "replace") || !view.target) continue;
+    const values = writtenValuesForProduct(view.target.id, response, committedRows);
+    if (values) written.set(view.row.row_id, values);
+  }
+
+  const nextRows = rows.map((row) => {
+    const view = views.find((entry) => entry.row.row_id === row.row_id);
+    const values = written.get(row.row_id);
+    if (!view || !values || view.isManual || !row.matched) return row;
+    return {
+      ...row,
+      matched: {
+        ...row.matched,
+        supplier_id: values.supplier_id,
+        supplier_sku: values.supplier_sku,
+        supplier_price: values.supplier_price,
+      },
+      base_status: "unchanged" as const,
+    };
+  });
+
+  const nextEdits: RowEdits = { ...edits };
+  for (const view of views) {
+    const values = written.get(view.row.row_id);
+    if (!values) continue;
+    const existing = nextEdits[view.row.row_id] ?? {};
+    nextEdits[view.row.row_id] = {
+      ...existing,
+      replace: false,
+      manualTarget:
+        view.isManual && existing.manualTarget
+          ? {
+              ...existing.manualTarget,
+              supplier_id: values.supplier_id,
+              supplier_sku: values.supplier_sku,
+              supplier_price: values.supplier_price,
+            }
+          : existing.manualTarget,
+    };
+  }
+  return { rows: nextRows, edits: nextEdits };
+}

@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,7 +16,15 @@ import {
   Typography,
 } from "@mui/material";
 import type { SkuMappingSupplierValues } from "../../api/supplierSkuMappingApi";
-import type { ActionCounts, CommitPreviewEntry, CommitReportEntry, ConflictReplacement } from "../../lib/supplierSkuMapping";
+import type {
+  ActionCounts,
+  CommitCountSummary,
+  CommitCounts,
+  CommitPreviewEntry,
+  CommitReportEntry,
+  ConflictReplacement,
+} from "../../lib/supplierSkuMapping";
+import { formatCommitResultLine, summarizeCommitCounts } from "../../lib/supplierSkuMapping";
 import WooProductLabel from "./WooProductLabel";
 
 const formatValues = (values: SkuMappingSupplierValues | null) =>
@@ -169,8 +178,15 @@ export function CommitConfirmDialog({ open, counts, entries, supplierName, commi
         <Button onClick={onClose} disabled={committing}>
           Cancel
         </Button>
-        <Button variant="contained" color="primary" onClick={onConfirm} disabled={committing || toSend === 0}>
-          {committing ? "Committing..." : `Commit ${toSend} row${toSend === 1 ? "" : "s"}`}
+        <Button
+          data-testid="sku-commit-dialog-button"
+          variant="contained"
+          color="primary"
+          onClick={onConfirm}
+          disabled={committing || toSend === 0}
+          startIcon={committing ? <CircularProgress size={16} color="inherit" /> : undefined}
+        >
+          {committing ? `Committing ${toSend} row${toSend === 1 ? "" : "s"}...` : `Commit ${toSend} row${toSend === 1 ? "" : "s"}`}
         </Button>
       </DialogActions>
     </Dialog>
@@ -189,62 +205,101 @@ const OUTCOME_LABELS: Record<CommitReportEntry["outcome"], { label: string; colo
 
 type ResultsProps = {
   entries: CommitReportEntry[];
-  counts: { updated: number; unchanged: number; conflict_skipped: number; error: number };
+  counts: CommitCounts | null;
+  error?: string | null;
   onDismiss: () => void;
 };
 
-export function CommitResults({ entries, counts, onDismiss }: ResultsProps) {
+function resultSeverity(error: string | null | undefined, summary: CommitCountSummary | null): "error" | "warning" | "success" {
+  if (error) return "error";
+  if (summary && summary.failed > 0) return "warning";
+  return "success";
+}
+
+export function CommitResults({ entries, counts, error, onDismiss }: ResultsProps) {
+  const summary = summarizeCommitCounts(counts);
+  const headline = error
+    ? summary
+      ? `The commit failed: ${error} ${formatCommitResultLine(summary)}`
+      : `The commit failed: ${error}`
+    : summary
+      ? formatCommitResultLine(summary)
+      : "Commit result";
   return (
-    <Box data-testid="commit-results" sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1 }}>
-        <Typography variant="subtitle1">Commit result</Typography>
-        <Chip size="small" color="success" label={`Updated ${counts.updated}`} />
-        <Chip size="small" label={`Unchanged ${counts.unchanged}`} />
-        <Chip size="small" color="warning" label={`Conflict skipped ${counts.conflict_skipped}`} />
-        <Chip size="small" color={counts.error > 0 ? "error" : "default"} label={`Errors ${counts.error}`} />
-        <Box sx={{ flexGrow: 1 }} />
-        <Button size="small" onClick={onDismiss}>
-          Hide result
-        </Button>
-      </Box>
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-        The preview above is now out of date for the rows that were written. Upload the sheet again to refresh it.
-      </Typography>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Sheet row</TableCell>
-            <TableCell>Supplier SKU</TableCell>
-            <TableCell>Woo product</TableCell>
-            <TableCell>Result</TableCell>
-            <TableCell>Before</TableCell>
-            <TableCell>After</TableCell>
-            <TableCell>Message</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {entries.map((entry) => {
-            const display = OUTCOME_LABELS[entry.outcome];
-            return (
-              <TableRow key={entry.rowId}>
-                <TableCell>
-                  {entry.rowId}: {entry.supplierName}
-                </TableCell>
-                <TableCell>{entry.supplierSku}</TableCell>
-                <TableCell>
-                  {entry.wooProduct ? <WooProductLabel product={entry.wooProduct} /> : entry.wooId ? `#${entry.wooId} ${entry.wooSku}` : ""}
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" color={display.color} label={display.label} />
-                </TableCell>
-                <TableCell>{formatValues(entry.before)}</TableCell>
-                <TableCell>{formatValues(entry.after)}</TableCell>
-                <TableCell>{entry.message}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+    <Box
+      data-testid="commit-results"
+      sx={{
+        position: "sticky",
+        top: { xs: 56, sm: 64 },
+        zIndex: 20,
+        bgcolor: "background.paper",
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 1,
+        p: 2,
+      }}
+    >
+      <Alert
+        data-testid="commit-result-alert"
+        severity={resultSeverity(error, summary)}
+        sx={{ mb: entries.length > 0 ? 2 : 0 }}
+        action={
+          <Button size="small" color="inherit" onClick={onDismiss}>
+            Hide result
+          </Button>
+        }
+      >
+        {headline}
+      </Alert>
+      {summary ? (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1 }}>
+          <Chip size="small" color="success" label={`Updated ${summary.updated}`} />
+          <Chip size="small" label={`Skipped ${summary.skipped}`} />
+          <Chip size="small" color={summary.failed > 0 ? "error" : "default"} label={`Failed ${summary.failed}`} />
+        </Box>
+      ) : null}
+      {entries.length > 0 ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+          Rows that were written now show as Unchanged. Use Preview to re-read the sheet from WooCommerce.
+        </Typography>
+      ) : null}
+      {entries.length > 0 ? (
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Sheet row</TableCell>
+              <TableCell>Supplier SKU</TableCell>
+              <TableCell>Woo product</TableCell>
+              <TableCell>Result</TableCell>
+              <TableCell>Before</TableCell>
+              <TableCell>After</TableCell>
+              <TableCell>Message</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {entries.map((entry) => {
+              const display = OUTCOME_LABELS[entry.outcome];
+              return (
+                <TableRow key={entry.rowId}>
+                  <TableCell>
+                    {entry.rowId}: {entry.supplierName}
+                  </TableCell>
+                  <TableCell>{entry.supplierSku}</TableCell>
+                  <TableCell>
+                    {entry.wooProduct ? <WooProductLabel product={entry.wooProduct} /> : entry.wooId ? `#${entry.wooId} ${entry.wooSku}` : ""}
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" color={display.color} label={display.label} />
+                  </TableCell>
+                  <TableCell>{formatValues(entry.before)}</TableCell>
+                  <TableCell>{formatValues(entry.after)}</TableCell>
+                  <TableCell>{entry.message}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      ) : null}
     </Box>
   );
 }

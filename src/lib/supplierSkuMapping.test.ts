@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { SkuMappingCandidate, SkuMappingPreviewRow } from "../api/supplierSkuMappingApi";
 import {
+  applyWrittenValues,
   buildCommitPreview,
   buildCommitReport,
   buildCommitRows,
+  commitCountsFromUnknown,
   countActions,
   countByStatus,
   deriveRowViews,
   evaluateCurrent,
   filterViews,
+  formatCommitResultLine,
   replaceableConflicts,
   setReplaceForRows,
+  summarizeCommitCounts,
   updateRowEdit,
 } from "./supplierSkuMapping";
 
@@ -299,5 +303,47 @@ describe("summaries and filters", () => {
     const edits = setReplaceForRows({}, replacements.map((item) => item.rowId), true);
     const after = deriveRowViews(rows, edits, SUPPLIER);
     expect(buildCommitRows(after, SUPPLIER).map((item) => item.replace)).toEqual([false, true]);
+  });
+});
+
+describe("commit result counts and written-row updates", () => {
+  it("formats server counts as updated, skipped and failed", () => {
+    const summary = summarizeCommitCounts({ updated: 96, unchanged: 2, conflict_skipped: 1, error: 3 });
+    expect(summary).toEqual({ updated: 96, skipped: 3, failed: 3, total: 102 });
+    expect(formatCommitResultLine(summary!)).toBe("Committed 102 rows: updated 96, skipped 3, failed 3");
+    expect(commitCountsFromUnknown({ counts: { updated: 1, unchanged: 0, conflict_skipped: 0, error: 2 } })).toEqual({
+      updated: 1,
+      unchanged: 0,
+      conflict_skipped: 0,
+      error: 2,
+    });
+  });
+
+  it("marks successfully written rows unchanged so they drop out of the commit count", () => {
+    const rows = [row(1), row(2)];
+    const views = deriveRowViews(rows, {}, SUPPLIER);
+    const committed = buildCommitRows(views, SUPPLIER);
+    const applied = applyWrittenValues(
+      rows,
+      {},
+      views,
+      {
+        success: true,
+        counts: { updated: 1, unchanged: 0, conflict_skipped: 0, error: 0 },
+        results: [
+          {
+            index: 0,
+            product_id: 101,
+            status: "updated",
+            after: { supplier_id: SUPPLIER, supplier_sku: "SUP-1", supplier_price: "10.00" },
+          },
+        ],
+      },
+      committed,
+    );
+    const next = deriveRowViews(applied.rows, applied.edits, SUPPLIER);
+    expect(countActions(next)).toMatchObject({ write: 1, skip_unchanged: 1 });
+    expect(next[0].status).toBe("unchanged");
+    expect(next[1].action).toBe("write");
   });
 });
