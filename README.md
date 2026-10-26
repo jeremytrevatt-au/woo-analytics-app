@@ -989,3 +989,31 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    4. Gmail history-cursor recovery was blocked and is not finished.
    5. The chat "don't show this again" prompt remains plan only.
    6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
+
+## 2026-10-26 08:40 UTC — Mapping commit feedback, Auto Order, and PO line sort
+
+1. TODOs completed since the previous main push:
+   1. Mapping commit succeeded silently; show in-progress and sticky updated/skipped/failed counts. Keep the two-step confirm, show Committing N rows on both buttons, and pin the server counts above the table so written rows drop out of the commit count. Commit `00ff0ab4f3472be9148404efdcf3467ec00b5f02`.
+   2. Cloud Build flake: increase Supplier SKU Mapping commit test timeout to 30s so Auto Order deploy can finish. The 96-row mapping commit test exceeded the default 15s on Cloud Build (16.7s). Commit `29579e5a0813237147cd9d2b88d92d59f2622c70`.
+   3. Show pre-ordered and backordered qty on PO lines from reserved pre-orders vs processing stock-wait demand. Commit `7d5c6874183d3566a91aa5e026ae705260376aee`.
+   4. Freeze PO line headers. Auto Order sets qty from demand, lead time, cover days, stock, backorders, and pre-orders, and greens qty cells when the recommendation is greater than 0. Commit `acb2eee70673ef3d3e021caf66d9dc4642dfba12`.
+   5. Select PO lines and move to top/bottom or sort by Woo SKU; persist sort_order so Sheet/PDF follow after save. Commit `d07171121c58c39c707b24bc4af143c15b727919`.
+2. Git build reference:
+   1. Mapping commit sticky feedback: `00ff0ab4f3472be9148404efdcf3467ec00b5f02`.
+   2. Mapping commit test timeout 30s: `29579e5a0813237147cd9d2b88d92d59f2622c70`.
+   3. PO demand columns: `7d5c6874183d3566a91aa5e026ae705260376aee`.
+   4. Auto Order and sticky PO headers: `acb2eee70673ef3d3e021caf66d9dc4642dfba12`.
+   5. PO line select/move/SKU sort: `d07171121c58c39c707b24bc4af143c15b727919`.
+   6. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. Mapping commit needs sticky updated/skipped/failed counts. A silent success leaves written rows in the commit count.
+   2. The 96-row mapping commit test can exceed Cloud Build's default 15s. Only that test timeout was raised to 30s.
+   3. Auto Order can recommend qty 0. Green the qty cell only when the recommendation is greater than 0.
+   4. Sheet/PDF follow the saved `sort_order`. Move and SKU sort have to persist before export.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. The print-agent signed release is still open.
+   4. Gmail history-cursor recovery was blocked and is not finished.
+   5. The chat "don't show this again" prompt remains plan only.
+   6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
