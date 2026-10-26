@@ -9,6 +9,7 @@ import { ApiRequestError } from "../api/httpClient";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
 import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
 import { ProductSearchResult } from "../api/productsApi";
+import { formatOutstandingDemandQty } from "../lib/purchaseOrderLineDemand";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 import { supplierSkuMappingApi } from "../api/supplierSkuMappingApi";
 import {
@@ -297,6 +298,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
       stock_qty: product.stock_qty,
       stock_target_type: product.stock_target_type,
       stock_snapshot_date: product.stock_snapshot_date,
+      preordered_qty: product.preordered_qty,
+      backordered_qty: product.backordered_qty,
       days_of_cover: product.days_of_cover,
       reorder_within_lead_time: product.reorder_within_lead_time,
       avg_daily_usage: product.avg_daily_usage,
@@ -1009,7 +1012,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   
                 <Box sx={{ width: '100%', overflowX: 'auto' }}>
                   <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
-                    <Table size="small" sx={{ width: '100%', minWidth: 1900 }}>
+                    <Table size="small" sx={{ width: '100%', minWidth: 2100 }}>
                       <TableHead>
                       <TableRow>
                         <TableCell width="30%">Product Name</TableCell>
@@ -1017,6 +1020,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                         <TableCell width="15%">ORIGIN SKU</TableCell>
                         <TableCell width="5%">Qty</TableCell>
                         <TableCell width="6%" align="right">Stock Qty</TableCell>
+                        <TableCell width="7%" align="right">Pre-ordered Qty</TableCell>
+                        <TableCell width="7%" align="right">Backordered Qty</TableCell>
                         <TableCell width="6%" align="right">Days of Cover</TableCell>
                         <TableCell width="7%">Needs Reorder</TableCell>
                         <TableCell width="7%">Unit Price (Origin)</TableCell>
@@ -1113,6 +1118,18 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                           {line.stock_qty === null || line.stock_qty === undefined
                             ? "—"
                             : toNumber(line.stock_qty).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          title="Outstanding reserved Woo / NYA pre-order quantity for this product"
+                        >
+                          {formatOutstandingDemandQty(line.preordered_qty)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          title="Outstanding paid processing quantity waiting on stock"
+                        >
+                          {formatOutstandingDemandQty(line.backordered_qty)}
                         </TableCell>
                         <TableCell
                           align="right"

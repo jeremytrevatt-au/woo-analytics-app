@@ -11,6 +11,8 @@ export type PurchaseOrderLine = {
   stock_qty?: number | null;
   stock_target_type?: string | null;
   stock_snapshot_date?: string | null;
+  preordered_qty?: number | null;
+  backordered_qty?: number | null;
   days_of_cover?: number | null;
   reorder_within_lead_time?: boolean | null;
   avg_daily_usage?: number | null;

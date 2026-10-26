@@ -11,11 +11,12 @@ import { ApiRequestError } from "../api/httpClient";
 import { AllocationStatus, preordersApi, PurchaseOrderPreorderLineSummary, PurchaseOrderPreorderSummary, ReserveDepositType } from "../api/preordersApi";
 import LoadStateBlock from "../components/LoadStateBlock";
 import PurchaseOrderModal from "../components/PurchaseOrderModal";
+import { formatOutstandingDemandQty, outstandingDemandSortValue } from "../lib/purchaseOrderLineDemand";
 import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
 import { openCreatingSheetTab, openSavedSheet } from "../lib/purchaseOrderSheetTab";
 
 const allocationStatuses: AllocationStatus[] = ["active", "paused", "closed", "cancelled"];
-type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "days_of_cover" | "needs_reorder" | "allocated" | "reserved" | "available" | "status" | "reserve";
+type LineSortKey = "sku" | "product_name" | "qty" | "stock_qty" | "preordered_qty" | "backordered_qty" | "days_of_cover" | "needs_reorder" | "allocated" | "reserved" | "available" | "status" | "reserve";
 type SortDirection = "asc" | "desc";
 
 function exportUrlFromError(error: unknown, field: "spreadsheet_url" | "pdf_url"): string {
@@ -78,6 +79,8 @@ function lineSortValue(line: PurchaseOrderLine, summary: PurchaseOrderPreorderLi
     case "stock_qty": return line.stock_qty === null || line.stock_qty === undefined
       ? Number.NEGATIVE_INFINITY
       : Number(line.stock_qty);
+    case "preordered_qty": return outstandingDemandSortValue(line.preordered_qty);
+    case "backordered_qty": return outstandingDemandSortValue(line.backordered_qty);
     case "days_of_cover": return line.days_of_cover === null || line.days_of_cover === undefined
       ? Number.NEGATIVE_INFINITY
       : Number(line.days_of_cover);
@@ -675,6 +678,8 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
                     <TableCell><TableSortLabel active={lineSortKey === "product_name"} direction={lineSortKey === "product_name" ? lineSortDirection : "asc"} onClick={() => handleLineSort("product_name")}>Product Name</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "qty"} direction={lineSortKey === "qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("qty")}>Qty</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "stock_qty"} direction={lineSortKey === "stock_qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("stock_qty")}>Stock Qty</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "preordered_qty"} direction={lineSortKey === "preordered_qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("preordered_qty")}>Pre-ordered Qty</TableSortLabel></TableCell>
+                    <TableCell align="right"><TableSortLabel active={lineSortKey === "backordered_qty"} direction={lineSortKey === "backordered_qty" ? lineSortDirection : "asc"} onClick={() => handleLineSort("backordered_qty")}>Backordered Qty</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "days_of_cover"} direction={lineSortKey === "days_of_cover" ? lineSortDirection : "asc"} onClick={() => handleLineSort("days_of_cover")}>Days of Cover</TableSortLabel></TableCell>
                     <TableCell><TableSortLabel active={lineSortKey === "needs_reorder"} direction={lineSortKey === "needs_reorder" ? lineSortDirection : "asc"} onClick={() => handleLineSort("needs_reorder")}>Needs Reorder</TableSortLabel></TableCell>
                     <TableCell align="right"><TableSortLabel active={lineSortKey === "allocated"} direction={lineSortKey === "allocated" ? lineSortDirection : "asc"} onClick={() => handleLineSort("allocated")}>Preorder Allocated</TableSortLabel></TableCell>
@@ -734,6 +739,18 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
                           {line.stock_qty === null || line.stock_qty === undefined
                             ? "—"
                             : qty(line.stock_qty)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          title="Outstanding reserved Woo / NYA pre-order quantity for this product"
+                        >
+                          {formatOutstandingDemandQty(line.preordered_qty)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          title="Outstanding paid processing quantity waiting on stock"
+                        >
+                          {formatOutstandingDemandQty(line.backordered_qty)}
                         </TableCell>
                         <TableCell
                           align="right"
@@ -871,7 +888,7 @@ function Row({ po, handleEdit, handleDelete, handleExportPdf, handleExportSheet,
                     );
                   }) : (
                     <TableRow>
-                      <TableCell colSpan={13}>No matching line items found.</TableCell>
+                      <TableCell colSpan={15}>No matching line items found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

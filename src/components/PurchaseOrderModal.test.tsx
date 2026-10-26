@@ -47,6 +47,8 @@ const purchaseOrder = {
     qty: 5,
     stock_qty: 48,
     stock_target_type: "wsvi_group",
+    preordered_qty: 12,
+    backordered_qty: 3,
     days_of_cover: 24.4,
     reorder_within_lead_time: true,
     avg_daily_usage: 2,
@@ -70,6 +72,12 @@ describe("PurchaseOrderModal stock quantity", () => {
     expect(await view.findByText("Stock Qty")).toBeInTheDocument();
     expect(view.getByTitle("Current pooled WSVI stock quantity"))
       .toHaveTextContent("48");
+    expect(view.getByText("Pre-ordered Qty")).toBeInTheDocument();
+    expect(view.getByTitle("Outstanding reserved Woo / NYA pre-order quantity for this product"))
+      .toHaveTextContent("12");
+    expect(view.getByText("Backordered Qty")).toBeInTheDocument();
+    expect(view.getByTitle("Outstanding paid processing quantity waiting on stock"))
+      .toHaveTextContent("3");
     expect(view.getByText("Days of Cover")).toBeInTheDocument();
     expect(view.getByTitle(/Average daily usage 2/)).toHaveTextContent("24.4");
     expect(view.getByText("Needs Reorder")).toBeInTheDocument();
