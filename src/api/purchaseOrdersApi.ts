@@ -20,6 +20,7 @@ export type PurchaseOrderLine = {
   forecast_window_days?: number | null;
   effective_lead_time_days?: number | null;
   qty: number;
+  sort_order?: number;
   supplier_sku?: string;
   supplier_unit_price?: number;
   unit_price_aud?: number;

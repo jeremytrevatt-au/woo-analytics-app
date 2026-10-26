@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Chip } from "@mui/material";
+import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Chip, Checkbox, Tooltip } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import VerticalAlignTopIcon from "@mui/icons-material/VerticalAlignTop";
+import VerticalAlignBottomIcon from "@mui/icons-material/VerticalAlignBottom";
+import SortByAlphaIcon from "@mui/icons-material/SortByAlpha";
 import { PurchaseOrder, PurchaseOrderLine, purchaseOrdersApi } from "../api/purchaseOrdersApi";
 import { ApiRequestError } from "../api/httpClient";
 import { Supplier, suppliersApi } from "../api/suppliersApi";
@@ -23,6 +26,18 @@ import {
   supplierCurrencyMismatchMessage,
   type SupplierDefaultsContext,
 } from "../lib/purchaseOrderSupplierDefaults";
+import {
+  applyLineSortOrder,
+  moveSelectedLinesToBottom,
+  moveSelectedLinesToTop,
+  remapIndexesAfterDrag,
+  remapIndexesAfterRemove,
+  remapIndexesAfterSwap,
+  remapSelectedIndexes,
+  selectedIndexesAfterMoveToBottom,
+  selectedIndexesAfterMoveToTop,
+  sortLinesBySkuWithIndexMap,
+} from "../lib/purchaseOrderLineReorder";
 
 type Props = {
   open: boolean;
@@ -123,6 +138,7 @@ const normalisePurchaseOrderPayload = (po: Partial<PurchaseOrder>): Partial<Purc
   const recalculated = recalculatePurchaseOrder(po);
   return {
     ...recalculated,
+    lines: applyLineSortOrder(recalculated.lines || []),
     lead_time_days: Math.trunc(toNumber(recalculated.lead_time_days)),
     m3: toNumber(recalculated.m3),
     m3_rate: toNumber(recalculated.m3_rate),
@@ -175,6 +191,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const [autoOrderOpen, setAutoOrderOpen] = useState(false);
   const [autoOrderedKeys, setAutoOrderedKeys] = useState<Set<string>>(new Set());
+  const [selectedLineIndexes, setSelectedLineIndexes] = useState<number[]>([]);
   const invoiceInputRef = useRef<HTMLInputElement | null>(null);
   const formDataRef = useRef<Partial<PurchaseOrder>>(formData);
   formDataRef.current = formData;
@@ -208,6 +225,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     setSupplierDefaultWarnings([]);
     setAutoOrderOpen(false);
     setAutoOrderedKeys(new Set());
+    setSelectedLineIndexes([]);
   }, [po]);
 
   const handleChange = (field: keyof PurchaseOrder, value: any) => {
@@ -420,10 +438,18 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     });
   };
 
+  const commitReorderedLines = (newLines: PurchaseOrderLine[]) => {
+    setFormData((prev) => recalculatePurchaseOrder({
+      ...prev,
+      lines: applyLineSortOrder(newLines),
+    }));
+  };
+
   const handleRemoveLine = (index: number) => {
     const newLines = [...(formData.lines || [])];
     newLines.splice(index, 1);
-    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
+    commitReorderedLines(newLines);
+    setSelectedLineIndexes((current) => remapIndexesAfterRemove(current, index));
   };
 
   const handleMoveLineUp = (index: number) => {
@@ -432,7 +458,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     const temp = newLines[index - 1];
     newLines[index - 1] = newLines[index];
     newLines[index] = temp;
-    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
+    commitReorderedLines(newLines);
+    setSelectedLineIndexes((current) => remapIndexesAfterSwap(current, index, index - 1));
   };
 
   const handleMoveLineDown = (index: number) => {
@@ -442,7 +469,42 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     const temp = newLines[index + 1];
     newLines[index + 1] = newLines[index];
     newLines[index] = temp;
-    setFormData(prev => recalculatePurchaseOrder({ ...prev, lines: newLines }));
+    commitReorderedLines(newLines);
+    setSelectedLineIndexes((current) => remapIndexesAfterSwap(current, index, index + 1));
+  };
+
+  const handleMoveSelectedToTop = () => {
+    if (lineFilter || selectedLineIndexes.length === 0) return;
+    const lines = formData.lines || [];
+    commitReorderedLines(moveSelectedLinesToTop(lines, selectedLineIndexes));
+    setSelectedLineIndexes(selectedIndexesAfterMoveToTop(selectedLineIndexes));
+  };
+
+  const handleMoveSelectedToBottom = () => {
+    if (lineFilter || selectedLineIndexes.length === 0) return;
+    const lines = formData.lines || [];
+    commitReorderedLines(moveSelectedLinesToBottom(lines, selectedLineIndexes));
+    setSelectedLineIndexes(selectedIndexesAfterMoveToBottom(selectedLineIndexes, lines.length));
+  };
+
+  const handleSortLinesBySku = () => {
+    if (lineFilter) return;
+    const lines = formData.lines || [];
+    const sorted = sortLinesBySkuWithIndexMap(lines);
+    commitReorderedLines(sorted.lines);
+    setSelectedLineIndexes(remapSelectedIndexes(selectedLineIndexes, sorted.indexMap));
+  };
+
+  const handleToggleLineSelected = (index: number, checked: boolean) => {
+    setSelectedLineIndexes((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(index);
+      } else {
+        next.delete(index);
+      }
+      return [...next].sort((left, right) => left - right);
+    });
   };
 
   const handlePersist = async (closeAfterSave: boolean) => {
@@ -501,7 +563,8 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     const [reorderedItem] = newLines.splice(draggedRowIndex, 1);
     newLines.splice(index, 0, reorderedItem);
 
-    setFormData(prev => ({ ...prev, lines: newLines }));
+    commitReorderedLines(newLines);
+    setSelectedLineIndexes((current) => remapIndexesAfterDrag(current, draggedRowIndex, index));
     setDraggedRowIndex(null);
     setActiveRowIndex(index);
   };
@@ -552,6 +615,22 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   };
 
   const visibleLineEntries = filterPurchaseOrderLines(formData.lines || [], lineFilter);
+  const visibleIndexes = visibleLineEntries.map((entry) => entry.originalIndex);
+  const selectedVisibleCount = visibleIndexes.filter((index) => selectedLineIndexes.includes(index)).length;
+  const allVisibleSelected = visibleIndexes.length > 0 && selectedVisibleCount === visibleIndexes.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  const reorderDisabled = Boolean(lineFilter);
+  const handleToggleAllVisibleLines = () => {
+    setSelectedLineIndexes((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        visibleIndexes.forEach((index) => next.delete(index));
+      } else {
+        visibleIndexes.forEach((index) => next.add(index));
+      }
+      return [...next].sort((left, right) => left - right);
+    });
+  };
 
   return (
     <>
@@ -1037,16 +1116,57 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
             </Grid>
 
             <Grid item xs={12} sx={{ width: '100%' }}>
-              <Box sx={{ mt: 3, mb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+              <Box sx={{ mt: 3, mb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
                 <Typography variant="h6" color="primary">Line Items</Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setAutoOrderOpen(true)}
-                  disabled={!formData.lines?.length}
-                >
-                  Auto Order
-                </Button>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  <Tooltip title="Move selected lines to the top. Relative order among selected and unselected lines is kept.">
+                    <span>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<VerticalAlignTopIcon />}
+                        onClick={handleMoveSelectedToTop}
+                        disabled={reorderDisabled || selectedLineIndexes.length === 0}
+                      >
+                        Move to top
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Move selected lines to the bottom. Relative order among selected and unselected lines is kept.">
+                    <span>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<VerticalAlignBottomIcon />}
+                        onClick={handleMoveSelectedToBottom}
+                        disabled={reorderDisabled || selectedLineIndexes.length === 0}
+                      >
+                        Move to bottom
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Sorts ALL lines by Woo SKU (A–Z, natural order). Selection is not required and is ignored.">
+                    <span>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<SortByAlphaIcon />}
+                        onClick={handleSortLinesBySku}
+                        disabled={reorderDisabled || !formData.lines?.length}
+                      >
+                        Sort by SKU
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setAutoOrderOpen(true)}
+                    disabled={!formData.lines?.length}
+                  >
+                    Auto Order
+                  </Button>
+                </Box>
               </Box>
               <Divider sx={{ mb: 2 }} />
               
@@ -1076,6 +1196,16 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                     <Table size="small" stickyHeader data-testid="po-edit-line-table" aria-label="Purchase order lines" sx={{ width: '100%', minWidth: 2100 }}>
                       <TableHead>
                       <TableRow>
+                        <TableCell padding="checkbox" sx={{ width: 48 }}>
+                          <Checkbox
+                            size="small"
+                            checked={allVisibleSelected}
+                            indeterminate={someVisibleSelected}
+                            disabled={visibleIndexes.length === 0}
+                            onChange={handleToggleAllVisibleLines}
+                            inputProps={{ "aria-label": "Select all visible product lines" }}
+                          />
+                        </TableCell>
                         <TableCell width="30%">Product Name</TableCell>
                         <TableCell width="15%">SKU</TableCell>
                         <TableCell width="15%">ORIGIN SKU</TableCell>
@@ -1119,6 +1249,15 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                             '&:active': { cursor: 'grabbing' }
                           }}
                         >
+                        <TableCell padding="checkbox" onClick={(event) => event.stopPropagation()}>
+                          <Checkbox
+                            size="small"
+                            checked={selectedLineIndexes.includes(index)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => handleToggleLineSelected(index, event.target.checked)}
+                            inputProps={{ "aria-label": `Select line ${index + 1}` }}
+                          />
+                        </TableCell>
                         <TableCell>
                           <TextField
                             size="small"
@@ -1289,7 +1428,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                     })}
                   {visibleLineEntries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={12} align="center">
+                      <TableCell colSpan={15} align="center">
                         {lineFilter ? "No existing PO lines match this search." : "No lines added."}
                       </TableCell>
                     </TableRow>

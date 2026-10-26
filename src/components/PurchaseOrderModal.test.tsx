@@ -335,3 +335,75 @@ describe("PurchaseOrderModal auto order", () => {
     expect(view.getByRole("button", { name: "Auto Order" })).toBeDisabled();
   });
 });
+
+describe("PurchaseOrderModal line reorder", () => {
+  const reorderPo = {
+    ...purchaseOrder,
+    lines: [
+      { id: 21, product_id: 21, sku: "C-SKU", product_name: "Charlie", qty: 1 },
+      { id: 22, product_id: 22, sku: "A-SKU", product_name: "Alpha", qty: 2 },
+      { id: 23, product_id: 23, sku: "B-SKU", product_name: "Bravo", qty: 3 },
+      { id: 24, product_id: 24, sku: "D-SKU", product_name: "Delta", qty: 4 },
+    ],
+  } as PurchaseOrder;
+
+  it("moves selected lines to the top and saves the new array order with sort_order", async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(purchaseOrdersApi, "update").mockResolvedValue(reorderPo);
+    vi.spyOn(purchaseOrdersApi, "get").mockResolvedValue(reorderPo);
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={reorderPo} />,
+    );
+
+    await user.click(view.getByRole("checkbox", { name: "Select line 1" }));
+    await user.click(view.getByRole("checkbox", { name: "Select line 3" }));
+    await user.click(view.getByRole("button", { name: "Move to top" }));
+    await user.click(view.getByRole("button", { name: "Apply" }));
+
+    expect(update).toHaveBeenCalledWith(1, expect.objectContaining({
+      lines: [
+        expect.objectContaining({ sku: "C-SKU", sort_order: 1 }),
+        expect.objectContaining({ sku: "B-SKU", sort_order: 2 }),
+        expect.objectContaining({ sku: "A-SKU", sort_order: 3 }),
+        expect.objectContaining({ sku: "D-SKU", sort_order: 4 }),
+      ],
+    }));
+  });
+
+  it("sorts all lines by Woo SKU even when some rows are selected", async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(purchaseOrdersApi, "update").mockResolvedValue(reorderPo);
+    vi.spyOn(purchaseOrdersApi, "get").mockResolvedValue(reorderPo);
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={reorderPo} />,
+    );
+
+    await user.click(view.getByRole("checkbox", { name: "Select line 1" }));
+    await user.click(view.getByRole("button", { name: "Sort by SKU" }));
+    await user.click(view.getByRole("button", { name: "Apply" }));
+
+    expect(update).toHaveBeenCalledWith(1, expect.objectContaining({
+      lines: [
+        expect.objectContaining({ sku: "A-SKU", sort_order: 1 }),
+        expect.objectContaining({ sku: "B-SKU", sort_order: 2 }),
+        expect.objectContaining({ sku: "C-SKU", sort_order: 3 }),
+        expect.objectContaining({ sku: "D-SKU", sort_order: 4 }),
+      ],
+    }));
+  });
+
+  it("selects and deselects all visible product lines from the header checkbox", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={reorderPo} />,
+    );
+
+    const header = view.getByRole("checkbox", { name: "Select all visible product lines" });
+    await user.click(header);
+    expect(view.getByRole("checkbox", { name: "Select line 1" })).toBeChecked();
+    expect(view.getByRole("checkbox", { name: "Select line 4" })).toBeChecked();
+    await user.click(header);
+    expect(view.getByRole("checkbox", { name: "Select line 1" })).not.toBeChecked();
+    expect(view.getByRole("button", { name: "Move to top" })).toBeDisabled();
+  });
+});
