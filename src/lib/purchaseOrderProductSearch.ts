@@ -54,18 +54,41 @@ export function findExistingProductLine(
   return index >= 0 ? index : null;
 }
 
+export type PurchaseOrderQtyFilter = "all" | "zero" | "positive";
+
+export function purchaseOrderLineQtyValue(qty: unknown): number | null {
+  if (qty === "" || qty === null || qty === undefined) return 0;
+  const parsed = Number(qty);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function matchesPurchaseOrderQtyFilter(
+  qty: unknown,
+  qtyFilter: PurchaseOrderQtyFilter,
+): boolean {
+  if (qtyFilter === "all") return true;
+  const value = purchaseOrderLineQtyValue(qty);
+  if (value === null) return false;
+  if (qtyFilter === "zero") return value === 0;
+  return value > 0;
+}
+
 export function filterPurchaseOrderLines(
   lines: readonly PurchaseOrderLine[],
   queryValue: string,
+  qtyFilter: PurchaseOrderQtyFilter = "all",
 ): IndexedPurchaseOrderLine[] {
   const query = normalise(queryValue);
   return lines
     .map((line, originalIndex) => ({ line, originalIndex }))
     .filter(({ line }) => (
-      query === ""
-      || normalise(line.sku).includes(query)
-      || normalise(line.product_name).includes(query)
-      || normalise(line.supplier_sku).includes(query)
+      (
+        query === ""
+        || normalise(line.sku).includes(query)
+        || normalise(line.product_name).includes(query)
+        || normalise(line.supplier_sku).includes(query)
+      )
+      && matchesPurchaseOrderQtyFilter(line.qty, qtyFilter)
     ));
 }
 

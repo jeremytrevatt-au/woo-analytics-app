@@ -4,6 +4,7 @@ import type { PurchaseOrderLine } from "../api/purchaseOrdersApi";
 import {
   filterPurchaseOrderLines,
   findExistingProductLine,
+  matchesPurchaseOrderQtyFilter,
   searchProductIndex,
   wooProductEditUrl,
 } from "./purchaseOrderProductSearch";
@@ -32,6 +33,25 @@ describe("purchase order product index", () => {
   it("filters PO lines without losing their original indices", () => {
     expect(filterPurchaseOrderLines(lines, "stand")).toEqual([{ line: lines[1], originalIndex: 1 }]);
     expect(filterPurchaseOrderLines(lines, "SUP-L")).toEqual([{ line: lines[0], originalIndex: 0 }]);
+  });
+
+  it("treats empty, 0, and 0.0 as zero qty and leaves all lines visible by default", () => {
+    const mixed: PurchaseOrderLine[] = [
+      { product_id: 1, sku: "ZERO", product_name: "Zero", qty: 0 },
+      { product_id: 2, sku: "EMPTY", product_name: "Empty", qty: "" as unknown as number },
+      { product_id: 3, sku: "FLOAT", product_name: "Float zero", qty: 0.0 },
+      { product_id: 4, sku: "POS", product_name: "Positive", qty: 4 },
+    ];
+    expect(matchesPurchaseOrderQtyFilter("", "zero")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter("0", "zero")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter(0.0, "zero")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter(4, "zero")).toBe(false);
+    expect(filterPurchaseOrderLines(mixed, "", "all").map((entry) => entry.line.sku))
+      .toEqual(["ZERO", "EMPTY", "FLOAT", "POS"]);
+    expect(filterPurchaseOrderLines(mixed, "", "zero").map((entry) => entry.line.sku))
+      .toEqual(["ZERO", "EMPTY", "FLOAT"]);
+    expect(filterPurchaseOrderLines(mixed, "", "positive").map((entry) => entry.line.sku))
+      .toEqual(["POS"]);
   });
 
   it("builds WooCommerce parent-product edit links", () => {

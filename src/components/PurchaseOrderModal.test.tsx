@@ -407,3 +407,94 @@ describe("PurchaseOrderModal line reorder", () => {
     expect(view.getByRole("button", { name: "Move to top" })).toBeDisabled();
   });
 });
+
+describe("PurchaseOrderModal qty filter", () => {
+  const mixedQtyPo = {
+    ...purchaseOrder,
+    lines: [
+      { id: 31, product_id: 31, sku: "ZERO-SKU", product_name: "Zero qty", qty: 0 },
+      { id: 32, product_id: 32, sku: "POS-SKU", product_name: "Positive qty", qty: 5 },
+      { id: 33, product_id: 33, sku: "EMPTY-SKU", product_name: "Empty qty", qty: "" as unknown as number },
+      { id: 34, product_id: 34, sku: "FLOAT-SKU", product_name: "Float zero", qty: 0.0 },
+      { id: 35, product_id: 35, sku: "MORE-SKU", product_name: "More qty", qty: 2 },
+    ],
+  } as PurchaseOrder;
+
+  it("defaults to All and shows mixed zero and positive lines", async () => {
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={mixedQtyPo} />,
+    );
+
+    expect(await view.findByRole("button", { name: "Show all lines" })).toHaveAttribute("aria-pressed", "true");
+    expect(view.getByRole("spinbutton", { name: "Qty for ZERO-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for POS-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for EMPTY-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for FLOAT-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for MORE-SKU" })).toBeInTheDocument();
+  });
+
+  it("shows only zero, empty-as-zero, and 0.0 lines when Qty = 0 is selected", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={mixedQtyPo} />,
+    );
+
+    await user.click(await view.findByRole("button", { name: "Show lines with quantity equal to 0" }));
+    expect(view.getByRole("spinbutton", { name: "Qty for ZERO-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for EMPTY-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for FLOAT-SKU" })).toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for POS-SKU" })).not.toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for MORE-SKU" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Move to top" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Sort by SKU" })).toBeDisabled();
+  });
+
+  it("hides zero lines when Qty > 0 is selected", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={mixedQtyPo} />,
+    );
+
+    await user.click(await view.findByRole("button", { name: "Show lines with quantity greater than 0" }));
+    expect(view.getByRole("spinbutton", { name: "Qty for POS-SKU" })).toBeInTheDocument();
+    expect(view.getByRole("spinbutton", { name: "Qty for MORE-SKU" })).toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for ZERO-SKU" })).not.toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for EMPTY-SKU" })).not.toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for FLOAT-SKU" })).not.toBeInTheDocument();
+  });
+
+  it("sends the full line array including hidden zeros on Apply", async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(purchaseOrdersApi, "update").mockResolvedValue(mixedQtyPo);
+    vi.spyOn(purchaseOrdersApi, "get").mockResolvedValue(mixedQtyPo);
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={mixedQtyPo} />,
+    );
+
+    await user.click(await view.findByRole("button", { name: "Show lines with quantity greater than 0" }));
+    await user.click(view.getByRole("button", { name: "Apply" }));
+
+    expect(update).toHaveBeenCalledWith(1, expect.objectContaining({
+      lines: [
+        expect.objectContaining({ sku: "ZERO-SKU", qty: 0 }),
+        expect.objectContaining({ sku: "POS-SKU", qty: 5 }),
+        expect.objectContaining({ sku: "EMPTY-SKU" }),
+        expect.objectContaining({ sku: "FLOAT-SKU", qty: 0 }),
+        expect.objectContaining({ sku: "MORE-SKU", qty: 2 }),
+      ],
+    }));
+  });
+
+  it("applies header select-all to visible lines only while a qty filter is active", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={mixedQtyPo} />,
+    );
+
+    await user.click(await view.findByRole("button", { name: "Show lines with quantity greater than 0" }));
+    await user.click(view.getByRole("checkbox", { name: "Select all visible product lines" }));
+    expect(view.getByRole("checkbox", { name: "Select line 2" })).toBeChecked();
+    expect(view.getByRole("checkbox", { name: "Select line 5" })).toBeChecked();
+    expect(view.queryByRole("checkbox", { name: "Select line 1" })).not.toBeInTheDocument();
+  });
+});

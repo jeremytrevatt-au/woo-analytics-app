@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Chip, Checkbox, Tooltip } from "@mui/material";
+import { Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, Link, MenuItem, Typography, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Box, Divider, Chip, Checkbox, Tooltip, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -14,7 +14,7 @@ import PurchaseOrderProductSearch from "./PurchaseOrderProductSearch";
 import PurchaseOrderAutoOrderDialog from "./PurchaseOrderAutoOrderDialog";
 import { ProductSearchResult } from "../api/productsApi";
 import { formatOutstandingDemandQty } from "../lib/purchaseOrderLineDemand";
-import { filterPurchaseOrderLines, wooProductEditUrl } from "../lib/purchaseOrderProductSearch";
+import { filterPurchaseOrderLines, wooProductEditUrl, type PurchaseOrderQtyFilter } from "../lib/purchaseOrderProductSearch";
 import {
   autoOrderLineKey,
   computeAutoOrderForLines,
@@ -187,6 +187,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
   const [lineProductError, setLineProductError] = useState<string | null>(null);
   const [lineFilter, setLineFilter] = useState("");
+  const [qtyFilter, setQtyFilter] = useState<PurchaseOrderQtyFilter>("all");
   const [supplierDefaultWarnings, setSupplierDefaultWarnings] = useState<string[]>([]);
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const [autoOrderOpen, setAutoOrderOpen] = useState(false);
@@ -221,6 +222,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
       setFormData(defaultPo);
     }
     setLineFilter("");
+    setQtyFilter("all");
     setActiveRowIndex(null);
     setSupplierDefaultWarnings([]);
     setAutoOrderOpen(false);
@@ -474,21 +476,21 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
   };
 
   const handleMoveSelectedToTop = () => {
-    if (lineFilter || selectedLineIndexes.length === 0) return;
+    if (lineFilter || qtyFilter !== "all" || selectedLineIndexes.length === 0) return;
     const lines = formData.lines || [];
     commitReorderedLines(moveSelectedLinesToTop(lines, selectedLineIndexes));
     setSelectedLineIndexes(selectedIndexesAfterMoveToTop(selectedLineIndexes));
   };
 
   const handleMoveSelectedToBottom = () => {
-    if (lineFilter || selectedLineIndexes.length === 0) return;
+    if (lineFilter || qtyFilter !== "all" || selectedLineIndexes.length === 0) return;
     const lines = formData.lines || [];
     commitReorderedLines(moveSelectedLinesToBottom(lines, selectedLineIndexes));
     setSelectedLineIndexes(selectedIndexesAfterMoveToBottom(selectedLineIndexes, lines.length));
   };
 
   const handleSortLinesBySku = () => {
-    if (lineFilter) return;
+    if (lineFilter || qtyFilter !== "all") return;
     const lines = formData.lines || [];
     const sorted = sortLinesBySkuWithIndexMap(lines);
     commitReorderedLines(sorted.lines);
@@ -557,6 +559,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
 
   const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
     e.preventDefault();
+    if (lineFilter || qtyFilter !== "all") return;
     if (draggedRowIndex === null || draggedRowIndex === index) return;
 
     const newLines = Array.from(formData.lines || []);
@@ -614,12 +617,13 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
     }
   };
 
-  const visibleLineEntries = filterPurchaseOrderLines(formData.lines || [], lineFilter);
+  const visibleLineEntries = filterPurchaseOrderLines(formData.lines || [], lineFilter, qtyFilter);
   const visibleIndexes = visibleLineEntries.map((entry) => entry.originalIndex);
   const selectedVisibleCount = visibleIndexes.filter((index) => selectedLineIndexes.includes(index)).length;
   const allVisibleSelected = visibleIndexes.length > 0 && selectedVisibleCount === visibleIndexes.length;
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
-  const reorderDisabled = Boolean(lineFilter);
+  const reorderDisabled = Boolean(lineFilter) || qtyFilter !== "all";
+  const displayFilterActive = Boolean(lineFilter) || qtyFilter !== "all";
   const handleToggleAllVisibleLines = () => {
     setSelectedLineIndexes((current) => {
       const next = new Set(current);
@@ -1166,6 +1170,25 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                   >
                     Auto Order
                   </Button>
+                  <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    value={qtyFilter}
+                    onChange={(_event, value: PurchaseOrderQtyFilter | null) => {
+                      if (value) setQtyFilter(value);
+                    }}
+                    aria-label="Filter lines by quantity"
+                  >
+                    <ToggleButton value="zero" aria-label="Show lines with quantity equal to 0">
+                      Qty = 0
+                    </ToggleButton>
+                    <ToggleButton value="positive" aria-label="Show lines with quantity greater than 0">
+                      Qty &gt; 0
+                    </ToggleButton>
+                    <ToggleButton value="all" aria-label="Show all lines">
+                      All
+                    </ToggleButton>
+                  </ToggleButtonGroup>
                 </Box>
               </Box>
               <Divider sx={{ mb: 2 }} />
@@ -1237,7 +1260,7 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                         <TableRow 
                           key={index}
                           id={`po-line-${index}`}
-                          draggable={!lineFilter}
+                          draggable={!reorderDisabled}
                           onDragStart={(e) => handleDragStart(e, index)}
                           onDragOver={(e) => handleDragOver(e, index)}
                           onDrop={(e) => handleDrop(e, index)}
@@ -1413,10 +1436,10 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                           />
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          <IconButton size="small" onClick={() => handleMoveLineUp(index)} disabled={Boolean(lineFilter) || index === 0}>
+                          <IconButton size="small" onClick={() => handleMoveLineUp(index)} disabled={reorderDisabled || index === 0}>
                             <ArrowUpwardIcon fontSize="small" />
                           </IconButton>
-                          <IconButton size="small" onClick={() => handleMoveLineDown(index)} disabled={Boolean(lineFilter) || index === (formData.lines || []).length - 1}>
+                          <IconButton size="small" onClick={() => handleMoveLineDown(index)} disabled={reorderDisabled || index === (formData.lines || []).length - 1}>
                             <ArrowDownwardIcon fontSize="small" />
                           </IconButton>
                           <IconButton size="small" onClick={() => handleRemoveLine(index)} color="error">
@@ -1429,14 +1452,16 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                   {visibleLineEntries.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={15} align="center">
-                        {lineFilter ? "No existing PO lines match this search." : "No lines added."}
+                        {displayFilterActive
+                          ? (lineFilter ? "No existing PO lines match this search." : "No existing PO lines match this quantity filter.")
+                          : "No lines added."}
                       </TableCell>
                     </TableRow>
                   )}
                   </TableBody>
                 </Table>
               </TableContainer>
-              {lineFilter && (
+              {displayFilterActive && (
                 <Typography variant="caption" color="text.secondary">
                   Showing {visibleLineEntries.length} of {(formData.lines || []).length} PO lines. Reordering is disabled while filtering.
                 </Typography>
