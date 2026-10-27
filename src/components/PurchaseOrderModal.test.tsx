@@ -497,4 +497,51 @@ describe("PurchaseOrderModal qty filter", () => {
     expect(view.getByRole("checkbox", { name: "Select line 5" })).toBeChecked();
     expect(view.queryByRole("checkbox", { name: "Select line 1" })).not.toBeInTheDocument();
   });
+
+  it("shows only lines with Pre-ordered Qty > 0 and disables Move/Sort", async () => {
+    const user = userEvent.setup();
+    const demandPo = {
+      ...purchaseOrder,
+      lines: [
+        { id: 41, product_id: 41, sku: "PRE-SKU", product_name: "Has preorder", qty: 0, preordered_qty: 6, backordered_qty: 0 },
+        { id: 42, product_id: 42, sku: "BACK-SKU", product_name: "Has backorder", qty: 8, preordered_qty: 0, backordered_qty: 4 },
+        { id: 43, product_id: 43, sku: "NULL-PRE-SKU", product_name: "Null preorder", qty: 3, preordered_qty: null, backordered_qty: 2 },
+        { id: 44, product_id: 44, sku: "NONE-SKU", product_name: "No demand", qty: 1 },
+      ],
+    } as PurchaseOrder;
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={demandPo} />,
+    );
+
+    await user.click(await view.findByRole("button", { name: "Show lines with pre-ordered quantity greater than 0" }));
+    expect(view.getByRole("spinbutton", { name: "Qty for PRE-SKU" })).toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for BACK-SKU" })).not.toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for NULL-PRE-SKU" })).not.toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for NONE-SKU" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "Move to top" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "Sort by SKU" })).toBeDisabled();
+  });
+
+  it("shows only lines with Backordered Qty > 0 and select-all applies to visible rows", async () => {
+    const user = userEvent.setup();
+    const demandPo = {
+      ...purchaseOrder,
+      lines: [
+        { id: 51, product_id: 51, sku: "PRE-SKU", product_name: "Has preorder", qty: 0, preordered_qty: 6, backordered_qty: 0 },
+        { id: 52, product_id: 52, sku: "BACK-SKU", product_name: "Has backorder", qty: 8, preordered_qty: 0, backordered_qty: 4 },
+        { id: 53, product_id: 53, sku: "ZERO-BACK-SKU", product_name: "Zero backorder", qty: 2, preordered_qty: 9, backordered_qty: 0 },
+      ],
+    } as PurchaseOrder;
+    const view = render(
+      <PurchaseOrderModal open onClose={vi.fn()} onApplied={vi.fn()} po={demandPo} />,
+    );
+
+    await user.click(await view.findByRole("button", { name: "Show lines with backordered quantity greater than 0" }));
+    expect(view.getByRole("spinbutton", { name: "Qty for BACK-SKU" })).toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for PRE-SKU" })).not.toBeInTheDocument();
+    expect(view.queryByRole("spinbutton", { name: "Qty for ZERO-BACK-SKU" })).not.toBeInTheDocument();
+    await user.click(view.getByRole("checkbox", { name: "Select all visible product lines" }));
+    expect(view.getByRole("checkbox", { name: "Select line 2" })).toBeChecked();
+    expect(view.queryByRole("checkbox", { name: "Select line 1" })).not.toBeInTheDocument();
+  });
 });

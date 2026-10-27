@@ -42,16 +42,48 @@ describe("purchase order product index", () => {
       { product_id: 3, sku: "FLOAT", product_name: "Float zero", qty: 0.0 },
       { product_id: 4, sku: "POS", product_name: "Positive", qty: 4 },
     ];
-    expect(matchesPurchaseOrderQtyFilter("", "zero")).toBe(true);
-    expect(matchesPurchaseOrderQtyFilter("0", "zero")).toBe(true);
-    expect(matchesPurchaseOrderQtyFilter(0.0, "zero")).toBe(true);
-    expect(matchesPurchaseOrderQtyFilter(4, "zero")).toBe(false);
+    expect(matchesPurchaseOrderQtyFilter({ qty: "" }, "zero")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter({ qty: "0" }, "zero")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter({ qty: 0.0 }, "zero")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter({ qty: 4 }, "zero")).toBe(false);
     expect(filterPurchaseOrderLines(mixed, "", "all").map((entry) => entry.line.sku))
       .toEqual(["ZERO", "EMPTY", "FLOAT", "POS"]);
     expect(filterPurchaseOrderLines(mixed, "", "zero").map((entry) => entry.line.sku))
       .toEqual(["ZERO", "EMPTY", "FLOAT"]);
     expect(filterPurchaseOrderLines(mixed, "", "positive").map((entry) => entry.line.sku))
       .toEqual(["POS"]);
+  });
+
+  it("shows only lines with preordered_qty > 0, treating null, undefined, and dash as zero", () => {
+    const mixed: PurchaseOrderLine[] = [
+      { product_id: 1, sku: "PRE", product_name: "Pre", qty: 0, preordered_qty: 4, backordered_qty: 0 },
+      { product_id: 2, sku: "BACK", product_name: "Back", qty: 9, preordered_qty: 0, backordered_qty: 7 },
+      { product_id: 3, sku: "NULL-PRE", product_name: "Null pre", qty: 1, preordered_qty: null, backordered_qty: 2 },
+      { product_id: 4, sku: "UNDEF-PRE", product_name: "Undef pre", qty: 1, backordered_qty: 1 },
+      { product_id: 5, sku: "DASH-PRE", product_name: "Dash pre", qty: 1, preordered_qty: "—" as unknown as number },
+    ];
+    expect(matchesPurchaseOrderQtyFilter({ preordered_qty: 4 }, "preordered_positive")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter({ preordered_qty: null }, "preordered_positive")).toBe(false);
+    expect(matchesPurchaseOrderQtyFilter({ preordered_qty: undefined }, "preordered_positive")).toBe(false);
+    expect(matchesPurchaseOrderQtyFilter({ preordered_qty: "—" }, "preordered_positive")).toBe(false);
+    expect(filterPurchaseOrderLines(mixed, "", "preordered_positive").map((entry) => entry.line.sku))
+      .toEqual(["PRE"]);
+  });
+
+  it("shows only lines with backordered_qty > 0, treating null, undefined, and dash as zero", () => {
+    const mixed: PurchaseOrderLine[] = [
+      { product_id: 1, sku: "PRE", product_name: "Pre", qty: 0, preordered_qty: 4, backordered_qty: 0 },
+      { product_id: 2, sku: "BACK", product_name: "Back", qty: 9, preordered_qty: 0, backordered_qty: 7 },
+      { product_id: 3, sku: "NULL-BACK", product_name: "Null back", qty: 1, preordered_qty: 2, backordered_qty: null },
+      { product_id: 4, sku: "UNDEF-BACK", product_name: "Undef back", qty: 1, preordered_qty: 1 },
+      { product_id: 5, sku: "DASH-BACK", product_name: "Dash back", qty: 1, backordered_qty: "—" as unknown as number },
+    ];
+    expect(matchesPurchaseOrderQtyFilter({ backordered_qty: 7 }, "backordered_positive")).toBe(true);
+    expect(matchesPurchaseOrderQtyFilter({ backordered_qty: 0 }, "backordered_positive")).toBe(false);
+    expect(matchesPurchaseOrderQtyFilter({ backordered_qty: null }, "backordered_positive")).toBe(false);
+    expect(matchesPurchaseOrderQtyFilter({ backordered_qty: "—" }, "backordered_positive")).toBe(false);
+    expect(filterPurchaseOrderLines(mixed, "", "backordered_positive").map((entry) => entry.line.sku))
+      .toEqual(["BACK"]);
   });
 
   it("builds WooCommerce parent-product edit links", () => {

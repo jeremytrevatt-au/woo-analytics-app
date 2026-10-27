@@ -1185,6 +1185,12 @@ export default function PurchaseOrderModal({ open, onClose, onApplied, po }: Pro
                     <ToggleButton value="positive" aria-label="Show lines with quantity greater than 0">
                       Qty &gt; 0
                     </ToggleButton>
+                    <ToggleButton value="preordered_positive" aria-label="Show lines with pre-ordered quantity greater than 0">
+                      Pre-ordered Qty &gt; 0
+                    </ToggleButton>
+                    <ToggleButton value="backordered_positive" aria-label="Show lines with backordered quantity greater than 0">
+                      Backordered Qty &gt; 0
+                    </ToggleButton>
                     <ToggleButton value="all" aria-label="Show all lines">
                       All
                     </ToggleButton>

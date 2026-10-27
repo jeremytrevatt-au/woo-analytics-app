@@ -54,7 +54,12 @@ export function findExistingProductLine(
   return index >= 0 ? index : null;
 }
 
-export type PurchaseOrderQtyFilter = "all" | "zero" | "positive";
+export type PurchaseOrderQtyFilter =
+  | "all"
+  | "zero"
+  | "positive"
+  | "preordered_positive"
+  | "backordered_positive";
 
 export function purchaseOrderLineQtyValue(qty: unknown): number | null {
   if (qty === "" || qty === null || qty === undefined) return 0;
@@ -62,12 +67,27 @@ export function purchaseOrderLineQtyValue(qty: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function purchaseOrderDemandQtyValue(qty: unknown): number {
+  if (qty === "—" || qty === "–") return 0;
+  const value = purchaseOrderLineQtyValue(qty);
+  return value === null ? 0 : value;
+}
+
 export function matchesPurchaseOrderQtyFilter(
-  qty: unknown,
+  line: Pick<PurchaseOrderLine, "qty" | "preordered_qty" | "backordered_qty"> | unknown,
   qtyFilter: PurchaseOrderQtyFilter,
 ): boolean {
   if (qtyFilter === "all") return true;
-  const value = purchaseOrderLineQtyValue(qty);
+  const record = line && typeof line === "object"
+    ? line as Pick<PurchaseOrderLine, "qty" | "preordered_qty" | "backordered_qty">
+    : { qty: line };
+  if (qtyFilter === "preordered_positive") {
+    return purchaseOrderDemandQtyValue(record.preordered_qty) > 0;
+  }
+  if (qtyFilter === "backordered_positive") {
+    return purchaseOrderDemandQtyValue(record.backordered_qty) > 0;
+  }
+  const value = purchaseOrderLineQtyValue(record.qty);
   if (value === null) return false;
   if (qtyFilter === "zero") return value === 0;
   return value > 0;
@@ -88,7 +108,7 @@ export function filterPurchaseOrderLines(
         || normalise(line.product_name).includes(query)
         || normalise(line.supplier_sku).includes(query)
       )
-      && matchesPurchaseOrderQtyFilter(line.qty, qtyFilter)
+      && matchesPurchaseOrderQtyFilter(line, qtyFilter)
     ));
 }
 
