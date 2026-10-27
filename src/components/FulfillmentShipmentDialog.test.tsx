@@ -275,4 +275,74 @@ describe("FulfillmentShipmentDialog", () => {
     expect(view.getByRole("button", { name: "Create quoted shipment" })).toBeDisabled();
     expect(createFulfillment).not.toHaveBeenCalled();
   });
+
+  it("quotes a partial shipment with extra parcels from the shared LWH parcel list", async () => {
+    vi.mocked(previewFulfillment).mockResolvedValue({
+      mode: "partial",
+      orders: [{ order_id: 101, number: "101", recipient: "Test Customer", address: "1 Test Street", shipping_methods: ["Parcel Post"] }],
+      items: [{
+        order_id: 101,
+        order_item_id: 55,
+        quantity: 2,
+        ordered_quantity: 2,
+        refunded_quantity: 0,
+        fulfilled_quantity: 0,
+        remaining_quantity: 2,
+        sku: "SKU-1",
+        name: "Test Product",
+      }],
+      parcels: [{ qty: 1, weight_kg: 3, length_cm: 20, width_cm: 10, height_cm: 5 }],
+      existing_shippit: [],
+      requires_cancellation: false,
+      address_fingerprint: "safe",
+    });
+    vi.mocked(quoteFulfillment).mockResolvedValue({
+      name: "partial",
+      method: "POST",
+      url: "https://example.test",
+      status_code: 200,
+      duration_ms: 10,
+      body: {
+        response: [{
+          courier_type: "standard",
+          courier_name: "Carrier",
+          quotes: [{ price: 18 }],
+        }],
+      },
+    });
+
+    const view = render(
+      <FulfillmentShipmentDialog
+        open
+        orders={[{ order_id: 101 }]}
+        onClose={vi.fn()}
+        onCompleted={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText(/Test Product/)).toBeInTheDocument());
+    expect(view.getByLabelText("Weight g")).toHaveValue(3000);
+    fireEvent.click(view.getByRole("button", { name: "Add Parcel" }));
+    const weightFields = view.getAllByLabelText("Weight g");
+    const lengthFields = view.getAllByLabelText("Length cm");
+    const widthFields = view.getAllByLabelText("Width cm");
+    const heightFields = view.getAllByLabelText("Height cm");
+    fireEvent.change(weightFields[1], { target: { value: "400" } });
+    fireEvent.change(lengthFields[1], { target: { value: "15" } });
+    fireEvent.change(widthFields[1], { target: { value: "12" } });
+    fireEvent.change(heightFields[1], { target: { value: "8" } });
+    fireEvent.click(view.getByRole("button", { name: "Get shipping quotes" }));
+
+    await waitFor(() => expect(quoteFulfillment).toHaveBeenCalledOnce());
+    expect(quoteFulfillment).toHaveBeenCalledWith({
+      order_ids: [101],
+      items: [{ order_id: 101, order_item_id: 55, quantity: 2 }],
+      parcels: [
+        { qty: 1, weight_kg: 3, length_cm: 20, width_cm: 10, height_cm: 5 },
+        { qty: 1, weight_kg: 0.4, length_cm: 15, width_cm: 12, height_cm: 8 },
+      ],
+    });
+    fireEvent.click(await view.findByRole("button", { name: "Debug JSON" }));
+    expect(await view.findByText("Shipment Quote Debug JSON")).toBeInTheDocument();
+  });
 });

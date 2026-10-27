@@ -11,12 +11,10 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  IconButton,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
 import {
   bookPackingShippitOrder,
   getPackingShippitOrder,
@@ -24,18 +22,18 @@ import {
   printPackingShippitLabel,
   updatePackingShippitOrder,
 } from "../api/shippitPackingApi";
-import type { PackingDestination, PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderParcel, PackingShippitOrderResponse } from "../api/shippitPackingApi";
+import type { PackingDestination, PackingQuoteParcel, PackingQuoteResponse, PackingQuoteSelection, PackingShippitOrderResponse } from "../api/shippitPackingApi";
 import AdditionalShippingCost from "./AdditionalShippingCost";
+import PackingParcelList from "./PackingParcelList";
 import { additionalShippingBlocksBooking, inclusiveQuotePrice } from "../lib/additionalShipping";
-
-type ParcelDraft = {
-  id: string;
-  qty: string;
-  weightGrams: string;
-  lengthCm: string;
-  widthCm: string;
-  heightCm: string;
-};
+import {
+  buildParcelsFromRecommendations,
+  buildParcelsFromShippitOrder,
+  createBlankParcel,
+  hasInvalidParcel,
+  parseParcels,
+  type ParcelDraft,
+} from "../lib/packingParcels";
 
 type Props = {
   open: boolean;
@@ -63,75 +61,6 @@ const emptyDestination: PackingDestination = {
   postcode: "",
   country: "AU",
 };
-
-function createBlankParcel(): ParcelDraft {
-  return {
-    id: crypto.randomUUID(),
-    qty: "1",
-    weightGrams: "",
-    lengthCm: "",
-    widthCm: "",
-    heightCm: "",
-  };
-}
-
-function numericString(value: unknown): string {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) && numberValue > 0 ? String(numberValue) : "";
-}
-
-function buildParcelsFromShippitOrder(parcels: PackingShippitOrderParcel[]): ParcelDraft[] {
-  return parcels.map(parcel => ({
-    id: crypto.randomUUID(),
-    qty: numericString(parcel.qty) || "1",
-    weightGrams: numericString(parcel.weight_g),
-    lengthCm: numericString(parcel.length_cm),
-    widthCm: numericString(parcel.width_cm),
-    heightCm: numericString(parcel.height_cm),
-  }));
-}
-
-function positiveNumber(value: unknown): number {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : 0;
-}
-
-function buildParcelsFromRecommendations(parcels: PackingQuoteParcel[]): ParcelDraft[] {
-  return parcels
-    .filter(parcel => positiveNumber(parcel.weight_kg) > 0
-      && positiveNumber(parcel.length_cm) > 0
-      && positiveNumber(parcel.width_cm) > 0
-      && positiveNumber(parcel.height_cm) > 0)
-    .map(parcel => ({
-      id: crypto.randomUUID(),
-      qty: numericString(Math.max(1, Math.floor(Number(parcel.qty || 1)))) || "1",
-      weightGrams: numericString(Number(parcel.weight_kg) * 1000),
-      lengthCm: numericString(parcel.length_cm),
-      widthCm: numericString(parcel.width_cm),
-      heightCm: numericString(parcel.height_cm),
-    }));
-}
-
-function parseParcels(parcels: ParcelDraft[]): PackingQuoteParcel[] {
-  return parcels.map(parcel => ({
-    qty: Number(parcel.qty),
-    weight_kg: Number(parcel.weightGrams) / 1000,
-    length_cm: Number(parcel.lengthCm),
-    width_cm: Number(parcel.widthCm),
-    height_cm: Number(parcel.heightCm),
-  }));
-}
-
-function hasInvalidParcel(parcels: PackingQuoteParcel[]): boolean {
-  return parcels.some(parcel =>
-    !Number.isInteger(parcel.qty)
-    || parcel.qty < 1
-    || parcel.weight_kg <= 0
-    || parcel.length_cm <= 0
-    || parcel.width_cm <= 0
-    || parcel.height_cm <= 0
-  );
-}
 
 function countQuoteItems(response: PackingQuoteResponse | null): number {
   const body = response?.body as { response?: unknown; quotes?: unknown } | unknown[] | null | undefined;
@@ -386,21 +315,6 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
     return true;
   };
 
-  const updateParcel = (id: string, field: keyof Omit<ParcelDraft, "id">, value: string) => {
-    setParcels(previous => previous.map(parcel => parcel.id === id ? { ...parcel, [field]: value } : parcel));
-    setSubmittedQuoteId(null);
-  };
-
-  const addParcel = () => {
-    setParcels(previous => [...previous, createBlankParcel()]);
-    setSubmittedQuoteId(null);
-  };
-
-  const removeParcel = (id: string) => {
-    setParcels(previous => previous.length > 1 ? previous.filter(parcel => parcel.id !== id) : previous);
-    setSubmittedQuoteId(null);
-  };
-
   const handleQuote = async () => {
     if (!order?.order_id) return;
     const parsedParcels = parseParcels(parcels);
@@ -615,29 +529,13 @@ function PackingDimensionsDialog({ open, order, onClose }: Props) {
             ) : null}
 
             {!loadingExistingOrder ? (
-              <>
-                {parcels.map((parcel, index) => (
-                  <Box key={parcel.id} sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2">Parcel {index + 1}</Typography>
-                      <IconButton aria-label="Remove parcel" onClick={() => removeParcel(parcel.id)} disabled={parcels.length === 1}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Stack>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                      <TextField label="Qty" type="number" value={parcel.qty} onChange={(event) => updateParcel(parcel.id, "qty", event.target.value)} inputProps={{ min: 1, step: 1 }} />
-                      <TextField label="Weight g" type="number" value={parcel.weightGrams} onChange={(event) => updateParcel(parcel.id, "weightGrams", event.target.value)} inputProps={{ min: 0, step: 1 }} />
-                      <TextField label="Length cm" type="number" value={parcel.lengthCm} onChange={(event) => updateParcel(parcel.id, "lengthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
-                      <TextField label="Width cm" type="number" value={parcel.widthCm} onChange={(event) => updateParcel(parcel.id, "widthCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
-                      <TextField label="Height cm" type="number" value={parcel.heightCm} onChange={(event) => updateParcel(parcel.id, "heightCm", event.target.value)} inputProps={{ min: 0, step: 0.1 }} />
-                    </Stack>
-                  </Box>
-                ))}
-
-                <Button variant="outlined" onClick={addParcel}>
-                  Add Parcel
-                </Button>
-              </>
+              <PackingParcelList
+                parcels={parcels}
+                onChange={next => {
+                  setParcels(next);
+                  setSubmittedQuoteId(null);
+                }}
+              />
             ) : null}
 
             {quote ? (

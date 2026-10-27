@@ -10,6 +10,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Stack,
   TextField,
@@ -19,7 +20,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createFulfillment,
   FulfillmentOperation,
-  FulfillmentParcel,
   FulfillmentPreview,
   previewFulfillment,
   quoteFulfillment,
@@ -27,21 +27,21 @@ import {
 import type { PackingQuoteResponse } from "../api/shippitPackingApi";
 import { fulfillmentQuoteOptions } from "../lib/fulfillmentQuotes";
 import AdditionalShippingCost from "./AdditionalShippingCost";
+import PackingParcelList from "./PackingParcelList";
 import { additionalShippingBlocksBooking } from "../lib/additionalShipping";
+import {
+  buildParcelsFromRecommendations,
+  createBlankParcel,
+  parseParcels,
+  parcelsAreValid,
+  type ParcelDraft,
+} from "../lib/packingParcels";
 
 type Props = {
   open: boolean;
   orders: any[];
   onClose: () => void;
   onCompleted: () => void;
-};
-
-const emptyParcel: FulfillmentParcel = {
-  qty: 1,
-  weight_kg: 0,
-  length_cm: 0,
-  width_cm: 0,
-  height_cm: 0,
 };
 
 export default function FulfillmentShipmentDialog({
@@ -52,9 +52,10 @@ export default function FulfillmentShipmentDialog({
 }: Props) {
   const [preview, setPreview] = useState<FulfillmentPreview | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [parcels, setParcels] = useState<FulfillmentParcel[]>([emptyParcel]);
+  const [parcels, setParcels] = useState<ParcelDraft[]>([createBlankParcel()]);
   const [quote, setQuote] = useState<PackingQuoteResponse | null>(null);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [approveCancellation, setApproveCancellation] = useState(false);
   const [notifyCustomer, setNotifyCustomer] = useState(false);
   const [operation, setOperation] = useState<FulfillmentOperation | null>(null);
@@ -77,13 +78,15 @@ export default function FulfillmentShipmentDialog({
     setApproveCancellation(false);
     setQuote(null);
     setSelectedQuoteId(null);
+    setDebugOpen(false);
     previewFulfillment(orderIds)
       .then(result => {
         setPreview(result);
         setQuantities(Object.fromEntries(
           result.items.map(item => [`${item.order_id}:${item.order_item_id}`, item.remaining_quantity]),
         ));
-        setParcels(result.parcels.length > 0 ? result.parcels : [emptyParcel]);
+        const recommended = buildParcelsFromRecommendations(result.parcels);
+        setParcels(recommended.length > 0 ? recommended : [createBlankParcel()]);
       })
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : "Failed to load fulfillment availability."))
       .finally(() => setIsLoading(false));
@@ -97,26 +100,26 @@ export default function FulfillmentShipmentDialog({
     }))
     .filter(item => item.quantity > 0) ?? [];
 
-  const parcelsAreValid = parcels.length > 0
-    && parcels.every(parcel => Object.values(parcel).every(value => Number(value) > 0));
+  const parcelsValid = parcelsAreValid(parcels);
+  const quotedParcels = useMemo(() => parseParcels(parcels), [parcels]);
   const additionalShippingUnpaid = orders.some(order => additionalShippingBlocksBooking(order?.additional_shipping?.payment_state));
   const canSubmit = !isLoading
     && !isSaving
     && selectedItems.length > 0
-    && parcelsAreValid
+    && parcelsValid
     && Boolean(selectedQuote)
     && !additionalShippingUnpaid
     && (!preview?.requires_cancellation || approveCancellation);
 
   const requestQuote = async () => {
-    if (!preview || selectedItems.length === 0 || !parcelsAreValid) return;
+    if (!preview || selectedItems.length === 0 || !parcelsValid) return;
     setIsLoading(true);
     setError(null);
     try {
       const result = await quoteFulfillment({
         order_ids: orderIds,
         items: selectedItems,
-        parcels,
+        parcels: quotedParcels,
       });
       setQuote(result);
       setSelectedQuoteId(fulfillmentQuoteOptions(result)[0]?.id ?? null);
@@ -136,7 +139,7 @@ export default function FulfillmentShipmentDialog({
         operation_id: crypto.randomUUID(),
         order_ids: orderIds,
         items: selectedItems,
-        parcels,
+        parcels: quotedParcels,
         quote_selection: selectedQuote,
         cancel_existing_shipments: approveCancellation,
         notify_customer: notifyCustomer,
@@ -151,6 +154,7 @@ export default function FulfillmentShipmentDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onClose={isSaving ? undefined : onClose} fullWidth maxWidth="md">
       <DialogTitle>
         {orders.length > 1 ? `Combine ${orders.length} orders` : `Partial fulfillment #${orderIds[0] || ""}`}
@@ -239,7 +243,8 @@ export default function FulfillmentShipmentDialog({
                       setSelectedQuoteId(null);
                       try {
                         const refreshed = await previewFulfillment(orderIds, selectedItems);
-                        setParcels(refreshed.parcels.length > 0 ? refreshed.parcels : [emptyParcel]);
+                        const recommended = buildParcelsFromRecommendations(refreshed.parcels);
+                        setParcels(recommended.length > 0 ? recommended : [createBlankParcel()]);
                       } catch (previewError) {
                         setError(previewError instanceof Error ? previewError.message : "Parcel recommendation failed.");
                       } finally {
@@ -250,58 +255,31 @@ export default function FulfillmentShipmentDialog({
                     Recalculate from selected quantities
                   </Button>
                 </Stack>
-                {parcels.map((parcel, parcelIndex) => (
-                  <Stack key={`parcel:${parcelIndex}`} direction={{ xs: "column", sm: "row" }} spacing={1}>
-                    <TextField
-                      label="Qty"
-                      type="number"
-                      size="small"
-                      value={parcel.qty}
-                      inputProps={{ min: 1, step: 1 }}
-                      onChange={event => {
-                        setParcels(previous => previous.map((entry, index) => index === parcelIndex
-                          ? { ...entry, qty: Number(event.target.value) }
-                          : entry));
-                        setQuote(null);
-                        setSelectedQuoteId(null);
-                      }}
-                      fullWidth
-                    />
-                    {([
-                      ["weight_kg", "Weight kg"],
-                      ["length_cm", "Length cm"],
-                      ["width_cm", "Width cm"],
-                      ["height_cm", "Height cm"],
-                    ] as const).map(([field, label]) => (
-                      <TextField
-                        key={field}
-                        label={label}
-                        type="number"
-                        size="small"
-                        value={parcel[field]}
-                        inputProps={{ min: 0, step: "any" }}
-                        onChange={event => {
-                          setParcels(previous => previous.map((entry, index) => index === parcelIndex
-                            ? { ...entry, [field]: Number(event.target.value) }
-                            : entry));
-                          setQuote(null);
-                          setSelectedQuoteId(null);
-                        }}
-                        fullWidth
-                      />
-                    ))}
-                  </Stack>
-                ))}
-                {!parcelsAreValid && (
+                <PackingParcelList
+                  parcels={parcels}
+                  disabled={isLoading}
+                  onChange={next => {
+                    setParcels(next);
+                    setQuote(null);
+                    setSelectedQuoteId(null);
+                  }}
+                />
+                {!parcelsValid && (
                   <Alert severity="warning">Enter the measured packed weight and all parcel dimensions.</Alert>
                 )}
                 <Button
                   variant="outlined"
                   onClick={requestQuote}
-                  disabled={isLoading || selectedItems.length === 0 || !parcelsAreValid}
+                  disabled={isLoading || selectedItems.length === 0 || !parcelsValid}
                 >
                   {isLoading ? "Requesting quotes…" : "Get shipping quotes"}
                 </Button>
+                {quote ? (
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Typography variant="subtitle2">Shipping quotes</Typography>
+                    <Button size="small" onClick={() => setDebugOpen(true)}>Debug JSON</Button>
+                  </Stack>
+                ) : null}
                 {quote?.carriers?.shippit?.error_code && (
                   <Alert severity="warning">
                     Shippit quotes are unavailable ({quote.carriers.shippit.error_code}).
@@ -370,5 +348,18 @@ export default function FulfillmentShipmentDialog({
         )}
       </DialogActions>
     </Dialog>
+      <Dialog open={debugOpen} onClose={() => setDebugOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Shipment Quote Debug JSON</DialogTitle>
+        <DialogContent dividers>
+          <Box component="pre" sx={{ p: 2, bgcolor: "grey.100", borderRadius: 1, overflow: "auto", fontSize: 12, maxHeight: 520 }}>
+            {JSON.stringify({ parcels: quotedParcels, quote: quote?.body ?? quote }, null, 2)}
+          </Box>
+        </DialogContent>
+        <Divider />
+        <DialogActions>
+          <Button onClick={() => setDebugOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
