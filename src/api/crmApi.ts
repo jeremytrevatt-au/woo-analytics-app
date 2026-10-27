@@ -61,6 +61,7 @@ export type CrmCustomerProfile = {
     billing_first_name?: string;
     billing_last_name?: string;
     billing_email?: string;
+    user_email?: string;
     billing_phone?: string;
     order_count: number;
     lifetime_value: number;

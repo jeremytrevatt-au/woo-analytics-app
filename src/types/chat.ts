@@ -21,6 +21,10 @@ export type ChatConversation = {
   customer_last_name?: string | null;
   customer_identity_type?: "logged_in" | "guest";
   guest_email?: string | null;
+  customer_email?: string | null;
+  billing_email?: string | null;
+  user_email?: string | null;
+  identity_email?: string | null;
   guest_order_number?: string | null;
   guest_identity_status?: "not_provided" | "provided_unverified" | "new_sales" | null;
 };

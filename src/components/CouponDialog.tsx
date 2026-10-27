@@ -13,11 +13,17 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
+import { getCustomerContact } from "../api/customerContactApi";
 import {
   CouponCreateResponse,
   CouponDiscountType,
   createCoupon,
 } from "../api/couponApi";
+import {
+  couponDialogInvalidReason,
+  couponRestrictionEmail,
+  defaultCouponExpiryLocal,
+} from "../lib/couponEmail";
 
 type Props = {
   customerId?: number | null;
@@ -51,48 +57,44 @@ export default function CouponDialog({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CouponCreateResponse | null>(null);
   const hasChatIdentity = Boolean(conversationId || cartId || visitorId || customerId);
-  const knownEmail = String(restrictEmail || "").trim();
+  const knownEmail = couponRestrictionEmail(restrictEmail);
 
   useEffect(() => {
     if (!open) return;
     setDeliverViaChat(hasChatIdentity);
-    setEmailRestriction(knownEmail);
     setError(null);
     setResult(null);
-  }, [hasChatIdentity, knownEmail, open]);
+    setExpiresAt((current) => current || defaultCouponExpiryLocal());
+    setEmailRestriction(knownEmail);
+    if (!customerId) return;
+    let active = true;
+    void getCustomerContact(customerId)
+      .then((contact) => {
+        if (!active) return;
+        setEmailRestriction((current) => (
+          current.trim()
+            ? current
+            : couponRestrictionEmail(knownEmail, contact.user_email, contact.billing_email)
+        ));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [customerId, hasChatIdentity, knownEmail, open]);
 
-  const invalidReason = useMemo(() => {
-    if (!code.trim()) return "Enter a unique coupon code.";
-    const amountBlank = amount.trim() === "";
-    const numericAmount = Number(amount);
-    if (freeShipping) {
-      if (!amountBlank && (!Number.isFinite(numericAmount) || numericAmount < 0)) {
-        return "Enter a discount of zero or more, or leave it blank.";
-      }
-      if (!amountBlank && discountType === "percent" && numericAmount > 100) {
-        return "Percentage discounts cannot exceed 100%.";
-      }
-    } else {
-      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        return "Enter a discount greater than zero.";
-      }
-      if (discountType === "percent" && numericAmount > 100) {
-        return "Percentage discounts cannot exceed 100%.";
-      }
-    }
-    const numericLimit = Number(usageLimit);
-    if (!Number.isInteger(numericLimit) || numericLimit < 1) {
-      return "Usage limit must be at least one.";
-    }
-    if (!expiresAt || Date.parse(expiresAt) <= Date.now()) {
-      return "Choose a future expiry time.";
-    }
-    const typedEmail = emailRestriction.trim();
-    if (typedEmail && !isCouponRestrictionEmail(typedEmail)) {
-      return "Enter a valid email address, or leave the restriction blank.";
-    }
-    return null;
-  }, [amount, code, discountType, emailRestriction, expiresAt, freeShipping, usageLimit]);
+  const invalidReason = useMemo(
+    () => couponDialogInvalidReason({
+      code,
+      amount,
+      discountType,
+      usageLimit,
+      expiresAt,
+      freeShipping,
+      emailRestriction,
+    }),
+    [amount, code, discountType, emailRestriction, expiresAt, freeShipping, usageLimit],
+  );
 
   const handleCreate = async () => {
     if (invalidReason) {
@@ -231,7 +233,7 @@ export default function CouponDialog({
                   value={emailRestriction}
                   onChange={(event) => setEmailRestriction(event.target.value)}
                   inputProps={{ maxLength: 320 }}
-                  helperText="Limits the coupon to this address. Prefills from the Woo customer, chat guest, or conversation email when known."
+                  helperText="Optional. Limits the coupon to this address. Prefills from the Woo user email, billing email, chat guest, or conversation identity when known."
                 />
                 <TextField
                   label="Custom message"
@@ -263,6 +265,11 @@ export default function CouponDialog({
           </Stack>
         </DialogContent>
         <DialogActions>
+          {!result && invalidReason ? (
+            <Typography variant="caption" color="text.secondary" sx={{ mr: "auto", pl: 2 }}>
+              {invalidReason}
+            </Typography>
+          ) : null}
           <Button onClick={handleClose}>{result ? "Close" : "Cancel"}</Button>
           {!result ? (
             <Button
@@ -277,13 +284,6 @@ export default function CouponDialog({
       </Dialog>
     </>
   );
-}
-
-function isCouponRestrictionEmail(value: string): boolean {
-  const email = value.trim();
-  const at = email.indexOf("@");
-  if (at <= 0 || at === email.length - 1 || email.includes(" ")) return false;
-  return email.slice(at + 1).includes(".");
 }
 
 function couponResultSeverity(

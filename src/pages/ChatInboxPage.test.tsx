@@ -15,6 +15,8 @@ import {
   getLatestCustomerCart,
   getLatestVisitorCart,
 } from "../api/cartsApi";
+import { getCustomerContact } from "../api/customerContactApi";
+import { getCrmCustomerProfile } from "../api/crmApi";
 import ChatInboxPage from "./ChatInboxPage";
 
 vi.mock("../api/chatApi", () => ({
@@ -38,6 +40,18 @@ vi.mock("../api/cartsApi", () => ({
   getCart: vi.fn(),
   getLatestCustomerCart: vi.fn(),
   getLatestVisitorCart: vi.fn(),
+}));
+
+vi.mock("../api/customerContactApi", () => ({
+  getCustomerContact: vi.fn(),
+}));
+
+vi.mock("../api/crmApi", () => ({
+  getCrmCustomerProfile: vi.fn(),
+  updateCrmCustomerProfileExtension: vi.fn(),
+  createCrmNote: vi.fn(),
+  updateCrmNote: vi.fn(),
+  deleteCrmNote: vi.fn(),
 }));
 
 vi.mock("../components/VisitorJourneyPanel", () => ({
@@ -205,5 +219,75 @@ describe("ChatInboxPage", () => {
     expect((await view.findAllByText("Guest — guest@example.test")).length).toBeGreaterThan(0);
     fireEvent.click(view.getByRole("button", { name: "Coupon" }));
     expect(view.getByLabelText(/Restrict to email/)).toHaveValue("guest@example.test");
+  });
+
+  it("prefills the inbox coupon email from Woo customer 2011 contact", async () => {
+    const identified = {
+      ...conversation,
+      woo_customer_id: 2011,
+      customer_identity_type: "logged_in" as const,
+      customer_display_name: "J Graybill",
+      guest_email: null,
+    };
+    vi.mocked(listChatConversations).mockResolvedValue({
+      conversations: [identified],
+    });
+    vi.mocked(listChatMessages).mockResolvedValue({ messages: [] });
+    vi.mocked(markChatConversationRead).mockResolvedValue(undefined);
+    vi.mocked(getCustomerContact).mockResolvedValue({
+      customer_id: 2011,
+      user_email: "ms.j.graybill@gmail.com",
+      billing_email: "",
+    });
+    vi.mocked(getCrmCustomerProfile).mockResolvedValue({
+      profile: {
+        customer_id: 2011,
+        user_email: "ms.j.graybill@gmail.com",
+        billing_email: "",
+        order_count: 0,
+        lifetime_value: 0,
+      },
+      profile_extension: {
+        id: 1,
+        customer_id: 2011,
+        tags: [],
+        flags: [],
+        preferred_handling_notes: "",
+        last_reviewed_date: null,
+        next_follow_up_date: null,
+        created_by: 0,
+        updated_by: 0,
+        created_at: null,
+        updated_at: null,
+      },
+      orders: [],
+      notes: [],
+    });
+    vi.mocked(getCart).mockResolvedValue({
+      cart_id: identified.nya_cart_id,
+      visitor_id: identified.nya_visitor_id,
+      customer_id: 2011,
+      is_marketing_eligible: false,
+      sequence: 1,
+      status: "active",
+      updated_at: "2026-09-19T07:01:00Z",
+      currency: "AUD",
+      item_count: 0,
+      subtotal: 0,
+      discount_total: 0,
+      shipping_total: 0,
+      tax_total: 0,
+      total: 0,
+      order_id: null,
+      lines: [],
+    });
+
+    const view = render(<MemoryRouter><ChatInboxPage /></MemoryRouter>);
+    expect((await view.findAllByText("J Graybill")).length).toBeGreaterThan(0);
+    fireEvent.click(view.getByRole("button", { name: "Coupon" }));
+    await waitFor(() => {
+      expect(view.getByLabelText(/Restrict to email/)).toHaveValue("ms.j.graybill@gmail.com");
+    });
+    expect(getCustomerContact).toHaveBeenCalledWith(2011);
   });
 });

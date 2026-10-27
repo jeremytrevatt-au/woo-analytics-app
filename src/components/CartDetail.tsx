@@ -27,6 +27,7 @@ import {
   isCartSnapshotStale,
   STALE_CART_SNAPSHOT_MINUTES,
 } from "../lib/cartPresentation";
+import { couponRestrictionEmail } from "../lib/couponEmail";
 import { crmCustomerDisplayName } from "../lib/customerIdentity";
 import { AuthoritativeCart, CartSnapshot } from "../types/cart";
 import CartLineItems from "./CartLineItems";
@@ -136,7 +137,9 @@ export default function CartDetail({
       .then((response) => {
         if (active) {
           setCustomerName(crmCustomerDisplayName(response.profile, linkedCustomerId));
-          setCustomerEmail(String(response.profile.billing_email || "").trim() || null);
+          setCustomerEmail(
+            couponRestrictionEmail(response.profile.user_email, response.profile.billing_email) || null,
+          );
         }
       })
       .catch((requestError: unknown) => {

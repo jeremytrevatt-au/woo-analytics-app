@@ -32,6 +32,7 @@ import {
 import { formatCurrency } from "../lib/format";
 import CustomerEmailHistorySection from "./CustomerEmailHistorySection";
 import CouponDialog from "./CouponDialog";
+import { couponRestrictionEmail } from "../lib/couponEmail";
 
 type Props = CrmCustomerIdentity & {
   customerName?: string;
@@ -256,7 +257,11 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
             </Typography>
             <CouponDialog
               customerId={identity.customer_id}
-              restrictEmail={profileData?.billing_email || customer_email}
+              restrictEmail={couponRestrictionEmail(
+                profileData?.user_email,
+                profileData?.billing_email,
+                customer_email,
+              )}
             />
           </Stack>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -280,7 +285,11 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
       </Paper>
 
       <CustomerEmailHistorySection
-        customerEmail={profileData?.billing_email || customer_email}
+        customerEmail={couponRestrictionEmail(
+          profileData?.user_email,
+          profileData?.billing_email,
+          customer_email,
+        )}
       />
 
       <Paper variant="outlined" sx={{ p: 2 }}>

@@ -1,15 +1,30 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCoupon } from "../api/couponApi";
+import { getCustomerContact } from "../api/customerContactApi";
 import CouponDialog from "./CouponDialog";
 
 vi.mock("../api/couponApi", () => ({
   createCoupon: vi.fn(),
 }));
 
+vi.mock("../api/customerContactApi", () => ({
+  getCustomerContact: vi.fn(),
+}));
+
+function submitButton(view: ReturnType<typeof render>) {
+  const buttons = view.getAllByRole("button", { name: "Create coupon" });
+  return buttons[buttons.length - 1];
+}
+
 describe("CouponDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getCustomerContact).mockResolvedValue({
+      customer_id: 2011,
+      user_email: "",
+      billing_email: "",
+    });
   });
 
   it("creates and delivers a customer-restricted coupon through linked chat", async () => {
@@ -44,7 +59,7 @@ describe("CouponDialog", () => {
     fireEvent.change(view.getByLabelText(/Expires at/), {
       target: { value: "2099-10-04T00:00" },
     });
-    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    fireEvent.click(submitButton(view));
 
     expect(await view.findByText("Coupon HELP10 created.")).toBeInTheDocument();
     expect(createCoupon).toHaveBeenCalledWith(
@@ -90,7 +105,7 @@ describe("CouponDialog", () => {
       target: { value: "2099-10-04T00:00" },
     });
     fireEvent.click(view.getByRole("checkbox", { name: "Free shipping" }));
-    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    fireEvent.click(submitButton(view));
 
     expect(await view.findByText("Coupon SHIP10 created.")).toBeInTheDocument();
     expect(createCoupon).toHaveBeenCalledWith(
@@ -123,10 +138,10 @@ describe("CouponDialog", () => {
     fireEvent.change(view.getByLabelText(/Expires at/), {
       target: { value: "2099-10-04T00:00" },
     });
-    expect(view.getByRole("button", { name: "Create coupon" })).toBeDisabled();
+    expect(submitButton(view)).toBeDisabled();
     fireEvent.click(view.getByRole("checkbox", { name: "Free shipping" }));
-    expect(view.getByRole("button", { name: "Create coupon" })).toBeEnabled();
-    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    expect(submitButton(view)).toBeEnabled();
+    fireEvent.click(submitButton(view));
 
     expect(await view.findByText("Coupon FREESHIP created.")).toBeInTheDocument();
     expect(view.getByText(/for free shipping/)).toBeInTheDocument();
@@ -159,7 +174,7 @@ describe("CouponDialog", () => {
     fireEvent.change(view.getByLabelText(/Restrict to email/), {
       target: { value: "not-an-email" },
     });
-    expect(view.getByRole("button", { name: "Create coupon" })).toBeDisabled();
+    expect(submitButton(view)).toBeDisabled();
     expect(createCoupon).not.toHaveBeenCalled();
   });
 
@@ -172,5 +187,61 @@ describe("CouponDialog", () => {
     );
     fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
     expect(view.getByLabelText(/Restrict to email/)).toHaveValue("guest@example.test");
+  });
+
+  it("prefills customer 2011 from Woo user email contact", async () => {
+    vi.mocked(getCustomerContact).mockResolvedValue({
+      customer_id: 2011,
+      user_email: "ms.j.graybill@gmail.com",
+      billing_email: "",
+    });
+    const view = render(
+      <CouponDialog
+        customerId={2011}
+        conversationId="conversation-2011"
+      />,
+    );
+    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    await waitFor(() => {
+      expect(view.getByLabelText(/Restrict to email/)).toHaveValue("ms.j.graybill@gmail.com");
+    });
+    expect(getCustomerContact).toHaveBeenCalledWith(2011);
+  });
+
+  it("enables Create for free shipping with blank amount and blank email", () => {
+    const view = render(<CouponDialog conversationId="conversation-1" />);
+    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    fireEvent.change(view.getByRole("textbox", { name: /Unique coupon code/ }), {
+      target: { value: "freeship" },
+    });
+    fireEvent.click(view.getByRole("checkbox", { name: "Free shipping" }));
+    expect(view.getByLabelText(/Restrict to email/)).toHaveValue("");
+    expect(submitButton(view)).toBeEnabled();
+  });
+
+  it("disables Create when code or expiry is missing or email is invalid", () => {
+    const view = render(<CouponDialog conversationId="conversation-1" />);
+    fireEvent.click(view.getByRole("button", { name: "Create coupon" }));
+    fireEvent.click(view.getByRole("checkbox", { name: "Free shipping" }));
+    expect(submitButton(view)).toBeDisabled();
+    fireEvent.change(view.getByRole("textbox", { name: /Unique coupon code/ }), {
+      target: { value: "freeship" },
+    });
+    expect(submitButton(view)).toBeEnabled();
+    fireEvent.change(view.getByLabelText(/Expires at/), {
+      target: { value: "" },
+    });
+    expect(submitButton(view)).toBeDisabled();
+    fireEvent.change(view.getByLabelText(/Expires at/), {
+      target: { value: "2099-10-04T00:00" },
+    });
+    fireEvent.change(view.getByLabelText(/Restrict to email/), {
+      target: { value: "not-an-email" },
+    });
+    expect(submitButton(view)).toBeDisabled();
+    fireEvent.change(view.getByLabelText(/Restrict to email/), {
+      target: { value: "ms.j.graybill@gmail.com" },
+    });
+    expect(submitButton(view)).toBeEnabled();
   });
 });

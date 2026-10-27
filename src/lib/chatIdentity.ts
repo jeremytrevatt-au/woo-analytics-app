@@ -1,9 +1,19 @@
 import { ChatConversation } from "../types/chat";
+import { couponRestrictionEmail } from "./couponEmail";
 
 export function conversationCouponEmail(
-  conversation: Pick<ChatConversation, "guest_email">,
+  conversation: Pick<
+    ChatConversation,
+    "guest_email" | "customer_email" | "billing_email" | "user_email" | "identity_email"
+  >,
 ): string {
-  return String(conversation.guest_email || "").trim();
+  return couponRestrictionEmail(
+    conversation.user_email,
+    conversation.billing_email,
+    conversation.customer_email,
+    conversation.identity_email,
+    conversation.guest_email,
+  );
 }
 
 export function chatCustomerLabel(conversation: ChatConversation): string {
