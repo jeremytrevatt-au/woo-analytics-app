@@ -49,4 +49,56 @@ describe("fetchJson diagnostics", () => {
     }));
     expect(recordedEvent.error).toBeUndefined();
   });
+
+  it("surfaces AbortError as Request aborted instead of Failed to fetch", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      const abortError = new Error("The user aborted a request.");
+      abortError.name = "AbortError";
+      throw abortError;
+    }));
+
+    const { fetchJson } = await import("./httpClient");
+
+    await expect(fetchJson("/api/v1/chat/inbox")).rejects.toMatchObject({
+      name: "AbortError",
+      message: "Request aborted",
+    });
+    expect(pushApiDebugEvent).toHaveBeenCalledTimes(1);
+    expect(pushApiDebugEvent.mock.calls[0][0].error).toBe("The user aborted a request.");
+    expect(pushApiDebugEvent.mock.calls[0][0].statusCode).toBeUndefined();
+  });
+
+  it("reloads once for a same-origin Failed to fetch with no statusCode", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", {
+      href: "https://analytics.example/chat",
+      origin: "https://analytics.example",
+      pathname: "/chat",
+      search: "",
+      hash: "",
+      assign,
+    });
+    window.sessionStorage.clear();
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }));
+
+    const { fetchJson } = await import("./httpClient");
+
+    await expect(fetchJson("/api/v1/chat/inbox")).rejects.toThrow(
+      "Failed to fetch from the analytics API (possible IAP expiry; reloading for Google login).",
+    );
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith("/chat");
+    expect(pushApiDebugEvent).toHaveBeenCalledTimes(1);
+    expect(pushApiDebugEvent.mock.calls[0][0]).toEqual(expect.objectContaining({
+      error: "Failed to fetch",
+    }));
+    expect(pushApiDebugEvent.mock.calls[0][0].statusCode).toBeUndefined();
+
+    await expect(fetchJson("/api/v1/chat/inbox")).rejects.toThrow(
+      "Failed to fetch from the analytics API (possible IAP expiry; a document reload was already attempted this session).",
+    );
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
 });

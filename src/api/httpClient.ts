@@ -7,6 +7,7 @@ import {
 } from "../debug/supplierSkuPreviewDebug";
 
 const apiBaseUrl = (import.meta.env.VITE_ANALYTICS_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
+const IAP_DOCUMENT_RELOAD_FLAG = "nya_iap_document_reload";
 
 export class ApiRequestError extends Error {
   status: number;
@@ -27,6 +28,90 @@ export function requireApiBaseUrl(): string {
     throw new Error("VITE_ANALYTICS_API_BASE_URL is not configured.");
   }
   return apiBaseUrl;
+}
+
+function isAbortError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && (error as { name?: string }).name === "AbortError");
+}
+
+function isOpaqueFailedToFetch(error: unknown): boolean {
+  return error instanceof TypeError && error.message === "Failed to fetch";
+}
+
+function isSameOriginAnalyticsApi(baseUrl: string): boolean {
+  if (typeof window === "undefined" || !window.location?.origin) {
+    return false;
+  }
+  try {
+    return new URL(baseUrl, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function clearIapDocumentReloadGuard(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.sessionStorage.removeItem(IAP_DOCUMENT_RELOAD_FLAG);
+  } catch {
+    // sessionStorage may be unavailable
+  }
+}
+
+function recoverStaleIapSession(baseUrl: string): boolean {
+  if (typeof window === "undefined" || !isSameOriginAnalyticsApi(baseUrl)) {
+    return false;
+  }
+  try {
+    if (window.sessionStorage.getItem(IAP_DOCUMENT_RELOAD_FLAG) === "1") {
+      return false;
+    }
+    window.sessionStorage.setItem(IAP_DOCUMENT_RELOAD_FLAG, "1");
+  } catch {
+    return false;
+  }
+  const target = `${window.location.pathname || "/"}${window.location.search || ""}${window.location.hash || ""}` || "/";
+  if (typeof window.location.assign === "function") {
+    window.location.assign(target);
+  } else {
+    window.location.href = "/";
+  }
+  return true;
+}
+
+function afterTransportFailure(error: unknown, baseUrl: string): Error {
+  if (isAbortError(error)) {
+    const aborted = new Error("Request aborted");
+    aborted.name = "AbortError";
+    return aborted;
+  }
+  if (isOpaqueFailedToFetch(error)) {
+    if (recoverStaleIapSession(baseUrl)) {
+      return new Error(
+        "Failed to fetch from the analytics API (possible IAP expiry; reloading for Google login).",
+      );
+    }
+    if (isSameOriginAnalyticsApi(baseUrl) && hasIapDocumentReloadGuard()) {
+      return new Error(
+        "Failed to fetch from the analytics API (possible IAP expiry; a document reload was already attempted this session).",
+      );
+    }
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function hasIapDocumentReloadGuard(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.sessionStorage.getItem(IAP_DOCUMENT_RELOAD_FLAG) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -77,7 +162,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     const recordedEvent = isAdditionalShippingRequest ? redactAdditionalShippingDebugEvent(event) : event;
     pushApiDebugEvent(recordedEvent);
     mirrorDebugEvent(baseUrl, path, recordedEvent);
-    throw error;
+    throw afterTransportFailure(error, baseUrl);
   }
 
   const textBody = await response.text();
@@ -108,6 +193,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const recordedEvent = isAdditionalShippingRequest ? redactAdditionalShippingDebugEvent(event) : event;
   pushApiDebugEvent(recordedEvent);
   mirrorDebugEvent(baseUrl, path, recordedEvent);
+  clearIapDocumentReloadGuard();
 
   if (!response.ok) {
     throw new ApiRequestError(
@@ -157,7 +243,7 @@ export async function fetchBinary(path: string, init?: RequestInit): Promise<Blo
     };
     pushApiDebugEvent(event);
     mirrorDebugEvent(baseUrl, path, event);
-    throw error;
+    throw afterTransportFailure(error, baseUrl);
   }
 
   const buffer = await response.arrayBuffer();
@@ -190,6 +276,7 @@ export async function fetchBinary(path: string, init?: RequestInit): Promise<Blo
   };
   pushApiDebugEvent(event);
   mirrorDebugEvent(baseUrl, path, event);
+  clearIapDocumentReloadGuard();
 
   if (!response.ok) {
     throw new ApiRequestError(
