@@ -1017,3 +1017,34 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    4. Gmail history-cursor recovery was blocked and is not finished.
    5. The chat "don't show this again" prompt remains plan only.
    6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
+
+## 2026-11-04 06:20 UTC — Coupon free ship/email, packing parcels, PO qty filters, IAP reload
+
+1. TODOs completed since the previous main push:
+   1. Chat/coupon create can set WooCommerce `free_shipping` and `email_restrictions`; prefill email from chat/customer; staff may override. Commit `bb3f6be78620fcb3453ff24c1caed2ee18f7b1d9` (2026-10-26 21:07:14 UTC).
+   2. Allow standalone free-shipping coupons without a product discount amount. Commit `157650667d63a0b3b9968d3c377421ec94c23599` (2026-10-26 21:44:05 UTC).
+   3. Coupon dialog did not prefill customer 2011 email and Create stayed disabled. Prefill restriction email from Woo user, billing, identity, and guest sources, and enable Create for free-shipping or a positive amount without requiring email. Commit `d0b31a8b15d4821ff0d875f33b778bd60cd9e6e0` (2026-10-27 03:35:43 UTC).
+   4. Partial shipment quotes use the same multi-parcel L W H editor as the full-order path. Commit `986a23d06bbf1444569c3811500f49afe3f9b6a0` (2026-10-27 04:35:15 UTC).
+   5. Filter PO edit lines by qty zero, qty positive, or all; display-only, save still includes hidden zeros. Commit `32d33dbac75f7cea7493c7e059e2838818082902` (2026-10-27 05:50:44 UTC).
+   6. PO edit line filter can show pre-ordered qty > 0 or backordered qty > 0. Commit `ea701a0c11f10373340202cf248de3bd7e8399ec` (2026-10-27 07:32:32 UTC).
+   7. Stale IAP fetch Failed to fetch should reload for Google login instead of looking like a dead inbox API. Commit `e7e4279a72c63f972cf04683ef34a724e098cd0f` (2026-11-04 05:40:11 UTC).
+2. Git build reference:
+   1. Coupon free-shipping and email restrictions: `bb3f6be78620fcb3453ff24c1caed2ee18f7b1d9`.
+   2. Standalone free-shipping coupons: `157650667d63a0b3b9968d3c377421ec94c23599`.
+   3. Coupon email prefill and Create enablement: `d0b31a8b15d4821ff0d875f33b778bd60cd9e6e0`.
+   4. Packing partial multi-parcel editor: `986a23d06bbf1444569c3811500f49afe3f9b6a0`.
+   5. PO qty line filters: `32d33dbac75f7cea7493c7e059e2838818082902`.
+   6. PO pre-ordered/backordered qty filters: `ea701a0c11f10373340202cf248de3bd7e8399ec`.
+   7. IAP Failed-to-fetch reload: `e7e4279a72c63f972cf04683ef34a724e098cd0f`.
+   8. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. Create stays enabled for free-shipping or a positive amount even when the restriction email is empty.
+   2. PO qty filters are display-only. Save still includes hidden zero-qty lines.
+   3. A stale IAP `Failed to fetch` is a Google login reload, not a dead inbox API.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. The print-agent signed release is still open.
+   4. Gmail history-cursor recovery was blocked and is not finished.
+   5. The chat "don't show this again" prompt remains plan only.
+   6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
