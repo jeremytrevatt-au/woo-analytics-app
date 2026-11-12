@@ -4,6 +4,7 @@ import DashboardLayout from "./components/DashboardLayout";
 import FiltersProvider from "./components/FiltersProvider";
 import { ProductIndexProvider } from "./components/ProductIndexProvider";
 import CustomersPage from "./pages/CustomersPage";
+import CustomerBansPage from "./pages/CustomerBansPage";
 import CustomerProfilePage from "./pages/CustomerProfilePage";
 import DrillDownPage from "./pages/DrillDownPage";
 import RevenuePage from "./pages/RevenuePage";
@@ -40,6 +41,7 @@ function App() {
                 <Route path="/" element={<OverviewPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
+                <Route path="/customers/bans" element={<CustomerBansPage />} />
                 <Route path="/security" element={<Navigate to="/security/registered-accounts" replace />} />
                 <Route path="/security/registered-accounts" element={<SecurityRegisteredAccountsPage />} />
                 <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
