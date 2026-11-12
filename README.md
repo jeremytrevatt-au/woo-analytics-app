@@ -1048,3 +1048,23 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    4. Gmail history-cursor recovery was blocked and is not finished.
    5. The chat "don't show this again" prompt remains plan only.
    6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
+
+## 2026-11-12 05:02 UTC — Customers Bans UI and Vitest fix (00257)
+
+1. TODOs completed since the previous main push:
+   1. Customers → Bans sub-page UI: Overview/Bans tabs, `/customers/bans` before `:customerId`, CRUD + match preview + soft deactivate via `fetchJson`. Commit `524bca3c05b0b29e51e50ec4c8b3ad6f7a5c8fb9` (2026-11-12 03:34:40 UTC).
+   2. Vitest globals fix for `CustomerBansPage.test.tsx` so production Cloud Build `npm test` passes / deploy `00257`. Commit `dfad45269602861df9391e05dd9fec14e4621093` (2026-11-12 03:50:20 UTC).
+2. Git build reference:
+   1. Customers → Bans UI: `524bca3c05b0b29e51e50ec4c8b3ad6f7a5c8fb9`.
+   2. CustomerBansPage Vitest globals fix / deploy `00257`: `dfad45269602861df9391e05dd9fec14e4621093`.
+   3. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. Route `/customers/bans` must be registered before `/customers/:customerId` or the bans page is captured as a customer id.
+   2. Production Cloud Build Vitest needs explicit globals imports in `CustomerBansPage.test.tsx`; missing them fails `npm test` even when local runs look fine.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. The print-agent signed release is still open.
+   4. Gmail history-cursor recovery was blocked and is not finished.
+   5. The chat "don't show this again" prompt remains plan only.
+   6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
