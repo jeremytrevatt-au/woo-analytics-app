@@ -34,6 +34,9 @@ vi.mock("../config/wordpress", () => ({
   wordpressStorefrontUrl: vi.fn(
     (path: string) => `https://staging.naturalyield.com.au${path}`,
   ),
+  wordpressAdminUrl: vi.fn(
+    (path: string) => `https://naturalyield.com.au/wp-admin/${path}`,
+  ),
 }));
 
 vi.mock("../api/cartsApi", () => ({
