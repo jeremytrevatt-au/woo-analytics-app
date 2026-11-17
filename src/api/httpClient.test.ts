@@ -4,6 +4,7 @@ import {
   expectedApiOutcome,
   redactAdditionalShippingDebugEvent,
   redactCouponDebugEvent,
+  redactCrmDebugEvent,
   redactJourneyDebugEvent,
   redactReturnDebugEvent,
 } from "./httpClient";
@@ -129,6 +130,59 @@ describe("coupon Cloud Logging redaction", () => {
       chat_delivery: { status: "sent" },
     });
     expect(event.requestBody).toContain("HELP10");
+  });
+});
+
+describe("CRM customer profile redaction", () => {
+  it("redacts emails, phones, and street fields from CRM debug events", () => {
+    const event: ApiDebugEvent = {
+      id: "debug-crm",
+      timestamp: "2026-11-17T00:00:00Z",
+      method: "GET",
+      url: "https://analytics.example/api/v1/crm/customer-profile?customer_id=2011",
+      requestBody: undefined,
+      responseBody: {
+        profile: {
+          customer_id: 2011,
+          customer_key: "customer:2011",
+          user_email: "user@example.test",
+          billing_email: "billing@example.test",
+          billing_phone: "0400002011",
+          shipping_phone: "0400002012",
+          billing_address_1: "10 Example St",
+          billing_city: "Melbourne",
+          billing_postcode: "3000",
+          shipping_address_1: "20 Ship Rd",
+          order_count: 3,
+          lifetime_value: 120,
+        },
+      },
+      error: "lookup failed for user@example.test / 0400002011",
+    };
+
+    const redacted = redactCrmDebugEvent(event);
+
+    expect(redacted.responseBody).toEqual({
+      profile: {
+        customer_id: 2011,
+        customer_key: "customer:2011",
+        user_email: "[redacted]",
+        billing_email: "[redacted]",
+        billing_phone: "[redacted]",
+        shipping_phone: "[redacted]",
+        billing_address_1: "[redacted]",
+        billing_city: "Melbourne",
+        billing_postcode: "3000",
+        shipping_address_1: "[redacted]",
+        order_count: 3,
+        lifetime_value: 120,
+      },
+    });
+    expect(redacted.error).not.toContain("user@example.test");
+    expect(redacted.error).not.toContain("0400002011");
+    expect((event.responseBody as { profile: { billing_address_1: string } }).profile.billing_address_1).toBe(
+      "10 Example St",
+    );
   });
 });
 

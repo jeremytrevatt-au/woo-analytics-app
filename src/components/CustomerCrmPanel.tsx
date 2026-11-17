@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Divider,
   FormControlLabel,
+  Link,
   MenuItem,
   Paper,
   Stack,
@@ -29,8 +30,10 @@ import {
   updateCrmCustomerProfileExtension,
   updateCrmNote,
 } from "../api/crmApi";
+import { wordpressAdminUrl } from "../config/wordpress";
 import { formatCurrency } from "../lib/format";
 import CustomerEmailHistorySection from "./CustomerEmailHistorySection";
+import CustomerProfileContactBlocks from "./CustomerProfileContactBlocks";
 import CouponDialog from "./CouponDialog";
 import { couponRestrictionEmail } from "../lib/couponEmail";
 
@@ -231,6 +234,9 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
   const profileData = profile?.profile;
   const profileExtension = profile?.profile_extension;
   const displayName = profileData?.customer_name || customerName || "Customer";
+  const resolvedCustomerId = Number(profileData?.customer_id ?? identity.customer_id ?? 0);
+  const wordpressUserUrl =
+    resolvedCustomerId > 0 ? wordpressAdminUrl(`user-edit.php?user_id=${resolvedCustomerId}`) : null;
 
   return (
     <Stack spacing={2}>
@@ -255,22 +261,28 @@ function CustomerCrmPanel({ customer_id, customer_key, customer_email, customer_
             <Typography variant="subtitle1" fontWeight={700}>
               {displayName}
             </Typography>
-            <CouponDialog
-              customerId={identity.customer_id}
-              restrictEmail={couponRestrictionEmail(
-                profileData?.user_email,
-                profileData?.billing_email,
-                customer_email,
-              )}
-            />
+            <Stack direction="row" spacing={1.5} alignItems="center" useFlexGap flexWrap="wrap">
+              {wordpressUserUrl ? (
+                <Link href={wordpressUserUrl} target="_blank" rel="noopener noreferrer" variant="body2">
+                  WordPress user
+                </Link>
+              ) : null}
+              <CouponDialog
+                customerId={identity.customer_id}
+                restrictEmail={couponRestrictionEmail(
+                  profileData?.user_email,
+                  profileData?.billing_email,
+                  customer_email,
+                )}
+              />
+            </Stack>
           </Stack>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             {profileData?.customer_key ? <Chip size="small" label={profileData.customer_key} /> : null}
-            {profileData?.billing_email ? <Chip size="small" label={profileData.billing_email} /> : null}
-            {profileData?.billing_phone ? <Chip size="small" label={profileData.billing_phone} /> : null}
             <Chip size="small" label={`${profileData?.order_count ?? 0} orders`} />
             <Chip size="small" label={`${formatCurrency(profileData?.lifetime_value ?? 0)} lifetime value`} />
           </Stack>
+          {profileData ? <CustomerProfileContactBlocks profile={profileData} /> : null}
           {(profileExtension?.tags?.length || profileExtension?.flags?.length) ? (
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {(profileExtension.tags ?? []).map((tag) => (

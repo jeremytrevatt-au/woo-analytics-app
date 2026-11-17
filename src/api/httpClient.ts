@@ -134,6 +134,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const timestamp = new Date().toISOString();
   const isChatRequest = path.startsWith("/api/v1/chat");
   const isEmailHistoryRequest = path.startsWith("/api/v1/crm/customer-email-history");
+  const isCrmProfileRequest = isCrmCustomerProfilePath(path);
   const isReturnRequest = path.startsWith("/api/v1/returns") || path.startsWith("/api/v1/shippit/returns");
   const isAdditionalShippingRequest = path.includes("/additional-shipping");
   const isSensitiveRequest = isChatRequest || isEmailHistoryRequest;
@@ -144,6 +145,8 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     ? redactSensitivePayload(init?.body)
     : isReturnRequest
       ? redactReturnContactPayload(init?.body)
+      : isCrmProfileRequest
+        ? redactCrmContactPayload(init?.body)
       : describeRequestBodyForDebug(init?.body);
 
   let response: Response;
@@ -185,6 +188,8 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       ? redactSensitivePayload(parsedBody)
       : isReturnRequest
         ? redactReturnContactPayload(parsedBody)
+        : isCrmProfileRequest
+          ? redactCrmContactPayload(parsedBody)
         : path.startsWith(SUPPLIER_SKU_PREVIEW_PATH)
           ? compactSupplierSkuPreviewForDebug(parsedBody)
           : parsedBody,
@@ -204,6 +209,8 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
         ? redactSensitivePayload(parsedBody)
         : isReturnRequest
           ? redactReturnContactPayload(parsedBody)
+          : isCrmProfileRequest
+            ? redactCrmContactPayload(parsedBody)
           : parsedBody,
     );
   }
@@ -347,11 +354,20 @@ function extractShippitNestedError(detail: unknown): string | null {
   return code ? `Shippit error ${code}: ${message}` : `Shippit error: ${message}`;
 }
 
+function isCrmCustomerProfilePath(path: string): boolean {
+  return (
+    path.startsWith("/api/v1/crm/customer-profile")
+    || /^\/api\/v1\/customers\/\d+\/contact(?:\?|$)/.test(path)
+  );
+}
+
 function mirrorDebugEvent(baseUrl: string, path: string, event: ApiDebugEvent): void {
   const mirroredEvent = path.startsWith("/api/v1/journeys")
     ? redactJourneyDebugEvent(event)
     : path === "/api/v1/coupons"
       ? redactCouponDebugEvent(event)
+      : isCrmCustomerProfilePath(path)
+        ? redactCrmDebugEvent(event)
     : event;
   fetch(`${baseUrl}/api/v1/diagnostics/frontend-event`, {
     method: "POST",
@@ -555,6 +571,68 @@ export function redactReturnDebugEvent(event: ApiDebugEvent): ApiDebugEvent {
     responseBody: redactReturnContactPayload(event.responseBody),
     error: typeof event.error === "string" ? redactReturnContactText(event.error) : event.error,
   };
+}
+
+export function redactCrmDebugEvent(event: ApiDebugEvent): ApiDebugEvent {
+  return {
+    ...event,
+    requestBody: redactCrmContactPayload(event.requestBody),
+    responseBody: redactCrmContactPayload(event.responseBody),
+    error: typeof event.error === "string" ? redactCrmContactText(event.error) : event.error,
+  };
+}
+
+function redactCrmContactPayload(value: unknown): unknown {
+  let parsed = value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+      return redactCrmContactText(value);
+    }
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return redactCrmContactText(value);
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.map(redactCrmContactPayload);
+  }
+  if (parsed && typeof parsed === "object") {
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).map(([key, child]) => (
+        isCrmContactKey(key) ? [key, "[redacted]"] : [key, redactCrmContactPayload(child)]
+      )),
+    );
+  }
+  return parsed;
+}
+
+function isCrmContactKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return normalized === "email"
+    || normalized === "phone"
+    || normalized === "user_email"
+    || normalized === "billing_email"
+    || normalized === "billing_phone"
+    || normalized === "shipping_phone"
+    || normalized === "billing_address_1"
+    || normalized === "billing_address_2"
+    || normalized === "shipping_address_1"
+    || normalized === "shipping_address_2"
+    || normalized === "customer_name"
+    || normalized === "address_1"
+    || normalized === "address_2"
+    || normalized.endsWith("_email")
+    || normalized.endsWith("_phone")
+    || normalized.endsWith("_address_1")
+    || normalized.endsWith("_address_2");
+}
+
+function redactCrmContactText(value: string): string {
+  return value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]")
+    .replace(/(?:\+?61|0)4\d{8}/g, "[redacted]");
 }
 
 function redactReturnContactPayload(value: unknown): unknown {
