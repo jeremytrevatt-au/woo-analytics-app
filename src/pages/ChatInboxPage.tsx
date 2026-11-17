@@ -401,6 +401,7 @@ function ChatInboxPage() {
               cartId={selected.nya_cart_id}
               visitorId={selected.nya_visitor_id}
               customerId={selected.woo_customer_id}
+              conversationId={selected.id}
               title="Authoritative WordPress cart"
               showJourney={false}
             />

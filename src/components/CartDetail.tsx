@@ -32,12 +32,14 @@ import { crmCustomerDisplayName } from "../lib/customerIdentity";
 import { AuthoritativeCart, CartSnapshot } from "../types/cart";
 import CartLineItems from "./CartLineItems";
 import CouponDialog from "./CouponDialog";
+import CreateOrderDialog from "./CreateOrderDialog";
 import VisitorJourneyPanel from "./VisitorJourneyPanel";
 
 type Props = {
   cartId?: string | null;
   visitorId?: string | null;
   customerId?: number | null;
+  conversationId?: string | null;
   title?: string;
   analysisSnapshot?: CartSnapshot | null;
   showJourney?: boolean;
@@ -47,6 +49,7 @@ export default function CartDetail({
   cartId,
   visitorId,
   customerId,
+  conversationId,
   title = "Cart details",
   analysisSnapshot,
   showJourney = true,
@@ -210,12 +213,21 @@ export default function CartDetail({
               {cart.cart_id}
             </Typography>
           </Box>
-          <CouponDialog
-            customerId={cart.customer_id}
-            cartId={cart.cart_id}
-            visitorId={cart.visitor_id}
-            restrictEmail={customerEmail}
-          />
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <CreateOrderDialog
+              cart={cart}
+              conversationId={conversationId}
+              restrictEmail={customerEmail}
+              customerName={customerName}
+            />
+            <CouponDialog
+              customerId={cart.customer_id}
+              cartId={cart.cart_id}
+              visitorId={cart.visitor_id}
+              conversationId={conversationId}
+              restrictEmail={customerEmail}
+            />
+          </Stack>
         </Stack>
         <Stack direction={{ xs: "column", sm: "row" }} gap={3} flexWrap="wrap">
           <CartValue label="Status" value={formatStatus(cart.status)} />

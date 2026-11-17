@@ -137,8 +137,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const isCrmProfileRequest = isCrmCustomerProfilePath(path);
   const isReturnRequest = path.startsWith("/api/v1/returns") || path.startsWith("/api/v1/shippit/returns");
   const isAdditionalShippingRequest = path.includes("/additional-shipping");
+  const isCartOrderRequest = /\/api\/v1\/carts\/[^/]+\/orders(?:\?|$)/.test(path);
+  const isPayLinkRedactionRequest = isAdditionalShippingRequest || isCartOrderRequest;
   const isSensitiveRequest = isChatRequest || isEmailHistoryRequest;
-  const debugUrl = isAdditionalShippingRequest
+  const debugUrl = isPayLinkRedactionRequest
     ? stripOrderKey(isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url)
     : isEmailHistoryRequest ? redactEmailHistoryUrl(url) : url;
   const debugRequestBody = isSensitiveRequest
@@ -147,6 +149,8 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       ? redactReturnContactPayload(init?.body)
       : isCrmProfileRequest
         ? redactCrmContactPayload(init?.body)
+      : isCartOrderRequest
+        ? redactAdditionalShippingPayload(init?.body)
       : describeRequestBodyForDebug(init?.body);
 
   let response: Response;
@@ -162,7 +166,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
       durationMs: Math.round(performance.now() - startedAt),
       error: error instanceof Error ? error.message : String(error)
     };
-    const recordedEvent = isAdditionalShippingRequest ? redactAdditionalShippingDebugEvent(event) : event;
+    const recordedEvent = isPayLinkRedactionRequest ? redactAdditionalShippingDebugEvent(event) : event;
     pushApiDebugEvent(recordedEvent);
     mirrorDebugEvent(baseUrl, path, recordedEvent);
     throw afterTransportFailure(error, baseUrl);
@@ -190,12 +194,14 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
         ? redactReturnContactPayload(parsedBody)
         : isCrmProfileRequest
           ? redactCrmContactPayload(parsedBody)
+        : isCartOrderRequest
+          ? redactAdditionalShippingPayload(parsedBody)
         : path.startsWith(SUPPLIER_SKU_PREVIEW_PATH)
           ? compactSupplierSkuPreviewForDebug(parsedBody)
           : parsedBody,
     outcome: expectedApiOutcome(path, response.status),
   };
-  const recordedEvent = isAdditionalShippingRequest ? redactAdditionalShippingDebugEvent(event) : event;
+  const recordedEvent = isPayLinkRedactionRequest ? redactAdditionalShippingDebugEvent(event) : event;
   pushApiDebugEvent(recordedEvent);
   mirrorDebugEvent(baseUrl, path, recordedEvent);
   clearIapDocumentReloadGuard();
