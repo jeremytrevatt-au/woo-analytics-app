@@ -1068,3 +1068,21 @@ gcloud compute url-maps invalidate-cdn-cache woo-analytics-url-map --path "/*" -
    4. Gmail history-cursor recovery was blocked and is not finished.
    5. The chat "don't show this again" prompt remains plan only.
    6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
+
+## 2026-11-17 04:13 UTC — Create Order from authoritative cart UI
+
+1. TODOs completed since the previous main push:
+   1. CRM profile Contact/Billing/Shipping display and WordPress user link. Commits `86d2305`, `76fb065`.
+   2. `CreateOrderDialog` on CartDetail (Chat Authoritative WordPress cart + Carts page): line list, create-or-apply coupon, GST-inclusive custom shipping, guest full address, converted-cart confirmation, copy pay link / admin link, auto-insert pay link into chat when opened from Inbox; ApiDebugPanel redacts payment_url. Commit `dd4ff755f40b1ab5c3ad0ac00d7effb76d13f0ae`.
+2. Git build reference:
+   1. Create Order dialog: `dd4ff755f40b1ab5c3ad0ac00d7effb76d13f0ae`.
+   2. This section commit is the push that records them.
+3. New understandings/learnings:
+   1. Chat pay-link delivery is operator-visible insertion into the existing conversation (same pattern as coupon delivery), not a customer email.
+4. Understood next steps (remaining TODOs):
+   1. Decide how PO-20260516-2 should show a folder once its PDF can be placed there.
+   2. WPRuby site-count and Labels Pro entitlement for staging is with WPRuby support.
+   3. The print-agent signed release is still open.
+   4. Gmail history-cursor recovery was blocked and is not finished.
+   5. The chat "don't show this again" prompt remains plan only.
+   6. Confirm the Additional Shipping Email Google Doc placeholders match the seven mapped tokens before the first real send.
